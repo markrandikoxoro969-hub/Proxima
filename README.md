@@ -4,7 +4,7 @@ A premium, full-stack AI assistant website: cinematic landing page + chat app.
 Built with **Next.js 16 (App Router) · TypeScript · Tailwind CSS v4**, with Postgres (Neon) + Prisma,
 Google login (Auth.js), Framer Motion, and server-side streaming from the PROXIMA Core API.
 
-> 🚧 **Status: Phase 4 of 6 complete (the `/app` chat screen).** See [Build progress](#build-progress).
+> 🚧 **Status: Phase 5 of 6 complete (landing page + motion).** See [Build progress](#build-progress).
 
 ---
 
@@ -137,7 +137,8 @@ Proxima/
 │  │  ├─ globals.css       ← design system: colours, glass, easing, reduced motion
 │  │  ├─ icon.svg          ← favicon
 │  │  ├─ layout.tsx        ← wraps every page: fonts, theme, metadata, viewport
-│  │  └─ page.tsx          ← home page (Phase 1 placeholder)
+│  │  ├─ page.tsx          ← landing page (static HTML; puts the sections below in order)
+│  │  └─ template.tsx      ← soft blur fade when moving between pages (not on first load)
 │  ├─ config/
 │  │  └─ identity.ts       ← Proxima's identity answers (developer, age, gender) — edit freely
 │  ├─ components/
@@ -155,6 +156,18 @@ Proxima/
 │  │  │  ├─ settings-dialog.tsx ← name, age, theme, particles, clear logs, sign out
 │  │  │  ├─ onboarding.tsx      ← typing logo → name → age → loading
 │  │  │  └─ particles.tsx       ← background stars (fewer on phones, pauses when hidden)
+│  │  ├─ landing/          ← ⭐ the landing page:
+│  │  │  ├─ site-header.tsx     ← floating glass bar + section links
+│  │  │  ├─ hero.tsx            ← blur → sharp headline, stars, orbit rings
+│  │  │  ├─ skills.tsx          ← the six skills grid
+│  │  │  ├─ how-it-works.tsx    ← 3 steps
+│  │  │  ├─ slides.tsx          ← full-screen slides (swipe, arrow keys, dots)
+│  │  │  ├─ live-demo.tsx       ← real chat without login (not saved, 5 msgs/min)
+│  │  │  ├─ faq.tsx             ← questions (works without JavaScript) + Google FAQ data
+│  │  │  ├─ site-footer.tsx     ← final call-to-action + links
+│  │  │  ├─ landing-effects.tsx ← ONE script for all motion: reveals, parallax, smooth
+│  │  │  │                        scroll (Lenis), magnetic buttons, glow, custom cursor
+│  │  │  └─ magnetic.tsx        ← magnetic button wrapper + section headings
 │  │  ├─ motion/           ← Framer Motion setup (small bundle, honours reduced motion)
 │  │  ├─ theme/            ← dark/light theme provider + toggle button
 │  │  └─ ui/               ← buttons (44px touch targets), spinner, toasts, dialogs
@@ -193,6 +206,28 @@ Proxima/
 - Interactive elements get the `tap` class (≥ 44×44px).
 - Animations are disabled automatically when the device asks for reduced motion.
 
+### Landing page motion — how it works
+
+The landing page is plain, fast HTML. Sections just carry **labels**, and one small script
+(`landing-effects.tsx`) brings them to life:
+
+| Label in the HTML      | What happens                                                                | Phones?    |
+| ---------------------- | --------------------------------------------------------------------------- | ---------- |
+| `data-reveal`          | blurs/fades in when scrolled into view (`style={{"--d": "120ms"}}` = delay) | ✅         |
+| `data-parallax="0.15"` | drifts slightly while scrolling                                             | ❌ desktop |
+| `data-magnetic`        | button follows the mouse a little                                           | ❌ desktop |
+| `class="spotlight"`    | card glow follows the mouse                                                 | ❌ desktop |
+| `class="vblur"`        | tiny blur (max 3px) only while scrolling **fast**                           | ❌ desktop |
+
+- Smooth scrolling (Lenis) and the custom cursor are **desktop only** and are downloaded only
+  on desktop — phones keep their natural scrolling.
+- With "reduce motion" switched on (phone/computer accessibility setting) everything simply
+  appears, with no movement.
+- Content is only hidden for the reveal when JavaScript runs (`html.js`), so nothing is ever
+  stuck invisible.
+- The hero headline animates with pure CSS, so it paints immediately (measured LCP ≈ 0.9 s
+  on a simulated slow phone, layout shift 0).
+
 ## Security notes
 
 - Secrets live **only** in `.env.local` (local) and Vercel environment variables (production).
@@ -218,5 +253,7 @@ Proxima/
       cold-start "waking up" status, Postgres rate limits), sessions, export, profile, status, API tests
 - [x] **Phase 4 — `/app` chat:** onboarding, sidebar, streaming markdown + code copy, settings, voice,
       files, export, toasts, virtual scrolling, retry, keyboard shortcuts
-- [ ] **Phase 5 — Landing + motion:** hero, skills, how it works, slides, live demo, FAQ, Lenis, cursor
+- [x] **Phase 5 — Landing + motion:** cinematic hero, skills, how it works, swipeable slides
+      (touch + keyboard), live demo (guest, not saved), FAQ, footer; reveals, parallax, Lenis, magnetic
+      buttons, glow, custom cursor, velocity blur, page transitions — all reduced-motion aware
 - [ ] **Phase 6 — Polish + ship:** settings/legal/404 pages, SEO/OG/sitemap/PWA, a11y + performance, Vercel deploy

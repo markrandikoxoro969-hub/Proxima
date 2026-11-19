@@ -28,8 +28,10 @@ export function resolveTheme(pref: ThemePreference, systemPrefersDark: boolean):
 /**
  * Runs in <head> BEFORE the page paints, so the correct theme shows on the
  * very first frame (no white flash). Keep it tiny and dependency-free.
+ * It also adds class "js" to <html>, which lets CSS hide scroll-reveal
+ * content only when JavaScript is running (so nothing is lost without it).
  */
-export const themeInitScript = `(function(){try{var k=${JSON.stringify(
+export const themeInitScript = `(function(){document.documentElement.classList.add("js");try{var k=${JSON.stringify(
   THEME_STORAGE_KEY,
 )},p=localStorage.getItem(k);if(p!=="dark"&&p!=="light"&&p!=="system")p=${JSON.stringify(
   DEFAULT_THEME,

@@ -479,6 +479,236 @@ html.dark {
   font-style: italic;
 }
 
+/* ---------- Landing page (Phase 5) ---------- */
+
+:root {
+  --reveal-blur: 8px; /* phones: stay well under 12px */
+  --reveal-blur-sm: 6px;
+  --spot: rgb(15 23 42 / 0.07);
+}
+html.dark {
+  --spot: rgb(255 255 255 / 0.09);
+}
+@media (min-width: 768px) {
+  :root {
+    --reveal-blur: 14px;
+    --reveal-blur-sm: 10px;
+  }
+}
+
+/* In-page links (#demo) glide; Lenis takes over on desktop. Fixed header offset. */
+html {
+  scroll-padding-top: 6rem;
+}
+html:not(.lenis) {
+  scroll-behavior: smooth;
+}
+/* Lenis essentials (from lenis/dist/lenis.css) */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-stopped {
+  overflow: clip;
+}
+.lenis [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+/* Page enter: blur → sharp. `backwards` leaves NO filter behind afterwards
+   (a leftover filter would break position:fixed children like menus). */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+  }
+}
+.page-in {
+  animation: page-in 0.6s var(--ease-premium) backwards;
+}
+
+/* Hero headline: each word goes blur → sharp (pure CSS, so it paints instantly = fast LCP). */
+.reveal-word {
+  display: inline-block;
+  animation: word-in 1.2s var(--ease-premium) backwards;
+  animation-delay: calc(var(--i, 0) * 90ms + 80ms);
+}
+@keyframes word-in {
+  from {
+    opacity: 0.01;
+    filter: blur(var(--reveal-blur));
+    transform: translateY(0.22em);
+  }
+}
+
+/* Scroll reveals. Hidden ONLY when JavaScript runs (<html class="js">), so the
+   content is never lost if scripts fail. */
+.js [data-reveal] {
+  transition:
+    opacity 0.9s var(--ease-premium),
+    filter 0.9s var(--ease-premium),
+    transform 0.9s var(--ease-premium);
+  transition-delay: var(--d, 0ms);
+}
+.js [data-reveal]:not([data-revealed]) {
+  opacity: 0;
+  filter: blur(var(--reveal-blur-sm));
+  transform: translateY(24px);
+}
+
+/* Gentle blur while scrolling fast (desktop; value set by landing-effects). */
+.vblur {
+  filter: blur(var(--vblur, 0px));
+}
+
+/* Magnetic buttons: the wrapper stays put, the inner element follows the mouse. */
+[data-magnetic] {
+  display: inline-flex;
+}
+[data-magnetic] > * {
+  transition: transform 0.7s var(--ease-premium);
+}
+[data-magnetic][data-active] > * {
+  transition-duration: 0.18s;
+}
+
+/* Hover glow that follows the mouse inside cards (desktop only). */
+.spotlight {
+  position: relative;
+  isolation: isolate;
+}
+.spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 0%), var(--spot), transparent 65%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s var(--ease-premium);
+}
+@media (hover: hover) and (pointer: fine) {
+  .spotlight:hover::before {
+    opacity: 1;
+  }
+}
+
+/* Custom cursor (desktop, only after the mouse moves; text fields keep the I-beam). */
+html.has-cursor,
+html.has-cursor * {
+  cursor: none !important;
+}
+html.has-cursor :is(input, textarea, [contenteditable="true"]) {
+  cursor: text !important;
+}
+.cursor-dot,
+.cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 300;
+  pointer-events: none;
+  border-radius: 9999px;
+  opacity: 0;
+}
+.cursor-dot {
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  background: var(--fg);
+  transition:
+    opacity 0.2s var(--ease-premium),
+    scale 0.3s var(--ease-premium);
+}
+.cursor-ring {
+  width: 38px;
+  height: 38px;
+  margin: -19px 0 0 -19px;
+  border: 1px solid var(--fg);
+  transition:
+    opacity 0.3s var(--ease-premium),
+    scale 0.45s var(--ease-premium);
+}
+.cursor-dot[data-visible] {
+  opacity: 1;
+}
+.cursor-ring[data-visible] {
+  opacity: 0.3;
+}
+.cursor-ring[data-visible][data-hover] {
+  opacity: 0.55;
+  scale: 1.55;
+}
+.cursor-dot[data-hover] {
+  scale: 0;
+}
+.cursor-ring[data-down] {
+  scale: 0.85;
+}
+.cursor-ring[data-text],
+.cursor-dot[data-text] {
+  opacity: 0 !important;
+}
+
+/* Voice waveform bars + scroll hint */
+.wave-bar {
+  transform-origin: center;
+  animation: wave 1.1s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -0.12s);
+}
+@keyframes wave {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.scroll-hint {
+  animation: scroll-hint 2.2s var(--ease-premium) infinite;
+}
+@keyframes scroll-hint {
+  0% {
+    transform: scaleY(0);
+    transform-origin: top;
+  }
+  45% {
+    transform: scaleY(1);
+    transform-origin: top;
+  }
+  55% {
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+  100% {
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+}
+/* Animations inside hidden slides take a break. */
+[inert] * {
+  animation-play-state: paused !important;
+}
+
+/* FAQ accordion (<details>): no JS needed. */
+.faq summary {
+  list-style: none;
+}
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+.faq-icon {
+  transition: transform 0.5s var(--ease-premium);
+}
+.faq[open] .faq-icon {
+  transform: rotate(45deg);
+}
+.faq[open] .faq-body {
+  animation: blur-in 0.6s var(--ease-premium) both;
+}
+
 /* ---------- Reduced motion: honour the OS setting everywhere ---------- */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -488,6 +718,11 @@ html.dark {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  .js [data-reveal]:not([data-revealed]) {
+    opacity: 1;
+    filter: none;
+    transform: none;
   }
 }
 

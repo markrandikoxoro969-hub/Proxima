@@ -36,6 +36,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       // The theme script below changes the class before React loads.
       suppressHydrationWarning
+      // Lets Next.js pause smooth scrolling during page changes.
+      data-scroll-behavior="smooth"
       className={`dark ${montserrat.variable} ${jetbrainsMono.variable}`}
     >
       <head>
