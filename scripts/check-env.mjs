@@ -6,6 +6,7 @@
  *   1. Are all the required values there and in the right format?
  *   2. Can we reach your Neon database?
  *   3. Have the database tables been created (migrations)?
+ *   4. Is the AI engine reachable? (Phase 3)
  */
 import { config } from "dotenv";
 
@@ -28,7 +29,7 @@ console.log("\nPROXIMA setup check\n");
 console.log("1) Settings in .env.local");
 
 if (!env.DATABASE_URL)
-  bad("DATABASE_URL is missing", "Neon → Connect → pooling ON → copy (docs/ACCOUNTS.md A5)");
+  bad("DATABASE_URL is missing", "Neon → Connect → pooling ON → copy (docs/ACCOUNTS.md section A, step 5)");
 else if (!pg.test(env.DATABASE_URL)) bad("DATABASE_URL should start with postgresql://");
 else if (!env.DATABASE_URL.includes("-pooler"))
   bad(
@@ -38,7 +39,7 @@ else if (!env.DATABASE_URL.includes("-pooler"))
 else ok("DATABASE_URL (pooled)");
 
 if (!env.DIRECT_URL)
-  bad("DIRECT_URL is missing", "Neon → Connect → pooling OFF → copy (docs/ACCOUNTS.md A6)");
+  bad("DIRECT_URL is missing", "Neon → Connect → pooling OFF → copy (docs/ACCOUNTS.md section A, step 6)");
 else if (!pg.test(env.DIRECT_URL)) bad("DIRECT_URL should start with postgresql://");
 else if (env.DIRECT_URL.includes("-pooler"))
   bad("DIRECT_URL must NOT contain -pooler", "In Neon's Connect popup turn Connection pooling OFF");
@@ -83,6 +84,39 @@ if (env.DATABASE_URL && pg.test(env.DATABASE_URL)) {
   }
 } else {
   info("Skipped (fix DATABASE_URL first)");
+}
+
+console.log("\n4) AI engine");
+const provider = env.AI_PROVIDER || "sujan-core";
+if (provider === "mock") {
+  info("AI_PROVIDER=mock — using the fake offline AI (fine for development)");
+} else if (provider !== "sujan-core") {
+  bad(
+    `AI_PROVIDER "${provider}" is unknown`,
+    'Use "sujan-core" (real) or "mock" (offline), or leave it empty',
+  );
+} else {
+  const url = env.AI_API_URL || "https://sujancoreapi.onrender.com/chat";
+  try {
+    new URL(url);
+    info(`Calling ${url} (a sleeping Render server can take up to 60 s)…`);
+    const started = Date.now();
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "ping", session_id: "proxima-setup-check" }),
+      signal: AbortSignal.timeout(75_000),
+    });
+    const body = await res.json().catch(() => null);
+    if (res.ok && body && typeof body.reply === "string")
+      ok(`AI engine answered (${Date.now() - started} ms)`);
+    else bad(`AI engine answered with HTTP ${res.status} but not the expected { reply }`, "Check AI_API_URL");
+  } catch (error) {
+    bad(
+      `AI engine not reachable: ${error.name === "TimeoutError" ? "timed out" : error.message}`,
+      "Check AI_API_URL, or set AI_PROVIDER=mock to develop offline",
+    );
+  }
 }
 
 console.log("");

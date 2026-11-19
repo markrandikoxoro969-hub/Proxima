@@ -4,7 +4,7 @@ A premium, full-stack AI assistant website: cinematic landing page + chat app.
 Built with **Next.js 16 (App Router) · TypeScript · Tailwind CSS v4**, with Postgres (Neon) + Prisma,
 Google login (Auth.js), Framer Motion, and server-side streaming from the PROXIMA Core API.
 
-> 🚧 **Status: Phase 2 of 6 complete (database + Google login).** See [Build progress](#build-progress).
+> 🚧 **Status: Phase 3 of 6 complete (backend API: AI chat, sessions, export).** See [Build progress](#build-progress).
 
 ---
 
@@ -51,6 +51,15 @@ npm run db:deploy   # creates the tables in Neon (once)
 
 More database help: **[docs/DATABASE.md](docs/DATABASE.md)**.
 
+**AI engine:** nothing to set up. The app calls the PROXIMA Core API from the server by default.
+Want to work offline, or skip waiting for Render to wake up? Add this line to `.env.local`:
+
+```env
+AI_PROVIDER="mock"
+```
+
+All the API endpoints are explained in **[docs/API.md](docs/API.md)**.
+
 ## 4. Run it
 
 ```bash
@@ -95,6 +104,7 @@ test login on your phone after deploying to Vercel in Phase 6.
 Proxima/
 ├─ docs/
 │  ├─ ACCOUNTS.md          ← click-by-click: Neon, Google login, Vercel, Resend
+│  ├─ API.md               ← every API endpoint, the chat stream format, how to switch AI
 │  └─ DATABASE.md          ← database setup, commands, troubleshooting
 ├─ prisma/
 │  ├─ schema.prisma        ← database tables (User, Conversation, Message, …)
@@ -108,7 +118,13 @@ Proxima/
 │  ├─ proxy.ts             ← runs before /app, /settings, /login: redirects guests to /login
 │  ├─ instrumentation.ts   ← checks .env at server start
 │  ├─ app/                 ← pages (each folder = a URL)
-│  │  ├─ api/auth/         ← Auth.js endpoints (Google callback etc.)
+│  │  ├─ api/
+│  │  │  ├─ auth/          ← Auth.js endpoints (Google callback etc.)
+│  │  │  ├─ chat/          ← POST /api/chat: validate → rate-limit → save → AI → stream (SSE)
+│  │  │  ├─ sessions/      ← list/create/rename/delete chats, + [id]/export
+│  │  │  ├─ export/        ← download all your chats
+│  │  │  ├─ me/            ← your profile (name, age, theme, particles)
+│  │  │  └─ status/        ← real "engine online" + latency (also wakes Render)
 │  │  ├─ app/              ← /app (Phase 2: "you're signed in" page; chat in Phase 4)
 │  │  ├─ login/            ← /login page, Google button, email form (hidden until enabled)
 │  │  ├─ fonts/            ← self-hosted Montserrat + JetBrains Mono (OFL licence)
@@ -117,13 +133,21 @@ Proxima/
 │  │  ├─ icon.svg          ← favicon
 │  │  ├─ layout.tsx        ← wraps every page: fonts, theme, metadata, viewport
 │  │  └─ page.tsx          ← home page (Phase 1 placeholder)
+│  ├─ config/
+│  │  └─ identity.ts       ← Proxima's identity answers (developer, age, gender) — edit freely
 │  ├─ components/
 │  │  ├─ brand/logo.tsx    ← PROXIMA planet + wordmark
 │  │  ├─ theme/            ← dark/light theme provider + toggle button
 │  │  └─ ui/               ← buttons (44px touch targets), spinner
 │  ├─ generated/prisma/    ← auto-generated database client (not in git)
 │  ├─ lib/
+│  │  ├─ ai/               ← ⭐ swappable AI provider (providers/sujan-core.ts, providers/mock.ts)
+│  │  ├─ api/              ← API helpers: errors, same-origin check, SSE stream
 │  │  ├─ auth/             ← safe redirects + "who is signed in" helpers
+│  │  ├─ chat/             ← attachments → prompt, titles, export (JSON/Markdown)
+│  │  ├─ identity.ts       ← detects identity questions, cleans leaks in AI replies
+│  │  ├─ rate-limit.ts     ← limits stored in Postgres (20/min signed in, 5/min demo)
+│  │  ├─ validation.ts     ← all input rules (zod): 4000 chars, 100 KB files, …
 │  │  ├─ db.ts             ← the database connection (Neon)
 │  │  ├─ env.ts            ← checks environment variables with zod
 │  │  ├─ cn.ts             ← merges Tailwind class names
@@ -155,6 +179,11 @@ Proxima/
 - Security headers (CSP, nosniff, referrer policy, permissions policy, frame blocking, HSTS on
   Vercel) are set in `next.config.ts`.
 - Zoom is allowed (the original file blocked it — an accessibility failure).
+- The AI API is called **only from the server**. The browser talks to `/api/chat` and never sees the
+  AI address. The API refuses POST/PATCH/DELETE requests coming from other websites (CSRF/CORS protection).
+- Every API input is checked with zod. Users can only see or change their **own** chats (anyone
+  else's chat answers "not found"). Rate limits are stored in Postgres, and guests are identified by a
+  hashed IP (raw IPs are never stored).
 - Login uses encrypted cookies (JWT). Protected pages are checked twice: in `src/proxy.ts`
   and again on the server page itself. After-login redirects only go to pages on this site.
 
@@ -164,7 +193,8 @@ Proxima/
       no-flash dark/light theme, security headers, ESLint, Prettier, Vitest, bundle-size check
 - [x] **Phase 2 — Database + login:** Prisma 7 + Neon, Auth.js Google login (email magic-link ready
       but off), `/login`, protected `/app` + `/settings`, setup doctor, DB integration tests
-- [ ] **Phase 3 — Backend API:** AI provider, identity config, `/api/chat` (SSE + rate limits), sessions, export, tests
+- [x] **Phase 3 — Backend API:** swappable AI provider, identity config, `/api/chat` (SSE streaming,
+      cold-start "waking up" status, Postgres rate limits), sessions, export, profile, status, API tests
 - [ ] **Phase 4 — `/app` chat:** onboarding, sidebar, streaming markdown, settings, voice, files, export, toasts
 - [ ] **Phase 5 — Landing + motion:** hero, skills, how it works, slides, live demo, FAQ, Lenis, cursor
 - [ ] **Phase 6 — Polish + ship:** settings/legal/404 pages, SEO/OG/sitemap/PWA, a11y + performance, Vercel deploy
