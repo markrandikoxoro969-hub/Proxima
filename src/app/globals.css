@@ -1,0 +1,234 @@
+@import "tailwindcss";
+
+/*
+ * PROXIMA design system
+ * ---------------------
+ * One place for colours, fonts, easing and glass surfaces.
+ * Rules we follow everywhere (performance):
+ *   - Never `transition: all`. List the exact properties.
+ *   - Animate only transform, opacity and filter.
+ *   - backdrop-filter only on a few surfaces (.glass), never animated.
+ */
+
+/* `dark:` utilities apply when <html class="dark"> */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------- Theme colours (light = default, dark overrides) ---------- */
+:root {
+  --bg: #f8fafc;
+  --fg: #0f172a;
+  --muted: #475569; /* 7.2:1 on --bg  (body copy) */
+  --subtle: #64748b; /* 4.6:1 on --bg  (small labels, AA) */
+  --line: rgb(15 23 42 / 0.09);
+  --line-strong: rgb(15 23 42 / 0.18);
+  --surface: rgb(255 255 255 / 0.7);
+  --surface-solid: #ffffff;
+  --surface-hover: rgb(15 23 42 / 0.05);
+  --glow: rgb(15 23 42 / 0.08);
+  --inverse-bg: #0f172a;
+  --inverse-fg: #ffffff;
+  --scrollbar: rgb(0 0 0 / 0.15);
+  color-scheme: light;
+}
+
+html.dark {
+  --bg: #050505;
+  --fg: #f8fafc;
+  --muted: rgb(248 250 252 / 0.68); /* ~9:1 on --bg */
+  --subtle: rgb(248 250 252 / 0.5); /* ~5:1 on --bg (AA) */
+  --line: rgb(255 255 255 / 0.07);
+  --line-strong: rgb(255 255 255 / 0.16);
+  --surface: rgb(12 12 12 / 0.62);
+  --surface-solid: #0b0b0c;
+  --surface-hover: rgb(255 255 255 / 0.06);
+  --glow: rgb(255 255 255 / 0.1);
+  --inverse-bg: #ffffff;
+  --inverse-fg: #050505;
+  --scrollbar: rgb(255 255 255 / 0.15);
+  color-scheme: dark;
+}
+
+/* ---------- Tailwind tokens (become classes like bg-bg, text-muted) ---------- */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-surface: var(--surface);
+  --color-surface-solid: var(--surface-solid);
+  --color-surface-hover: var(--surface-hover);
+  --color-inverse: var(--inverse-bg);
+  --color-on-inverse: var(--inverse-fg);
+
+  --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, monospace;
+}
+
+@theme {
+  /* The signature PROXIMA easing curve: fast start, soft landing. */
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --shadow-glow: 0 0 25px var(--glow);
+  --shadow-glow-strong: 0 0 50px rgb(255 255 255 / 0.15);
+  --shadow-panel: 0 4px 30px rgb(0 0 0 / 0.08);
+
+  --animate-blur-in: blur-in 0.9s var(--ease-premium) both;
+  --animate-fade-up: fade-up 0.6s var(--ease-premium) both;
+  --animate-scale-in: scale-in 0.5s var(--ease-premium) both;
+
+  @keyframes blur-in {
+    from {
+      opacity: 0;
+      filter: blur(10px);
+      transform: translateY(8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+      transform: none;
+    }
+  }
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* ---------- Base ---------- */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-weight: 500;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Only colours fade on theme change — cheap, no layout work. */
+    transition:
+      background-color 0.5s var(--ease-premium),
+      color 0.5s var(--ease-premium);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::selection {
+    background: var(--fg);
+    color: var(--bg);
+  }
+
+  /* Visible, consistent keyboard focus everywhere (mouse clicks stay clean). */
+  :focus-visible {
+    outline: 2px solid var(--fg);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+/* ---------- Reusable surfaces & helpers ---------- */
+
+/* Frosted glass. EXPENSIVE: use on at most a few large surfaces at once. */
+@utility glass {
+  background-color: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+/* Same look without the blur. Use for lists, cards and anything repeated. */
+@utility glass-solid {
+  background-color: var(--surface-solid);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-panel);
+}
+
+@utility text-glow {
+  text-shadow: 0 0 20px rgb(0 0 0 / 0.1);
+  :where(.dark) & {
+    text-shadow: 0 0 30px rgb(255 255 255 / 0.4);
+  }
+}
+
+@utility text-glow-strong {
+  text-shadow: 0 0 30px rgb(0 0 0 / 0.15);
+  :where(.dark) & {
+    text-shadow:
+      0 0 40px rgb(255 255 255 / 0.55),
+      0 0 10px rgb(255 255 255 / 0.25);
+  }
+}
+
+/* Minimum 44×44px touch target (Apple/Google guideline). */
+@utility tap {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Safe-area padding for notches / home indicators. */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* ---------- Reduced motion: honour the OS setting everywhere ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Large screens / TV: slightly bigger base text. (Replaces the broken
+   `.max-w-4xl { max-w-5xl }` rule from the original file.) */
+@media (min-width: 1920px) {
+  html {
+    font-size: 17px;
+  }
+}
