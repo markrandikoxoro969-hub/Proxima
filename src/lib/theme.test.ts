@@ -33,6 +33,11 @@ describe("theme init script (runs before paint)", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 
+  it('marks the page as "js" so scroll-reveal CSS only hides things when scripts run', () => {
+    new Function(themeInitScript)();
+    expect(document.documentElement.classList.contains("js")).toBe(true);
+  });
+
   it("ignores garbage values safely", () => {
     localStorage.setItem(THEME_STORAGE_KEY, "<script>");
     new Function(themeInitScript)();

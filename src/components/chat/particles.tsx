@@ -14,7 +14,12 @@ import { useEffect, useRef } from "react";
  */
 type Dot = { x: number; y: number; vx: number; vy: number; r: number; a: number };
 
-export default function Particles() {
+export default function Particles({
+  className = "pointer-events-none fixed inset-0 -z-10 size-full",
+}: {
+  /** Where the canvas sits. Default: fixed behind the whole screen. */
+  className?: string;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -121,5 +126,5 @@ export default function Particles() {
     };
   }, []);
 
-  return <canvas ref={canvasRef} aria-hidden className="pointer-events-none fixed inset-0 -z-10 size-full" />;
+  return <canvas ref={canvasRef} aria-hidden className={className} />;
 }
