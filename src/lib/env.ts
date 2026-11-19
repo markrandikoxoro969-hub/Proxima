@@ -21,6 +21,11 @@ const serverSchema = z.object({
   // Optional: email magic-link login. Leave empty to keep it switched off.
   AUTH_RESEND_KEY: z.string().optional(),
   AUTH_EMAIL_FROM: z.string().optional(),
+  // Phase 3: AI engine (all optional — sensible defaults).
+  AI_PROVIDER: z.enum(["sujan-core", "mock"]).optional(),
+  AI_API_URL: z.url("must be a full URL like https://sujancoreapi.onrender.com/chat").optional(),
+  AI_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(300_000).optional(),
+  ALLOWED_ORIGINS: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;
