@@ -39,7 +39,8 @@ Every error has the same shape, so the app can show a friendly toast:
   "message": "Write a clean Python script", // required, 1–4000 characters
   "conversationId": "cm3…", // optional: continue this chat (signed in)
   "attachments": [{ "name": "app.py", "content": "print('hi')" }], // optional, ≤3 text files, ≤100 KB each
-  "demoSessionId": "uuid" // optional: guest demo memory
+  "demoSessionId": "uuid", // optional: guest demo memory
+  "retry": true // optional: "Try again" after a failed reply (see below)
 }
 ```
 
@@ -71,6 +72,9 @@ event: error    data: {"code":"timeout","message":"The PROXIMA engine took too l
 - Identity questions (for example "Who made you?" or "How old are you?") are answered from `src/config/identity.ts` without calling the AI. `done.source` is then `"identity"`.
 - File contents go to the AI inside code blocks. Only each file's **name, size and language** are stored.
 - If you close the tab mid-reply, whatever text has already arrived is still saved.
+- **`retry: true`** is what the **Try again** button sends. If the last saved message in that chat is
+  your same question, the server reuses it instead of saving it twice (`meta.userMessageId` is the old
+  message). If the text is different, it's saved as a normal new message.
 
 ## Sessions (the sidebar)
 

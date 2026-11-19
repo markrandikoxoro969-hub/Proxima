@@ -2,14 +2,27 @@
 
 import { Moon, Sun } from "@phosphor-icons/react";
 import { cn } from "@/lib/cn";
+import type { ThemePreference } from "@/lib/theme";
 import { useTheme } from "./theme-provider";
 
 /**
  * Sun/moon button. Both icons are rendered and CSS shows the right one,
  * so the server HTML always matches the browser (no hydration flicker).
  */
-export function ThemeToggle({ className }: { className?: string }) {
-  const { toggle } = useTheme();
+export function ThemeToggle({
+  className,
+  onToggled,
+}: {
+  className?: string;
+  /** Called with the new theme (e.g. to save it to your profile). */
+  onToggled?: (theme: ThemePreference) => void;
+}) {
+  const { setPreference } = useTheme();
+  const toggle = () => {
+    const next = document.documentElement.classList.contains("dark") ? "light" : "dark";
+    setPreference(next);
+    onToggled?.(next);
+  };
   return (
     <button
       type="button"
