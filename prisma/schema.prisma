@@ -1,0 +1,145 @@
+// ─────────────────────────────────────────────────────────────
+// PROXIMA database schema (Prisma 7 + Postgres on Neon)
+//
+// After changing this file, run:   npm run db:migrate -- --name what_changed
+// That updates your database AND regenerates the TypeScript client.
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// The connection URL lives in prisma.config.ts (Prisma 7 style).
+datasource db {
+  provider = "postgresql"
+}
+
+enum ThemePreference {
+  dark
+  light
+  system
+}
+
+enum MessageRole {
+  user
+  assistant
+}
+
+// ───────────── People ─────────────
+
+/// One row per person who signed in (Google today, email later).
+model User {
+  id            String    @id @default(cuid())
+  /// Name from Google (we don't overwrite it; see displayName).
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  /// Google profile picture URL.
+  image         String?
+
+  // PROXIMA profile (filled during onboarding: "What should we call you?")
+  displayName String?         @db.VarChar(40)
+  age         Int?            @db.SmallInt
+  onboardedAt DateTime?
+  theme       ThemePreference @default(dark)
+  particles   Boolean         @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  conversations Conversation[]
+}
+
+// ───────────── Chat ─────────────
+
+/// A chat "session" in the sidebar. (Named Conversation so it isn't confused
+/// with the login Session table that Auth.js needs.)
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String   @default("New Chat Session") @db.VarChar(120)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  // Sidebar query: "my chats, newest first" stays fast with many rows.
+  @@index([userId, updatedAt(sort: Desc)])
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String
+  /// Attached file info, e.g. [{ "name": "app.py", "size": 1200 }]
+  attachments    Json?
+  /// How long the AI took to answer (ms). Only on assistant messages.
+  latencyMs      Int?
+  createdAt      DateTime    @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+// ───────────── Rate limiting (Phase 3) ─────────────
+
+/// Counts requests per key per time window, e.g. key "chat:user:abc".
+/// Old rows are cleaned up automatically by the API.
+model RateLimit {
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@index([windowStart])
+}
+
+// ───────────── Auth.js tables (do not rename) ─────────────
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+/// Only used if you switch Auth.js to database sessions. We use secure
+/// encrypted cookies (JWT) by default, which is faster (no DB read per page).
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Used by the email magic-link login (ready, switched off until you add Resend).
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}

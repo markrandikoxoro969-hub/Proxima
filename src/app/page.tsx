@@ -39,13 +39,18 @@ export default function Home() {
           <Planet weight="fill" className="size-7" aria-hidden />
           <span className="text-lg font-extrabold tracking-[0.2em]">{site.name}</span>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-1">
+          <ButtonLink href="/login" variant="ghost">
+            Sign in
+          </ButtonLink>
+          <ThemeToggle />
+        </div>
       </header>
 
       <main id="main" className="relative z-10 mx-auto max-w-6xl px-5 sm:px-8">
         <section className="flex flex-col items-center py-20 text-center sm:py-28">
           <p className="animate-fade-up font-mono text-[11px] font-bold tracking-[0.3em] text-subtle uppercase">
-            {site.version} · Phase 1 foundation
+            {site.version} · Phase 2 · database + login
           </p>
           <h1 className="mt-5 animate-blur-in text-6xl font-black tracking-tighter text-glow-strong sm:text-8xl lg:text-9xl">
             {site.name}
@@ -63,9 +68,9 @@ export default function Home() {
             <ButtonLink href="#design" size="lg">
               View design system <ArrowRight weight="bold" aria-hidden />
             </ButtonLink>
-            <Button variant="secondary" size="lg" disabled>
-              Open app (Phase 4)
-            </Button>
+            <ButtonLink href="/app" variant="secondary" size="lg">
+              Open app
+            </ButtonLink>
           </div>
         </section>
 

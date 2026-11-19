@@ -1,7 +1,9 @@
 # Accounts & keys — click-by-click
 
-You need **3 free accounts** in total. Phase 1 needs none of them.
-Do sections A and B any time before Phase 2. Section C (Vercel) comes in Phase 6.
+You need **3 free accounts**: Neon (A), Google Cloud (B), Vercel (C, in Phase 6).
+Section D (email login via Resend) is optional — skip it for now.
+
+When A + B are done, run `npm run env:check` — it checks every value and tells you what to fix.
 
 Everything you copy goes into **one file on your computer: `.env.local`** in the project folder.
 That file is secret: it's listed in `.gitignore`, so it never gets uploaded to GitHub.
@@ -105,12 +107,55 @@ AUTH_SECRET="the-random-string-you-just-generated"
 
 Use a **different** `AUTH_SECRET` on Vercel (generate a new one) — never reuse dev secrets in production.
 
+### Test the login
+
+```bash
+npm run env:check   # everything ✓ ?
+npm run db:deploy   # creates the tables (once)
+npm run dev
+```
+
+Open **http://localhost:3000/login** → **Continue with Google** → pick your (test-user) Gmail →
+you land on `/app` and see your name and photo. 🎉
+
+> **Phone note:** Google only allows login redirects to `localhost` or a real `https://` website,
+> **not** to your Wi-Fi address (`http://192.168.x.x`). So on your phone you can test every page
+> except Google login until Phase 6, when the site is on Vercel (`https://…vercel.app`).
+
+### Common Google errors
+
+| What you see                                                        | Fix                                                                                                                                                            |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Google page: **Error 400: redirect_uri_mismatch**                   | The redirect URI in Google Cloud must be exactly `http://localhost:3000/api/auth/callback/google`. Open the site at `http://localhost:3000` (not `127.0.0.1`). |
+| PROXIMA login page: _“Access was denied…”_                          | Add your Gmail under **Audience → Test users**.                                                                                                                |
+| PROXIMA login page: _“Sign-in isn't set up correctly…”_             | A value in `.env.local` is wrong/missing → run `npm run env:check`, then restart `npm run dev`.                                                                |
+| Google page: **Access blocked: app has not completed verification** | You're not a test user yet (see above), or publish the app (Phase 6).                                                                                          |
+
 ---
 
 ## C. Vercel (hosting) — Phase 6
 
 Instructions arrive in Phase 6, together with the production Google redirect URL
 (`https://YOUR-SITE.vercel.app/api/auth/callback/google`).
+
+---
+
+## D. Email magic-link login (optional, later)
+
+The code is ready; it switches on automatically when both values below exist.
+You need a domain you own (e.g. `proxima.com`) to send email to everyone.
+
+1. Go to **https://resend.com** → **Sign up**.
+2. **Domains** → **Add Domain** → type your domain → follow the DNS steps shown (copy the records
+   into your domain provider's DNS settings) → wait until it says **Verified**.
+3. **API Keys** → **Create API Key** → Name `proxima`, Permission **Sending access** → **Add** →
+   copy the key (starts with `re_`).
+4. Add to `.env.local` (and later Vercel):
+   ```env
+   AUTH_RESEND_KEY="re_xxxxxxxxxxxx"
+   AUTH_EMAIL_FROM="PROXIMA <login@your-domain.com>"
+   ```
+5. Restart `npm run dev`. The login page now shows **“Email me a sign-in link”** under the Google button.
 
 ---
 

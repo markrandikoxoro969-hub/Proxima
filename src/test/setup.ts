@@ -5,7 +5,7 @@ import { cleanup } from "@testing-library/react";
 afterEach(() => cleanup());
 
 // jsdom has no matchMedia — provide a simple stand-in (defaults to dark OS).
-if (!window.matchMedia) {
+if (typeof window !== "undefined" && !window.matchMedia) {
   window.matchMedia = (query: string) =>
     ({
       matches: query.includes("dark"),
