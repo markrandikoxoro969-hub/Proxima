@@ -24,6 +24,14 @@ let failures = 0;
 
 const env = process.env;
 const pg = /^postgres(ql)?:\/\//;
+const isLocal = (url) => {
+  try {
+    return ["localhost", "127.0.0.1", "[::1]", "host.docker.internal"].includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+};
+const localDb = env.DATABASE_URL ? isLocal(env.DATABASE_URL) : false;
 
 console.log("\nPROXIMA setup check\n");
 console.log("1) Settings in .env.local");
@@ -31,6 +39,7 @@ console.log("1) Settings in .env.local");
 if (!env.DATABASE_URL)
   bad("DATABASE_URL is missing", "Neon → Connect → pooling ON → copy (docs/ACCOUNTS.md section A, step 5)");
 else if (!pg.test(env.DATABASE_URL)) bad("DATABASE_URL should start with postgresql://");
+else if (localDb) ok("DATABASE_URL (local Postgres on this computer)");
 else if (!env.DATABASE_URL.includes("-pooler"))
   bad(
     "DATABASE_URL should be the POOLED string (contains -pooler)",
@@ -41,6 +50,7 @@ else ok("DATABASE_URL (pooled)");
 if (!env.DIRECT_URL)
   bad("DIRECT_URL is missing", "Neon → Connect → pooling OFF → copy (docs/ACCOUNTS.md section A, step 6)");
 else if (!pg.test(env.DIRECT_URL)) bad("DIRECT_URL should start with postgresql://");
+else if (localDb) ok("DIRECT_URL (local Postgres)");
 else if (env.DIRECT_URL.includes("-pooler"))
   bad("DIRECT_URL must NOT contain -pooler", "In Neon's Connect popup turn Connection pooling OFF");
 else ok("DIRECT_URL (direct)");
@@ -65,15 +75,28 @@ else info("Email login: off (optional — add AUTH_RESEND_KEY + AUTH_EMAIL_FROM 
 console.log("\n2) Database connection");
 if (env.DATABASE_URL && pg.test(env.DATABASE_URL)) {
   try {
-    const { neon } = await import("@neondatabase/serverless");
-    const sql = neon(env.DATABASE_URL);
+    let query;
+    let close = async () => {};
+    if (localDb) {
+      const { default: pgLib } = await import("pg");
+      const client = new pgLib.Client({ connectionString: env.DATABASE_URL });
+      await client.connect();
+      query = async (text) => (await client.query(text)).rows;
+      close = () => client.end();
+    } else {
+      const { neon } = await import("@neondatabase/serverless");
+      const sql = neon(env.DATABASE_URL);
+      query = (text) => sql.query(text);
+    }
     const started = Date.now();
-    await sql`select 1`;
-    ok(`Connected to Neon (${Date.now() - started} ms)`);
+    await query("select 1");
+    ok(`Connected to ${localDb ? "local Postgres" : "Neon"} (${Date.now() - started} ms)`);
 
     console.log("\n3) Database tables");
-    const [row] =
-      await sql`select to_regclass('public."User"') as users, to_regclass('public."Conversation"') as convos`;
+    const [row] = await query(
+      `select to_regclass('public."User"') as users, to_regclass('public."Conversation"') as convos`,
+    );
+    await close();
     if (row.users && row.convos) ok("Tables exist (migrations applied)");
     else bad("Tables not found", "Run:  npm run db:deploy");
   } catch (error) {

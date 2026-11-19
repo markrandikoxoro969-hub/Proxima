@@ -110,6 +110,35 @@ describe("POST /api/chat — signed in", () => {
     expect(await t.prisma.message.count({ where: { conversationId: convo.id } })).toBe(2);
   });
 
+  it("retry answers the saved question again without saving it twice", async () => {
+    state.userId = alice;
+    state.reply = new AiProviderError("down", "unavailable");
+    const first = await readSse(await send({ message: "Explain gravity" }));
+    const id = first.find((e) => e.event === "meta")!.data.conversationId as string;
+    const userMessageId = first.find((e) => e.event === "meta")!.data.userMessageId;
+    expect(first.some((e) => e.event === "error")).toBe(true);
+
+    state.reply = "Gravity pulls things together.";
+    const second = await readSse(await send({ message: "Explain gravity", conversationId: id, retry: true }));
+    expect(second.find((e) => e.event === "meta")!.data.userMessageId).toBe(userMessageId);
+    expect(replyText(second)).toBe("Gravity pulls things together.");
+
+    const saved = await t.prisma.message.findMany({
+      where: { conversationId: id },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(saved.map((m) => m.role)).toEqual(["user", "assistant"]);
+  });
+
+  it("retry with a different message saves it normally", async () => {
+    state.userId = alice;
+    const convo = await t.prisma.conversation.create({
+      data: { userId: alice, messages: { create: [{ role: "user", content: "old" }] } },
+    });
+    await readSse(await send({ message: "new question", conversationId: convo.id, retry: true }));
+    expect(await t.prisma.message.count({ where: { conversationId: convo.id, role: "user" } })).toBe(2);
+  });
+
   it("won't let you post into someone else's conversation", async () => {
     const bobsChat = await t.prisma.conversation.create({ data: { userId: bob } });
     state.userId = alice;

@@ -2,6 +2,7 @@ import { apiErrors, json, readJson, withApi } from "@/lib/api/http";
 import { assertSameOrigin } from "@/lib/api/security";
 import { requireApiUserId } from "@/lib/auth/api";
 import { DEFAULT_TITLE } from "@/lib/chat/compose";
+import { listSessions } from "@/lib/chat/queries";
 import { db } from "@/lib/db";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { createSessionSchema } from "@/lib/validation";
@@ -12,31 +13,10 @@ import { createSessionSchema } from "@/lib/validation";
  *   POST    create  { title? }
  *   DELETE  clear ALL your history (?confirm=all) — only YOUR chats, nothing else
  */
-const PAGE_SIZE = 50;
-
 export const GET = withApi(async (request: Request) => {
   const userId = await requireApiUserId();
   const cursor = new URL(request.url).searchParams.get("cursor");
-
-  const rows = await db.conversation.findMany({
-    where: { userId },
-    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-    take: PAGE_SIZE + 1,
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    select: {
-      id: true,
-      title: true,
-      createdAt: true,
-      updatedAt: true,
-      _count: { select: { messages: true } },
-    },
-  });
-
-  const hasMore = rows.length > PAGE_SIZE;
-  const sessions = rows
-    .slice(0, PAGE_SIZE)
-    .map(({ _count, ...s }) => ({ ...s, messageCount: _count.messages }));
-  return json({ sessions, nextCursor: hasMore ? sessions.at(-1)?.id : null });
+  return json(await listSessions(userId, cursor));
 });
 
 export const POST = withApi(async (request: Request) => {

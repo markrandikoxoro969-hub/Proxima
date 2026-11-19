@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiErrors, json, readJson, withApi } from "@/lib/api/http";
 import { assertSameOrigin } from "@/lib/api/security";
 import { requireApiUserId } from "@/lib/auth/api";
+import { getMessagesPage } from "@/lib/chat/queries";
 import { db } from "@/lib/db";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { renameSessionSchema } from "@/lib/validation";
@@ -45,18 +46,8 @@ export const GET = withApi(async (request: Request, ctx: Ctx) => {
     select: { id: true, title: true, createdAt: true, updatedAt: true },
   });
 
-  // Newest first from the DB (fast with our index), then flipped for display.
-  const rows = await db.message.findMany({
-    where: { conversationId: id },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: page.limit + 1,
-    ...(page.before ? { cursor: { id: page.before }, skip: 1 } : {}),
-    select: { id: true, role: true, content: true, attachments: true, latencyMs: true, createdAt: true },
-  });
-  const hasMore = rows.length > page.limit;
-  const messages = rows.slice(0, page.limit).reverse();
-
-  return json({ session, messages, hasMore, nextBefore: hasMore ? messages[0]?.id : null });
+  const { messages, hasMore, nextBefore } = await getMessagesPage(id, page);
+  return json({ session, messages, hasMore, nextBefore });
 });
 
 export const PATCH = withApi(async (request: Request, ctx: Ctx) => {

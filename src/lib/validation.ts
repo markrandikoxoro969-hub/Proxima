@@ -1,18 +1,11 @@
 import { z } from "zod";
+import { LIMITS } from "./limits";
 
 /**
  * Input rules shared by the server (enforced) and the browser (for nice
  * messages before sending). Change limits here and both sides follow.
  */
-export const LIMITS = {
-  messageMax: 4000,
-  demoMessageMax: 500,
-  attachmentsMax: 3,
-  attachmentBytesMax: 100 * 1024, // 100 KB per file
-  attachmentNameMax: 200,
-  titleMax: 120,
-  displayNameMax: 40,
-} as const;
+export { LIMITS };
 
 /** Removes invisible control characters (keeps newlines and tabs). */
 const stripControl = (s: string) => s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
@@ -48,6 +41,11 @@ export const chatRequestSchema = z.object({
   attachments: z.array(attachmentSchema).max(LIMITS.attachmentsMax, "Attach up to 3 files.").optional(),
   /** Guest demo only: keeps context across demo messages. */
   demoSessionId: z.uuid().optional(),
+  /**
+   * "Try again" after a failed reply: if the conversation's last message is
+   * this same user message, reply to it instead of saving it a second time.
+   */
+  retry: z.boolean().optional(),
 });
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
 

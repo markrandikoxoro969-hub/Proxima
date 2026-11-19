@@ -4,7 +4,7 @@ A premium, full-stack AI assistant website: cinematic landing page + chat app.
 Built with **Next.js 16 (App Router) · TypeScript · Tailwind CSS v4**, with Postgres (Neon) + Prisma,
 Google login (Auth.js), Framer Motion, and server-side streaming from the PROXIMA Core API.
 
-> 🚧 **Status: Phase 3 of 6 complete (backend API: AI chat, sessions, export).** See [Build progress](#build-progress).
+> 🚧 **Status: Phase 4 of 6 complete (the `/app` chat screen).** See [Build progress](#build-progress).
 
 ---
 
@@ -67,6 +67,11 @@ npm run dev
 ```
 
 Try the login: **http://localhost:3000/login** → _Continue with Google_ → you land on `/app`.
+The first time, PROXIMA asks your name and age (onboarding), then the chat opens.
+
+> 💡 No AI needed to try it: put `AI_PROVIDER="mock"` in `.env.local` and you get instant fake
+> replies (with markdown and code) — perfect for testing the design. Remove the line (or set
+> `AI_PROVIDER="sujan-core"`) to use the real engine.
 
 Open **http://localhost:3000**. Edit any file and the page updates by itself.
 Stop the server with **Ctrl + C**.
@@ -125,7 +130,7 @@ Proxima/
 │  │  │  ├─ export/        ← download all your chats
 │  │  │  ├─ me/            ← your profile (name, age, theme, particles)
 │  │  │  └─ status/        ← real "engine online" + latency (also wakes Render)
-│  │  ├─ app/              ← /app (Phase 2: "you're signed in" page; chat in Phase 4)
+│  │  ├─ app/              ← /app chat page (server loads your chats, then shows the chat UI)
 │  │  ├─ login/            ← /login page, Google button, email form (hidden until enabled)
 │  │  ├─ fonts/            ← self-hosted Montserrat + JetBrains Mono (OFL licence)
 │  │  ├─ fonts.ts          ← font setup (next/font/local)
@@ -137,18 +142,34 @@ Proxima/
 │  │  └─ identity.ts       ← Proxima's identity answers (developer, age, gender) — edit freely
 │  ├─ components/
 │  │  ├─ brand/logo.tsx    ← PROXIMA planet + wordmark
+│  │  ├─ chat/             ← ⭐ the /app chat screen:
+│  │  │  ├─ chat-app.tsx        ← puts everything together (shortcuts, engine status, dialogs)
+│  │  │  ├─ sidebar.tsx         ← chats list, rename/delete, engine status, profile, theme
+│  │  │  ├─ chat-header.tsx     ← "Proxima ✦", latency, Export menu
+│  │  │  ├─ message-list.tsx    ← virtual scrolling (only visible messages are drawn)
+│  │  │  ├─ message-item.tsx    ← one message: thinking dots, errors + Try again, copy
+│  │  │  ├─ markdown.tsx        ← safe markdown (no HTML runs), tables, links
+│  │  │  ├─ code-block.tsx      ← code colours (Prism) + Copy button
+│  │  │  ├─ composer.tsx        ← message box: Enter to send, files, voice, 4000 counter
+│  │  │  ├─ empty-state.tsx     ← "HOW CAN I HELP?" + suggestions
+│  │  │  ├─ settings-dialog.tsx ← name, age, theme, particles, clear logs, sign out
+│  │  │  ├─ onboarding.tsx      ← typing logo → name → age → loading
+│  │  │  └─ particles.tsx       ← background stars (fewer on phones, pauses when hidden)
+│  │  ├─ motion/           ← Framer Motion setup (small bundle, honours reduced motion)
 │  │  ├─ theme/            ← dark/light theme provider + toggle button
-│  │  └─ ui/               ← buttons (44px touch targets), spinner
+│  │  └─ ui/               ← buttons (44px touch targets), spinner, toasts, dialogs
 │  ├─ generated/prisma/    ← auto-generated database client (not in git)
 │  ├─ lib/
 │  │  ├─ ai/               ← ⭐ swappable AI provider (providers/sujan-core.ts, providers/mock.ts)
 │  │  ├─ api/              ← API helpers: errors, same-origin check, SSE stream
 │  │  ├─ auth/             ← safe redirects + "who is signed in" helpers
-│  │  ├─ chat/             ← attachments → prompt, titles, export (JSON/Markdown)
+│  │  ├─ chat/             ← attachments → prompt, titles, export, database queries
+│  │  │  └─ client/        ← browser side: reading the stream, chat state (useChat),
+│  │  │                       files, voice input, code highlighting
 │  │  ├─ identity.ts       ← detects identity questions, cleans leaks in AI replies
 │  │  ├─ rate-limit.ts     ← limits stored in Postgres (20/min signed in, 5/min demo)
 │  │  ├─ validation.ts     ← all input rules (zod): 4000 chars, 100 KB files, …
-│  │  ├─ db.ts             ← the database connection (Neon)
+│  │  ├─ db.ts             ← the database connection (Neon, or local Postgres on localhost)
 │  │  ├─ env.ts            ← checks environment variables with zod
 │  │  ├─ cn.ts             ← merges Tailwind class names
 │  │  ├─ site.ts           ← public site info (name, URL, links)
@@ -195,6 +216,7 @@ Proxima/
       but off), `/login`, protected `/app` + `/settings`, setup doctor, DB integration tests
 - [x] **Phase 3 — Backend API:** swappable AI provider, identity config, `/api/chat` (SSE streaming,
       cold-start "waking up" status, Postgres rate limits), sessions, export, profile, status, API tests
-- [ ] **Phase 4 — `/app` chat:** onboarding, sidebar, streaming markdown, settings, voice, files, export, toasts
+- [x] **Phase 4 — `/app` chat:** onboarding, sidebar, streaming markdown + code copy, settings, voice,
+      files, export, toasts, virtual scrolling, retry, keyboard shortcuts
 - [ ] **Phase 5 — Landing + motion:** hero, skills, how it works, slides, live demo, FAQ, Lenis, cursor
 - [ ] **Phase 6 — Polish + ship:** settings/legal/404 pages, SEO/OG/sitemap/PWA, a11y + performance, Vercel deploy

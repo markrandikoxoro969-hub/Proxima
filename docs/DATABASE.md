@@ -62,6 +62,25 @@ Deleting a user automatically deletes their conversations and messages.
 | `Cannot find module '@/generated/prisma/client'` | Run `npm run db:generate` (or `npm install`).                                                                              |
 | `prisma migrate dev` warns about "drift"         | Someone changed the database by hand. On a fresh project you can reset: `npx prisma migrate reset` (**deletes all data**). |
 
+## Optional: a database on your own computer
+
+Neon is the easy path. If you'd rather work offline, any normal Postgres works too — PROXIMA
+automatically uses the standard driver when the address is `localhost`. With
+[Docker](https://www.docker.com/products/docker-desktop/) installed:
+
+```bash
+docker run --name proxima-db -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:17
+```
+
+Then in `.env.local` set **both** lines to:
+
+```
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
+DIRECT_URL="postgresql://postgres:postgres@localhost:5432/postgres"
+```
+
+and run `npm run db:deploy` and `npm run env:check`. (Production on Vercel still uses Neon.)
+
 ## Production (Vercel)
 
 Covered in Phase 6. Short version: Vercel uses the same Neon database variables, and

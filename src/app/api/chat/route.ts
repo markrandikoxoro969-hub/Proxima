@@ -82,7 +82,16 @@ export const POST = withApi(async (request: Request) => {
     if (input.conversationId) {
       const existing = await db.conversation.findFirst({
         where: { id: input.conversationId, userId },
-        select: { id: true, title: true, _count: { select: { messages: true } } },
+        select: {
+          id: true,
+          title: true,
+          _count: { select: { messages: true } },
+          messages: {
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: 1,
+            select: { id: true, role: true, content: true },
+          },
+        },
       });
       if (!existing) throw apiErrors.notFound("Conversation not found");
       conversationId = existing.id;
@@ -91,11 +100,17 @@ export const POST = withApi(async (request: Request) => {
           ? makeTitle(input.message)
           : existing.title;
 
-      const [created] = await db.$transaction([
-        db.message.create({ data: { ...userMessage, conversationId }, select: { id: true } }),
-        db.conversation.update({ where: { id: conversationId }, data: { title, updatedAt: new Date() } }),
-      ]);
-      userMessageId = created.id;
+      const last = existing.messages[0];
+      if (input.retry && last?.role === "user" && last.content === input.message) {
+        // Retry: the user's message is already saved — just answer it again.
+        userMessageId = last.id;
+      } else {
+        const [created] = await db.$transaction([
+          db.message.create({ data: { ...userMessage, conversationId }, select: { id: true } }),
+          db.conversation.update({ where: { id: conversationId }, data: { title, updatedAt: new Date() } }),
+        ]);
+        userMessageId = created.id;
+      }
     } else {
       title = makeTitle(input.message);
       const created = await db.conversation.create({
