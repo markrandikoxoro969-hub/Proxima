@@ -8,6 +8,15 @@ export type AiHistoryMessage = {
   content: string;
 };
 
+/** A picture attached to the newest message (already validated + owned by the sender). */
+export type AiImage = {
+  /** `data:image/…;base64,…` — sent to vision models, never written to the database. */
+  dataUrl: string;
+  mime: string;
+  width: number;
+  height: number;
+};
+
 export type AiRequest = {
   /** The newest message (user message + any attached file contents). */
   message: string;
@@ -21,6 +30,8 @@ export type AiRequest = {
   system?: string;
   /** Let the provider emit its private reasoning (never shown by default). */
   showReasoning?: boolean;
+  /** Pictures attached to the newest message, in order. */
+  images?: AiImage[];
 };
 
 /**

@@ -36,6 +36,24 @@ export function nvidiaConfigured(env: Record<string, string | undefined> = proce
   return Boolean((env.NVIDIA_API_KEY ?? "").trim());
 }
 
+/**
+ * Can this model see pictures?
+ *
+ * NVIDIA_VISION=true / false overrides the guess. Otherwise the model name is
+ * checked, so switching NVIDIA_MODEL to a vision model turns attachments on
+ * without any other change. The default Nemotron model is text-only, so the
+ * chat tells people to describe the picture instead of silently ignoring it.
+ */
+export function supportsVision(
+  model: string,
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const flag = (env.NVIDIA_VISION ?? "").trim().toLowerCase();
+  if (flag === "true" || flag === "1" || flag === "on") return true;
+  if (flag === "false" || flag === "0" || flag === "off") return false;
+  return /(vision|llava|pixtral|vila|qwen[-_ ]?\d*\.?\d*-?vl|vl[-_]?\d|nemotron.*vl|gemma-3)/i.test(model);
+}
+
 export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
   const settings = { ...resolveNvidiaSettings(), ...options.settings };
 
@@ -56,9 +74,7 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
   const createStream =
     options.createStream ??
     ((c: OpenAI, body: unknown, signal: AbortSignal) =>
-      c.chat.completions.create(body as never, { signal }) as unknown as Promise<
-        AsyncIterable<unknown>
-      >);
+      c.chat.completions.create(body as never, { signal }) as unknown as Promise<AsyncIterable<unknown>>);
 
   async function* stream(request: AiRequest): AsyncGenerator<AiDelta> {
     if (!settings.apiKey && !options.client) {
@@ -71,6 +87,8 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
         message: request.message,
         history: request.history,
         system: request.system ?? SYSTEM_PROMPT,
+        images: request.images,
+        attachImages: supportsVision(settings.model),
       }),
       temperature: 1,
       top_p: 0.95,

@@ -9,6 +9,7 @@ import { createSseStream, SSE_HEADERS } from "@/lib/api/sse";
 import { getApiUserId } from "@/lib/auth/api";
 import { attachmentMeta, composePrompt, DEFAULT_TITLE, makeTitle } from "@/lib/chat/compose";
 import { db } from "@/lib/db";
+import { chatImageAttachment, loadChatImages } from "@/lib/image/store";
 import { cleanIdentityLeaks, getIdentityAnswer } from "@/lib/identity";
 import { enforceRateLimit, RATE_LIMITS, rateLimitHeaders } from "@/lib/rate-limit";
 import { chatRequestSchema, LIMITS } from "@/lib/validation";
@@ -48,11 +49,13 @@ export const POST = withApi(async (request: Request) => {
   const userId = await getApiUserId();
   const input = chatRequestSchema.parse(await readJson(request, 512 * 1024));
   const attachments = input.attachments ?? [];
+  const imageIds = (input.images ?? []).map((image) => image.id);
   const showReasoning = input.showReasoning === true;
 
   // ── Guest demo rules ──
   if (!userId) {
     if (attachments.length) throw new ApiError(401, "sign_in_required", "Sign in to attach files.");
+    if (imageIds.length) throw new ApiError(401, "sign_in_required", "Sign in to attach pictures.");
     if (input.conversationId) throw apiErrors.unauthorized();
     if (input.message.length > LIMITS.demoMessageMax) {
       throw apiErrors.badRequest(
@@ -74,6 +77,18 @@ export const POST = withApi(async (request: Request) => {
         "Demo limit reached (5 messages per minute). Sign in for more, or wait a moment.",
       );
 
+  // ── Pictures belonging to this person ──
+  // The browser only sends ids; the bytes (and the size) come from the database,
+  // so a message can't pretend to include a picture it doesn't own.
+  const pictures = userId && imageIds.length ? await loadChatImages(userId, imageIds) : [];
+  if (imageIds.length && pictures.length !== imageIds.length) {
+    throw apiErrors.badRequest("One of those pictures is no longer available. Please attach it again.");
+  }
+  const messageAttachments = [
+    ...attachmentMeta(attachments),
+    ...pictures.map((picture) => chatImageAttachment(picture)),
+  ];
+
   // ── Save the user's message (signed-in only) ──
   let conversationId: string | null = null;
   let title: string | null = null;
@@ -83,7 +98,7 @@ export const POST = withApi(async (request: Request) => {
     const userMessage = {
       role: "user" as const,
       content: input.message,
-      ...(attachments.length ? { attachments: attachmentMeta(attachments) } : {}),
+      ...(messageAttachments.length ? { attachments: messageAttachments } : {}),
     };
 
     if (input.conversationId) {
@@ -147,7 +162,7 @@ export const POST = withApi(async (request: Request) => {
 
   // ── Stream the reply ──
   const provider = getAiProvider();
-  const prompt = composePrompt(input.message, attachments);
+  const prompt = composePrompt(input.message, attachments, pictures.length);
   const sessionId = conversationId ?? `demo-${input.demoSessionId ?? crypto.randomUUID()}`;
 
   const clientGone = new AbortController();
@@ -200,6 +215,7 @@ export const POST = withApi(async (request: Request) => {
               signal,
               history,
               showReasoning,
+              images: pictures,
             });
 
         for await (const delta of deltas) {

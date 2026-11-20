@@ -10,8 +10,9 @@ import { useTheme } from "@/components/theme/theme-provider";
 import { api } from "@/lib/chat/client/api";
 import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
 import type { Profile } from "@/lib/chat/types";
-import { NameAgeFields, SwitchRow, ThemeChoice, validateProfile } from "@/components/settings/fields";
-import type { ThemePreference } from "@/lib/theme";
+import { NameAgeFields, SwitchRow, validateProfile } from "@/components/settings/fields";
+import { ThemePicker } from "@/components/theme/theme-picker";
+import { customThemePayload } from "@/lib/theme/palettes";
 
 /**
  * Settings: name, age, theme, particles, clear history, sign out.
@@ -66,10 +67,9 @@ function SettingsForm({
   onClearAll: () => Promise<boolean>;
   notify: (message: string, kind?: "info" | "success" | "error") => void;
 }) {
-  const { preference, setPreference } = useTheme();
+  const { preference, paletteId, customThemes } = useTheme();
   const [name, setName] = useState(profile.displayName ?? profile.name?.split(" ")[0] ?? "");
   const [age, setAge] = useState(profile.age ? String(profile.age) : "");
-  const [theme, setTheme] = useState<ThemePreference>(preference);
   const [particles, setParticles] = useState(profile.particles);
   const [saving, setSaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -89,10 +89,12 @@ function SettingsForm({
       const { profile: saved } = await api.updateProfile({
         displayName: name.trim(),
         age: ageNumber,
-        theme,
+        // The picker already applied (and saved) these; sending them keeps one source of truth.
+        theme: preference,
+        themePalette: paletteId,
+        customThemes: customThemes.map(customThemePayload),
         particles,
       });
-      setPreference(theme);
       onSaved(saved);
       notify("Settings saved.", "success");
       onClose();
@@ -114,13 +116,7 @@ function SettingsForm({
     >
       <NameAgeFields ids={ids} name={name} age={age} errors={errors} onName={setName} onAge={setAge} />
 
-      <ThemeChoice
-        value={theme}
-        onChange={(option) => {
-          setTheme(option);
-          setPreference(option); // preview immediately
-        }}
-      />
+      <ThemePicker notify={notify} />
 
       <SwitchRow
         id={ids.particles}

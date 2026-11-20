@@ -25,6 +25,8 @@ const profile: Profile = {
   displayName: "Sujan",
   age: 21,
   theme: "dark",
+  themePalette: "proxima",
+  customThemes: null,
   particles: true,
   onboarded: true,
 };
@@ -69,6 +71,8 @@ describe("/settings page", () => {
       displayName: "Sam",
       age: 30,
       theme: expect.any(String),
+      themePalette: expect.any(String),
+      customThemes: expect.any(Array),
       particles: true,
     });
     expect(await screen.findByText("Settings saved.")).toBeInTheDocument();

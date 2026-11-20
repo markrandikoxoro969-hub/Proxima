@@ -1,9 +1,6 @@
 "use client";
 
-import { m } from "motion/react";
 import { cn } from "@/lib/cn";
-import { SPRING } from "@/lib/motion/tokens";
-import type { ThemePreference } from "@/lib/theme";
 
 /**
  * Small form pieces shared by the Settings pop-up (in /app) and the
@@ -91,51 +88,6 @@ export function NameAgeFields({
         />
       </Field>
     </div>
-  );
-}
-
-/** Dark / Light / System picker (real radio buttons, so arrow keys work). */
-export function ThemeChoice({
-  value,
-  onChange,
-}: {
-  value: ThemePreference;
-  onChange: (value: ThemePreference) => void;
-}) {
-  return (
-    <fieldset>
-      <legend className="mb-2 text-xs font-extrabold tracking-[0.2em] text-muted uppercase">Theme</legend>
-      <div className="grid grid-cols-3 gap-1 rounded-2xl border border-line bg-surface-hover p-1">
-        {(["dark", "light", "system"] as const).map((option) => (
-          <label
-            key={option}
-            className={cn(
-              "relative flex min-h-11 cursor-pointer items-center justify-center rounded-xl text-sm font-bold capitalize transition-colors duration-200",
-              "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-fg",
-              value === option ? "text-on-inverse" : "text-muted hover:text-fg",
-            )}
-          >
-            {value === option && (
-              <m.span
-                layoutId="theme-tab"
-                transition={SPRING.soft}
-                className="absolute inset-0 rounded-xl bg-inverse"
-                aria-hidden
-              />
-            )}
-            <input
-              type="radio"
-              name="theme"
-              value={option}
-              checked={value === option}
-              onChange={() => onChange(option)}
-              className="sr-only"
-            />
-            <span className="relative z-10">{option}</span>
-          </label>
-        ))}
-      </div>
-    </fieldset>
   );
 }
 

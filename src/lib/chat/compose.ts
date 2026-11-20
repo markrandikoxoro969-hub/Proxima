@@ -63,14 +63,21 @@ function fenceFor(content: string): string {
 
 export type Attachment = { name: string; content: string };
 
-/** The text the AI receives: the message, then each attached file in a code block. */
-export function composePrompt(message: string, attachments: Attachment[] = []): string {
-  if (attachments.length === 0) return message;
+/**
+ * The text the AI receives: the message, a note about any pictures, then each
+ * attached file in a code block.
+ */
+export function composePrompt(message: string, attachments: Attachment[] = [], imageCount = 0): string {
+  const note =
+    imageCount > 0
+      ? `\n\n[${imageCount === 1 ? "1 picture is" : `${imageCount} pictures are`} attached to this message.]`
+      : "";
+  if (attachments.length === 0) return `${message}${note}`;
   const files = attachments.map(({ name, content }) => {
     const fence = fenceFor(content);
     return `--- Attached file: ${name} ---\n${fence}${languageFromFilename(name)}\n${content}\n${fence}`;
   });
-  return `${message}\n\n${files.join("\n\n")}`;
+  return `${message}${note}\n\n${files.join("\n\n")}`;
 }
 
 /** What we store about attachments (not the file contents — keeps the database small). */

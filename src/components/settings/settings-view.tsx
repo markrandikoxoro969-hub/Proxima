@@ -24,8 +24,9 @@ import { api } from "@/lib/chat/client/api";
 import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
 import type { Profile } from "@/lib/chat/types";
 import { site } from "@/lib/site";
-import type { ThemePreference } from "@/lib/theme";
-import { NameAgeFields, SwitchRow, ThemeChoice, validateProfile } from "./fields";
+import { ThemePicker } from "@/components/theme/theme-picker";
+import { customThemePayload } from "@/lib/theme/palettes";
+import { NameAgeFields, SwitchRow, validateProfile } from "./fields";
 
 /** The full /settings page. Everything is saved to your account (works on every device). */
 export function SettingsView({ profile, chatCount }: { profile: Profile; chatCount: number }) {
@@ -114,10 +115,9 @@ function Section({
 
 function ProfileSection({ profile, onSaved }: { profile: Profile; onSaved: (p: Profile) => void }) {
   const notify = useToast();
-  const { preference, setPreference } = useTheme();
+  const { preference, paletteId, customThemes } = useTheme();
   const [name, setName] = useState(profile.displayName ?? profile.name?.split(" ")[0] ?? "");
   const [age, setAge] = useState(profile.age ? String(profile.age) : "");
-  const [theme, setTheme] = useState<ThemePreference>(preference);
   const [particles, setParticles] = useState(profile.particles);
   const [errors, setErrors] = useState<{ name?: string; age?: string }>({});
   const [saving, setSaving] = useState(false);
@@ -133,10 +133,11 @@ function ProfileSection({ profile, onSaved }: { profile: Profile; onSaved: (p: P
       const { profile: saved } = await api.updateProfile({
         displayName: name.trim(),
         age: Number(age),
-        theme,
+        theme: preference,
+        themePalette: paletteId,
+        customThemes: customThemes.map(customThemePayload),
         particles,
       });
-      setPreference(theme);
       onSaved(saved);
       notify("Settings saved.", "success");
     } catch (error) {
@@ -162,13 +163,7 @@ function ProfileSection({ profile, onSaved }: { profile: Profile; onSaved: (p: P
         className="flex flex-col gap-5"
       >
         <NameAgeFields ids={ids} name={name} age={age} errors={errors} onName={setName} onAge={setAge} />
-        <ThemeChoice
-          value={theme}
-          onChange={(option) => {
-            setTheme(option);
-            setPreference(option); // preview immediately
-          }}
-        />
+        <ThemePicker notify={notify} />
         <SwitchRow
           id={ids.particles}
           title="Background particles"

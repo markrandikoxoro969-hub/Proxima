@@ -1,4 +1,12 @@
+import type { ImageDTO } from "@/lib/image/types";
 import type { ChatMessageDTO, EngineStatus, MessagesPage, Profile, SessionSummary } from "../types";
+
+/** What an image engine reply looks like (generate + edit). */
+export type ImageResult = {
+  image: ImageDTO;
+  engine: { id: string; label: string };
+  offline: boolean;
+};
 
 /**
  * Small typed wrappers around our own API. Errors are thrown as ClientApiError
@@ -61,7 +69,14 @@ export const api = {
     request<{ deleted: true }>("/api/me", { method: "DELETE", body: JSON.stringify({ confirm: "DELETE" }) }),
   clearAll: () => request<{ deleted: number }>(`/api/sessions?confirm=all`, { method: "DELETE" }),
   updateProfile: (
-    patch: Partial<Pick<Profile, "displayName" | "age" | "theme" | "particles">> & {
+    patch: Partial<Pick<Profile, "displayName" | "age" | "theme" | "themePalette" | "particles">> & {
+      /** Only the three source colours are needed; the server rebuilds the rest. */
+      customThemes?: {
+        id?: string;
+        name: string;
+        mode: "dark" | "light";
+        colors: { bg: string; fg: string; accent: string };
+      }[];
       completeOnboarding?: true;
     },
   ) => request<{ profile: Profile }>(`/api/me`, { method: "PATCH", body: JSON.stringify(patch) }),
@@ -69,6 +84,19 @@ export const api = {
     request<{ ai: { status: Exclude<EngineStatus, "checking">; latencyMs: number | null }; version: string }>(
       `/api/status`,
     ),
+
+  /* ── Pictures ── */
+  listImages: () => request<{ images: ImageDTO[] }>("/api/images"),
+  uploadImage: (dataUrl: string, name: string) =>
+    request<{ image: ImageDTO }>("/api/images", { method: "POST", body: JSON.stringify({ dataUrl, name }) }),
+  deleteImage: (id: string) => request<void>(`/api/images/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  generateImage: (input: { prompt: string; width?: number; height?: number; style?: string }) =>
+    request<ImageResult>("/api/images/generate", { method: "POST", body: JSON.stringify(input) }),
+  editImage: (id: string, input: { prompt: string; strength?: number }) =>
+    request<ImageResult & { original: string }>(`/api/images/${encodeURIComponent(id)}/edit`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 };
 
 export const exportUrl = (id: string | null, format: "md" | "json") =>

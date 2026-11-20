@@ -91,11 +91,13 @@ export function useChat({
       key,
       text,
       attachments,
+      images,
       retryOf,
     }: {
       key: string;
       text: string;
       attachments: { name: string; content: string }[];
+      images: { id: string; url: string; width: number; height: number; name: string }[];
       retryOf?: string;
     }) => {
       const now = new Date().toISOString();
@@ -110,9 +112,7 @@ export function useChat({
         if (index >= 0) pool = priorMessages.slice(0, index);
         while (pool.at(-1)?.role === "user") pool = pool.slice(0, -1);
       }
-      const history = pool
-        .slice(-20)
-        .map((m) => ({ role: m.role, content: m.content }));
+      const history = pool.slice(-20).map((m) => ({ role: m.role, content: m.content }));
 
       const userTemp = tempId("tmp-user");
       const assistantId = tempId("tmp-ai");
@@ -134,18 +134,32 @@ export function useChat({
             id: userTemp,
             role: "user",
             content: text,
-            attachments: attachments.length
-              ? attachments.map((a) => ({
-                  name: a.name,
-                  size: new TextEncoder().encode(a.content).length,
-                  language: "",
-                }))
-              : null,
+            attachments:
+              attachments.length || images.length
+                ? [
+                    ...attachments.map((a) => ({
+                      name: a.name,
+                      size: new TextEncoder().encode(a.content).length,
+                      language: "",
+                    })),
+                    ...images.map((image) => ({
+                      kind: "image" as const,
+                      name: image.name,
+                      size: 0,
+                      language: "",
+                      url: image.url,
+                      imageId: image.id,
+                      width: image.width,
+                      height: image.height,
+                    })),
+                  ]
+                : null,
             latencyMs: null,
             createdAt: now,
             fresh: true,
             clientKey: userTemp,
             outgoing: attachments.length ? attachments : undefined,
+            outgoingImages: images.length ? images.map((image) => ({ id: image.id })) : undefined,
           };
 
       dispatch({ type: "sendStart", key, user, assistant, replaceId: retryOf });
@@ -159,6 +173,7 @@ export function useChat({
           message: text,
           conversationId: key === DRAFT ? undefined : key,
           attachments: attachments.length ? attachments : undefined,
+          images: images.length ? images.map((image) => ({ id: image.id })) : undefined,
           retry: retryOf ? true : undefined,
           showReasoning,
           history: history.length ? history : undefined,
@@ -180,8 +195,7 @@ export function useChat({
           onStatus: (s) =>
             dispatch({ type: "phase", key: currentKey, id: assistantId, phase: s.state, message: s.message }),
           onText: (t) => dispatch({ type: "append", key: currentKey, id: assistantId, text: t }),
-          onReasoning: (t) =>
-            dispatch({ type: "reasoning", key: currentKey, id: assistantId, text: t }),
+          onReasoning: (t) => dispatch({ type: "reasoning", key: currentKey, id: assistantId, text: t }),
           onDone: (d) => {
             dispatch({
               type: "done",
@@ -206,10 +220,14 @@ export function useChat({
   );
 
   const send = useCallback(
-    async (text: string, attachments: { name: string; content: string }[] = []) => {
+    async (
+      text: string,
+      attachments: { name: string; content: string }[] = [],
+      images: { id: string; url: string; width: number; height: number; name: string }[] = [],
+    ) => {
       const trimmed = text.trim();
       if (!trimmed || stateRef.current.streamingKey) return false;
-      await run({ key: stateRef.current.activeKey, text: trimmed, attachments });
+      await run({ key: stateRef.current.activeKey, text: trimmed, attachments, images });
       return true;
     },
     [run],
@@ -227,10 +245,22 @@ export function useChat({
       if (!userMessage) return;
       // `retry: true` tells the server "don't save my message twice". If it was
       // never saved (e.g. you were offline), the server simply saves it now.
+      const outgoingIds = (userMessage.outgoingImages ?? []).map((image) => ({ id: image.id }));
       await run({
         key,
         text: userMessage.content,
         attachments: userMessage.outgoing ?? [],
+        // Picture details for the on-screen message: shape comes from the attachment itself.
+        images: outgoingIds.map((image) => {
+          const meta = (userMessage.attachments ?? []).find((a) => a.imageId === image.id);
+          return {
+            id: image.id,
+            url: meta?.url ?? `/api/images/${image.id}`,
+            width: meta?.width ?? 1024,
+            height: meta?.height ?? 1024,
+            name: meta?.name ?? "image",
+          };
+        }),
         retryOf: assistantId,
       });
     },

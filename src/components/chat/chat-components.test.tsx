@@ -119,6 +119,9 @@ describe("<Composer />", () => {
         streaming={false}
         notify={() => {}}
         focusSignal={0}
+        images={[]}
+        setImages={() => {}}
+        onOpenStudio={() => {}}
         {...props}
       />,
     );
@@ -131,7 +134,7 @@ describe("<Composer />", () => {
     expect(onSend).not.toHaveBeenCalled();
     expect(input.value).toBe("Line one\nLine two");
     await userEvent.keyboard("{Enter}");
-    expect(onSend).toHaveBeenCalledWith("Line one\nLine two", []);
+    expect(onSend).toHaveBeenCalledWith("Line one\nLine two", [], []);
     expect(input.value).toBe("");
   });
 
@@ -170,6 +173,6 @@ describe("<Composer />", () => {
     await userEvent.upload(fileInput, new File(["print('hi')"], "app.py", { type: "text/x-python" }));
     expect(await screen.findByText("app.py")).toBeInTheDocument();
     await userEvent.type(input, "Review{Enter}");
-    expect(onSend).toHaveBeenCalledWith("Review", [{ name: "app.py", content: "print('hi')" }]);
+    expect(onSend).toHaveBeenCalledWith("Review", [{ name: "app.py", content: "print('hi')" }], []);
   });
 });

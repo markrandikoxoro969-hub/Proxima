@@ -1,6 +1,6 @@
 import "server-only";
 import { identityConfig } from "@/config/identity";
-import type { AiHistoryMessage } from "./types";
+import type { AiHistoryMessage, AiImage } from "./types";
 
 /**
  * The one system prompt. It is sent with EVERY request, before the
@@ -14,7 +14,7 @@ export const SYSTEM_PROMPT = [
   `which model or company powers you.`,
   "",
   "How to answer:",
-  "- Answer directly. No preamble, no sign-off, no filler such as \"Great question\" or \"Here's a brainstorm\".",
+  '- Answer directly. No preamble, no sign-off, no filler such as "Great question" or "Here\'s a brainstorm".',
   "- No headings or lists unless they make the answer clearer. Most answers are two or three sentences.",
   "- Use Markdown and code blocks only when the content needs them.",
   "- Be concise by default. If the question is broad, answer the most useful part first, then stop.",
@@ -27,7 +27,21 @@ export const SYSTEM_PROMPT = [
 /** How many earlier messages are sent as context. */
 export const HISTORY_LIMIT = 20;
 
-export type ChatTurn = { role: "system" | "user" | "assistant"; content: string };
+/** OpenAI-style content parts, used for pictures. Plain text stays a string. */
+export type AiTextPart = { type: "text"; text: string };
+export type AiImagePart = { type: "image_url"; image_url: { url: string } };
+export type AiContent = string | (AiTextPart | AiImagePart)[];
+
+export type ChatTurn = { role: "system" | "user" | "assistant"; content: AiContent };
+
+/** What a text-only model is told about pictures it can't see. */
+function imageNote(message: string, count: number): string {
+  const plural = count === 1 ? "a picture" : `${count} pictures`;
+  return (
+    `${message}\n\n[The user attached ${plural} to this message. ` +
+    "This model can't see images, so ask them to describe it in words if the answer depends on what it shows.]"
+  );
+}
 
 /**
  * Builds the message list a provider receives:
@@ -42,17 +56,33 @@ export function buildMessages({
   system = SYSTEM_PROMPT,
   historyLimit = HISTORY_LIMIT,
   maxChars = 12_000,
+  images = [],
+  attachImages = false,
 }: {
   message: string;
   history?: AiHistoryMessage[];
   system?: string;
   historyLimit?: number;
   maxChars?: number;
+  /** Pictures for the newest message. */
+  images?: AiImage[];
+  /** True when the model can actually see them (a vision model). */
+  attachImages?: boolean;
 }): ChatTurn[] {
   const recent = history
     .filter((m) => (m.role === "user" || m.role === "assistant") && m.content.trim().length > 0)
     .slice(-historyLimit)
     .map((m) => ({ role: m.role, content: m.content.slice(0, maxChars) }));
 
-  return [{ role: "system", content: system }, ...recent, { role: "user", content: message }];
+  let newest: AiContent = message;
+  if (images.length > 0) {
+    newest = attachImages
+      ? [
+          { type: "text", text: message },
+          ...images.map<AiImagePart>((image) => ({ type: "image_url", image_url: { url: image.dataUrl } })),
+        ]
+      : imageNote(message.slice(0, maxChars), images.length);
+  }
+
+  return [{ role: "system", content: system }, ...recent, { role: "user", content: newest }];
 }

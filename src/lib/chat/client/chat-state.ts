@@ -23,6 +23,8 @@ export type UiMessage = ChatMessageDTO & {
   reasoning?: string;
   /** Attached file contents kept in memory so "Try again" can resend them. */
   outgoing?: { name: string; content: string }[];
+  /** Pictures kept by id (the bytes stay on the server) so "Try again" can resend them. */
+  outgoingImages?: { id: string }[];
 };
 
 export type ConversationState = {

@@ -8,9 +8,11 @@ Google login (Auth.js), Framer Motion, and server-side streaming from the PROXIM
 > then test on your phone → **[docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md)**.
 
 **What's inside:** cinematic landing page with a live demo · `/app` chat (streaming replies,
-markdown + code copy, voice input, file attach, export, dark/light) · `/settings` (profile,
-download/delete data, delete account) · Privacy & Terms · 404 · installable phone app with an
-offline page · Google login · Postgres storage · rate limits · security headers · SEO + share image.
+markdown + code copy, voice input, file + picture attach, export) · selectable themes, including
+themes you build yourself · an image studio (AI create + AI edit) · `/settings` (profile,
+appearance, download/delete data, delete account) · Privacy & Terms · 404 · installable phone app
+with an offline page · Google login · Postgres storage · rate limits · security headers · SEO +
+share image.
 
 ### Guides
 
@@ -19,6 +21,7 @@ offline page · Google login · Postgres storage · rate limits · security head
 | [docs/ACCOUNTS.md](docs/ACCOUNTS.md)               | Neon database + Google login keys, click by click     |
 | [docs/DATABASE.md](docs/DATABASE.md)               | Database commands and troubleshooting                 |
 | [docs/API.md](docs/API.md)                         | Every API endpoint, the chat stream, switching the AI |
+| [docs/IMAGES.md](docs/IMAGES.md)                   | Image upload, AI create/edit engines and their keys   |
 | [docs/DEPLOY.md](docs/DEPLOY.md)                   | Put the site online with Vercel (+ your own domain)   |
 | [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) | Final test on a real phone                            |
 
@@ -135,6 +138,7 @@ Proxima/
 ├─ docs/
 │  ├─ ACCOUNTS.md          ← click-by-click: Neon, Google login, Resend
 │  ├─ API.md               ← every API endpoint, the chat stream format, how to switch AI
+│  ├─ IMAGES.md            ← pictures: upload, AI create/edit, engines, limits, privacy
 │  ├─ DATABASE.md          ← database setup, commands, troubleshooting
 │  ├─ DEPLOY.md            ← put it online with Vercel, click by click
 │  └─ PHONE-CHECKLIST.md   ← final test on a real phone
@@ -355,3 +359,17 @@ https://pagespeed.web.dev after deploying (docs/PHONE-CHECKLIST.md → 6).
       parallax, velocity blur, mobile sheet drag, send → stop morph.
 - [x] **Chat UX:** gradient-mesh empty state with film grain, shimmer skeletons, ⌘K palette,
       copy/regenerate, jump-to-latest, per-chunk token fade.
+
+### Themes + pictures (November 2026)
+
+- [x] **Themes:** 10 built-in themes (Proxima, Daylight, Midnight, Ocean, Ember, Paper, Aurora,
+      Sakura, Graphite, Neon) chosen in Settings, plus a builder for your own theme from three
+      colours. Colours are derived (and contrast-checked) from those three, synced to the account,
+      and painted before the first frame — no flash. The sun/moon button keeps a theme's character
+      (Midnight ⇄ Ocean).
+- [x] **Upload:** attach up to 4 pictures to a message; the browser shrinks them to ≤1280 px WebP,
+      the server re-checks the real type and size, and the chat shows the actual picture.
+- [x] **Image studio:** create a picture from a prompt (style + shape presets) and edit one with
+      AI. Swappable engines with automatic fallbacks — OpenAI, NVIDIA, a free keyless service and
+      an offline preview — so it always returns something and labels offline results honestly.
+      See [docs/IMAGES.md](docs/IMAGES.md).

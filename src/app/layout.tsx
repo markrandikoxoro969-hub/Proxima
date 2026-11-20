@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { site } from "@/lib/site";
-import { THEME_COLORS, themeInitScript } from "@/lib/theme";
+import { THEME_COLORS, THEME_STYLE_ID, themeInitScript, themeStyleSheet } from "@/lib/theme";
 import { jetbrainsMono, montserrat } from "./fonts";
 import "./globals.css";
 
@@ -56,9 +56,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       // Lets Next.js pause smooth scrolling during page changes.
       data-scroll-behavior="smooth"
+      // The saved theme (see src/lib/theme.ts) replaces these defaults before paint.
+      data-theme="proxima"
       className={`dark ${montserrat.variable} ${jetbrainsMono.variable}`}
     >
       <head>
+        {/* Every built-in theme's colours, generated from one source of truth. */}
+        <style id={THEME_STYLE_ID} dangerouslySetInnerHTML={{ __html: themeStyleSheet }} />
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-dvh">

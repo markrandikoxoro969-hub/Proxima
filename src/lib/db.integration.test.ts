@@ -20,6 +20,7 @@ describe("database migrations", () => {
     expect(rows.map((r) => r.table_name)).toEqual([
       "Account",
       "Conversation",
+      "ImageAsset",
       "Message",
       "RateLimit",
       "Session",
