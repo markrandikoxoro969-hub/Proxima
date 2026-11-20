@@ -372,4 +372,6 @@ https://pagespeed.web.dev after deploying (docs/PHONE-CHECKLIST.md → 6).
 - [x] **Image studio:** create a picture from a prompt (style + shape presets) and edit one with
       AI. Swappable engines with automatic fallbacks — OpenAI, NVIDIA, a free keyless service and
       an offline preview — so it always returns something and labels offline results honestly.
-      See [docs/IMAGES.md](docs/IMAGES.md).
+      Results are watermark-free once any real key is present (a free Pollinations key is
+      enough); without one the studio labels the free tier honestly. See
+      [docs/IMAGES.md](docs/IMAGES.md).

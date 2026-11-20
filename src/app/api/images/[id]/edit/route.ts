@@ -2,13 +2,14 @@ import { z } from "zod";
 import { json, readJson, withApi, apiErrors } from "@/lib/api/http";
 import { assertSameOrigin } from "@/lib/api/security";
 import { requireApiUserId } from "@/lib/auth/api";
-import { getImageProvider, imageTimeoutMs } from "@/lib/image";
+import { getImageProvider, imageEngineInfo, imageTimeoutMs, resolveImageSettings } from "@/lib/image";
 import { encodeBase64, toImageDataUrl } from "@/lib/image/data-url";
 import { ImageProviderError } from "@/lib/image/types";
-import { imageApiError, publicImageUrl } from "@/lib/image/errors";
+import { imageApiError } from "@/lib/image/errors";
 import { buildImagePrompt } from "@/lib/image/limits";
 import { loadOwnedImage, saveImage } from "@/lib/image/store";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { signedImageUrl } from "@/lib/image/public-url";
 import { imageEditSchema } from "@/lib/validation";
 
 /**
@@ -59,11 +60,24 @@ export const POST = withApi(async (request: Request, ctx: Ctx) => {
       height: source.height,
       image: { bytes, mime: source.mime, dataUrl: toImageDataUrl(source.mime, encodeBase64(bytes)) },
       strength: input.strength ?? 0.55,
-      sourceUrl: publicImageUrl(source.id),
+      // Expiring signed link: engines that fetch the picture themselves can read
+      // it without a login, even though /api/images/:id stays owner-only.
+      sourceUrl: signedImageUrl(source.id, request),
       signal,
     });
   } catch (error) {
     throw imageApiError(error);
+  }
+
+  // An "edit" that comes back as the offline preview isn't an edit: the card
+  // just restates the prompt. Say so, instead of storing something misleading.
+  if (picture.mime === "image/svg+xml" && resolveImageSettings().id !== "mock") {
+    throw imageApiError(
+      new ImageProviderError(
+        "No AI engine could change the picture (only the offline preview answered)",
+        "unsupported",
+      ),
+    );
   }
 
   const image = await saveImage({
@@ -80,7 +94,7 @@ export const POST = withApi(async (request: Request, ctx: Ctx) => {
   return json({
     image,
     original: source.id,
-    engine: { id: provider.id, label: provider.label },
+    engine: imageEngineInfo(provider),
     offline: picture.mime === "image/svg+xml",
   });
 });

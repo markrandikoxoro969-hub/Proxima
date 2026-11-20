@@ -1,4 +1,4 @@
-import { getImageProvider, imageTimeoutMs } from "@/lib/image";
+import { getImageProvider, imageEngineInfo, imageTimeoutMs } from "@/lib/image";
 import { imageApiError } from "@/lib/image/errors";
 import { IMAGE_LIMITS, buildImagePrompt } from "@/lib/image/limits";
 import { saveImage } from "@/lib/image/store";
@@ -61,7 +61,7 @@ export const POST = withApi(async (request: Request) => {
 
   return json({
     image,
-    engine: { id: provider.id, label: provider.label },
+    engine: imageEngineInfo(provider),
     offline: picture.mime === "image/svg+xml",
   });
 });

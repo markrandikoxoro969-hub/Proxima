@@ -168,6 +168,72 @@ describe("Pollinations engine", () => {
     const url = String(fetchImpl.mock.calls[0][0]);
     expect(url).toContain("https://images.test/prompt/a%20fox%20in%20snow");
     expect(url).toContain("width=768");
+    expect(url).toContain("height=512");
+    // Clean (no watermark) and out of the public feed, on every request.
+    expect(url).toContain("nologo=true");
+    expect(url).toContain("private=true");
+    expect(url).toContain("model=flux");
+  });
+
+  it("sends the key when one is configured", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(new Response(pngBytes(), { headers: { "content-type": "image/png" } }));
+    const provider = createPollinationsImageProvider({
+      baseUrl: "https://gen.test/image",
+      apiKey: "sk_test_key",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(provider.label).not.toContain("free");
+    await provider.generate({ prompt: "a fox", width: 512, height: 512, signal: signal() });
+    const init = fetchImpl.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sk_test_key");
+    expect(String(fetchImpl.mock.calls[0][0])).toContain("nologo=true");
+  });
+
+  it("edits with kontext using the signed source link", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(new Response(pngBytes(), { headers: { "content-type": "image/png" } }));
+    const provider = createPollinationsImageProvider({
+      baseUrl: "https://images.test/image",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await provider.edit!({
+      prompt: "make it snowy",
+      width: 640,
+      height: 480,
+      image: { bytes: pngBytes(), mime: "image/png", dataUrl: pngDataUrl() },
+      strength: 0.5,
+      sourceUrl: "https://proxima.test/api/images/abc/source?exp=1&sig=xyz",
+      signal: signal(),
+    });
+    const url = new URL(String(fetchImpl.mock.calls[0][0]));
+    expect(url.pathname).toBe("/image/make%20it%20snowy");
+    expect(url.searchParams.get("model")).toBe("kontext");
+    expect(url.searchParams.get("image")).toBe("https://proxima.test/api/images/abc/source?exp=1&sig=xyz");
+    expect(url.searchParams.get("nologo")).toBe("true");
+    expect(url.searchParams.get("width")).toBe("640");
+  });
+
+  it("says plainly when it needs a key or credits", async () => {
+    const provider = createPollinationsImageProvider({
+      baseUrl: "https://images.test/image",
+      fetchImpl: vi.fn().mockResolvedValue(new Response("nope", { status: 402 })) as unknown as typeof fetch,
+    });
+    await expect(
+      provider.generate({ prompt: "x", width: 512, height: 512, signal: signal() }),
+    ).rejects.toMatchObject({ code: "unsupported", status: 402 });
+
+    const throttled = createPollinationsImageProvider({
+      baseUrl: "https://images.test/image",
+      fetchImpl: vi
+        .fn()
+        .mockResolvedValue(new Response("slow down", { status: 429 })) as unknown as typeof fetch,
+    });
+    await expect(
+      throttled.generate({ prompt: "x", width: 512, height: 512, signal: signal() }),
+    ).rejects.toMatchObject({ code: "upstream", status: 429 });
   });
 
   it("needs a public address to edit", async () => {

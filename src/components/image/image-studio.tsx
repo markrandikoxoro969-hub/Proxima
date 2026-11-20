@@ -91,7 +91,11 @@ function StudioBody({
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [engine, setEngine] = useState<{ label: string; offline: boolean } | null>(null);
+  const [engine, setEngine] = useState<{ label: string; offline: boolean; note?: string | null } | null>(
+    null,
+  );
+  /** Shown before the first picture: honest note about the current engine. */
+  const [engineNote, setEngineNote] = useState<string | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const promptId = useId();
   const strengthId = useId();
@@ -99,8 +103,9 @@ function StudioBody({
 
   const loadRecent = useCallback(async () => {
     try {
-      const { images } = await api.listImages();
+      const { images, engine: info } = await api.listImages();
       setRecent(images);
+      if (info?.note) setEngineNote(info.note);
       setSource((current) => current ?? images.find((image) => image.source !== "upload") ?? null);
     } catch {
       /* the studio still works without the gallery */
@@ -112,9 +117,10 @@ function StudioBody({
     let cancelled = false;
     void (async () => {
       try {
-        const { images } = await api.listImages();
+        const { images, engine: info } = await api.listImages();
         if (cancelled) return;
         setRecent(images);
+        if (info?.note) setEngineNote(info.note);
         setSource(images.find((image) => image.source !== "upload") ?? null);
       } catch {
         /* the studio still works without the gallery */
@@ -154,7 +160,8 @@ function StudioBody({
 
       setResult(response.image);
       addRecent(response.image);
-      setEngine({ label: response.engine.label, offline: response.offline });
+      setEngine({ label: response.engine.label, offline: response.offline, note: response.engine.note });
+      setEngineNote(response.engine.note ?? null);
       notify(kind === "create" ? "Picture created." : "Picture edited.", "success");
     } catch (caught) {
       const message =
@@ -519,13 +526,18 @@ function StudioBody({
           </ul>
         )}
 
-        <p className="mt-3 text-[11px] text-subtle">
-          {engine
-            ? engine.offline
-              ? `Offline preview (${engine.label}). Add OPENAI_API_KEY or NVIDIA_API_KEY on the server for real artwork — see docs/IMAGES.md.`
-              : `Made with ${engine.label}.`
-            : "Pictures are private to your account. Older ones are removed automatically once you have 120."}
-        </p>
+        <div className="mt-3 space-y-1 text-[11px] text-subtle">
+          <p>
+            {engine
+              ? engine.offline
+                ? `Offline preview (${engine.label}). Add OPENAI_API_KEY or NVIDIA_API_KEY on the server for real artwork — see docs/IMAGES.md.`
+                : `Made with ${engine.label}.`
+              : "Pictures are private to your account. Older ones are removed automatically once you have 120."}
+          </p>
+          {(engine?.note ?? engineNote) && !engine?.offline && (
+            <p className="text-muted">{engine?.note ?? engineNote}</p>
+          )}
+        </div>
       </div>
     </div>
   );

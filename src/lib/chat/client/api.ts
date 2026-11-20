@@ -1,10 +1,18 @@
 import type { ImageDTO } from "@/lib/image/types";
 import type { ChatMessageDTO, EngineStatus, MessagesPage, Profile, SessionSummary } from "../types";
 
+/** Which engine answered, and anything honest to say about the result. */
+export type ImageEngineInfo = {
+  id: string;
+  label: string;
+  /** e.g. "the free service adds a small watermark — add a key to remove it". */
+  note?: string | null;
+};
+
 /** What an image engine reply looks like (generate + edit). */
 export type ImageResult = {
   image: ImageDTO;
-  engine: { id: string; label: string };
+  engine: ImageEngineInfo;
   offline: boolean;
 };
 
@@ -86,7 +94,7 @@ export const api = {
     ),
 
   /* ── Pictures ── */
-  listImages: () => request<{ images: ImageDTO[] }>("/api/images"),
+  listImages: () => request<{ images: ImageDTO[]; engine?: ImageEngineInfo }>("/api/images"),
   uploadImage: (dataUrl: string, name: string) =>
     request<{ image: ImageDTO }>("/api/images", { method: "POST", body: JSON.stringify({ dataUrl, name }) }),
   deleteImage: (id: string) => request<void>(`/api/images/${encodeURIComponent(id)}`, { method: "DELETE" }),

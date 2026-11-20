@@ -4,6 +4,7 @@ import { requireApiUserId } from "@/lib/auth/api";
 import { parseImageDataUrl, ImageDataError } from "@/lib/image/data-url";
 import { IMAGE_LIMITS } from "@/lib/image/limits";
 import { readImageSize } from "@/lib/image/size";
+import { getImageProvider, imageEngineInfo } from "@/lib/image";
 import { listImages, saveImage } from "@/lib/image/store";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { imageUploadSchema } from "@/lib/validation";
@@ -23,7 +24,9 @@ export const maxDuration = 60;
 
 export const GET = withApi(async () => {
   const userId = await requireApiUserId();
-  return json({ images: await listImages(userId) });
+  // `engine` lets the studio warn about the free tier (watermark) before the
+  // person spends a turn discovering it.
+  return json({ images: await listImages(userId), engine: imageEngineInfo(getImageProvider()) });
 });
 
 export const POST = withApi(async (request: Request) => {

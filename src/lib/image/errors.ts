@@ -18,12 +18,18 @@ export function imageApiError(error: unknown): unknown {
         "Couldn't reach the image engine. Check the server's image settings (docs/IMAGES.md).",
       );
     case "upstream":
-      return new ApiError(502, "image_upstream", "The image engine had a problem. Please try again.");
+      return new ApiError(
+        502,
+        "image_upstream",
+        error.status === 401 || error.status === 402 || error.status === 403 || error.status === 429
+          ? "The image service refused the request (key, credits or rate limit). Add a free Pollinations key or try again in a minute."
+          : "The image engine had a problem. Please try again.",
+      );
     case "unsupported":
       return new ApiError(
         422,
         "image_unsupported",
-        "That engine can't edit pictures. Add an OpenAI key, or set NEXT_PUBLIC_SITE_URL so the free editor can reach your image.",
+        "This engine can't edit pictures. Add a free Pollinations key (POLLINATIONS_API_KEY) or an OpenAI key — see docs/IMAGES.md.",
       );
     case "bad_response":
       return new ApiError(
@@ -36,17 +42,4 @@ export function imageApiError(error: unknown): unknown {
     default:
       return new ApiError(502, "image_failed", "The image engine failed. Please try again.");
   }
-}
-
-/** Public address of one of our images, for services that fetch it themselves. */
-export function publicImageUrl(id: string): string | undefined {
-  const raw = (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim().replace(/\/$/, "");
-  if (!/^https:\/\//i.test(raw)) return undefined;
-  try {
-    const host = new URL(raw).hostname;
-    if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".local")) return undefined;
-  } catch {
-    return undefined;
-  }
-  return `${raw}/api/images/${id}`;
 }
