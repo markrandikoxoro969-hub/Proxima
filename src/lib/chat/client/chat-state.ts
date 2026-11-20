@@ -1,3 +1,4 @@
+import type { ChatMode } from "@/lib/ai/modes";
 import type { ChatMessageDTO, MessagesPage, SessionSummary } from "../types";
 
 /**
@@ -19,6 +20,8 @@ export type UiMessage = ChatMessageDTO & {
   clientKey?: string;
   /** Added during this visit → plays the blur-in animation once. */
   fresh?: boolean;
+  /** The answer mode that produced this reply (fast / thinking / coding / analyze). */
+  mode?: ChatMode;
   /** The model's private reasoning (only when Settings → Show reasoning is on). */
   reasoning?: string;
   /** How long the "Thinking" state was visible before the first word arrived. */

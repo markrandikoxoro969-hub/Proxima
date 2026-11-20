@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CHAT_MODES } from "./ai/modes";
 import { IMAGE_LIMITS, IMAGE_STYLES } from "./image/limits";
 import { LIMITS } from "./limits";
 import { CUSTOM_THEME_LIMIT, ThemeError, buildCustomTheme, type ThemeMode } from "./theme/palettes";
@@ -67,6 +68,11 @@ export const chatRequestSchema = z.object({
    * when false, reasoning never leaves the server and is never stored.
    */
   showReasoning: z.boolean().optional(),
+  /**
+   * Answer style from the composer. Unknown values are rejected, so the server
+   * only ever sends a mode it knows about.
+   */
+  mode: z.enum(CHAT_MODES).optional(),
   /**
    * Temporary chat: nothing is written to the database and memory is neither
    * read nor written for this message.

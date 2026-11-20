@@ -3,6 +3,7 @@
 import {
   ArrowUp,
   EyeSlash,
+  FileCode,
   FileText,
   ImageSquare,
   Microphone,
@@ -13,6 +14,7 @@ import {
 } from "@phosphor-icons/react";
 import { AnimatePresence, m } from "motion/react";
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import type { ChatMode } from "@/lib/ai/modes";
 import { ACCEPT_ATTRIBUTE, formatBytes, readAttachments, type ReadFile } from "@/lib/chat/client/files";
 import {
   formatImageSize,
@@ -26,6 +28,7 @@ import { cn } from "@/lib/cn";
 import { IMAGE_LIMITS } from "@/lib/image/limits";
 import { LIMITS } from "@/lib/limits";
 import { SPRING } from "@/lib/motion/tokens";
+import { ModeMenu } from "./mode-menu";
 
 const MAX_HEIGHT = 200;
 const WARN_AT = 3900;
@@ -49,6 +52,8 @@ export const Composer = memo(function Composer({
   setImages,
   onOpenStudio,
   onTemporaryChange,
+  mode,
+  onModeChange,
 }: {
   onSend: (
     text: string,
@@ -67,6 +72,9 @@ export const Composer = memo(function Composer({
   onOpenStudio: () => void;
   /** Start a clean local conversation when temporary mode changes. */
   onTemporaryChange?: () => void;
+  /** Answer style (fast / thinking / coding / analyze). */
+  mode: ChatMode;
+  onModeChange: (mode: ChatMode) => void;
 }) {
   const [text, setText] = useState("");
   const [temporary, setTemporary] = useTemporaryChat();
@@ -321,22 +329,31 @@ export const Composer = memo(function Composer({
         )}
 
         <div className="flex items-center gap-1 px-2 pb-2">
+          {/* Answer mode first: it is the choice people change most often. */}
+          <ModeMenu mode={mode} onChange={onModeChange} />
+
           <button
             type="button"
             aria-pressed={temporary}
+            aria-label={
+              temporary ? "Temporary chat is on. Messages are not saved." : "Start a temporary chat"
+            }
             onClick={() => {
               setTemporary(!temporary);
               onTemporaryChange?.();
             }}
             title={temporary ? "Temporary chat is on. Messages are not saved." : "Start a temporary chat"}
             className={cn(
-              "inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2.5 text-xs font-bold transition-[color,background-color] duration-200",
-              temporary ? "bg-[var(--accent)]/12 text-[var(--accent-text)]" : "text-subtle hover:bg-surface-hover hover:text-fg",
+              "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2.5 text-xs font-bold transition-[color,background-color] duration-200",
+              temporary
+                ? "bg-[var(--accent)]/12 text-[var(--accent-text)]"
+                : "text-subtle hover:bg-surface-hover hover:text-fg",
             )}
           >
             <EyeSlash weight={temporary ? "fill" : "bold"} className="size-4" aria-hidden />
-            <span>{temporary ? "Temporary on" : "Temporary"}</span>
+            <span className="hidden sm:inline">{temporary ? "Temporary on" : "Temporary"}</span>
           </button>
+
           <input
             ref={fileInputRef}
             type="file"
@@ -363,23 +380,15 @@ export const Composer = memo(function Composer({
               e.target.value = "";
             }}
           />
-          <IconButton
-            label={`Attach a picture (up to ${IMAGE_LIMITS.perMessage}, 12 MB each)`}
-            onClick={() => imageInputRef.current?.click()}
-            disabled={images.length >= IMAGE_LIMITS.perMessage}
-          >
-            <ImageSquare weight="bold" className="size-5" aria-hidden />
-          </IconButton>
-          <IconButton
-            label={`Attach text or code files (up to ${LIMITS.attachmentsMax}, 100 KB each)`}
-            onClick={() => fileInputRef.current?.click()}
-            disabled={files.length >= LIMITS.attachmentsMax}
-          >
-            <Paperclip weight="bold" className="size-5" aria-hidden />
-          </IconButton>
-          <IconButton label="Create or edit a picture with AI" onClick={onOpenStudio}>
-            <Sparkle weight="fill" className="size-5" aria-hidden />
-          </IconButton>
+          <AttachMenu
+            onPicture={() => imageInputRef.current?.click()}
+            onFile={() => fileInputRef.current?.click()}
+            onCreateImage={onOpenStudio}
+            pictureDisabled={images.length >= IMAGE_LIMITS.perMessage}
+            fileDisabled={files.length >= LIMITS.attachmentsMax}
+            pictureLimit={IMAGE_LIMITS.perMessage}
+            fileLimit={LIMITS.attachmentsMax}
+          />
           <IconButton
             label={speech.listening ? "Stop voice input" : "Voice input"}
             onClick={speech.toggle}
@@ -398,7 +407,7 @@ export const Composer = memo(function Composer({
           <span
             id={counterId}
             className={cn(
-              "ml-auto px-2 font-mono text-[11px] font-bold tabular-nums transition-opacity duration-200",
+              "ml-auto hidden px-2 font-mono text-[11px] font-bold tabular-nums transition-opacity duration-200 min-[380px]:inline",
               length === 0 && "opacity-0",
               length > WARN_AT ? "text-red-500" : "text-subtle",
             )}
@@ -446,14 +455,136 @@ export const Composer = memo(function Composer({
         </div>
       </form>
       <p id={hintId} className="mt-2 text-center text-[11px] font-medium text-subtle">
-        Enter sends · Shift + Enter adds a line
+        <span className="sm:hidden">Tap send when you&apos;re ready</span>
+        <span className="hidden sm:inline">Enter sends · Shift + Enter adds a line</span>
         <span className="sr-only">. Your messages are sent over an encrypted connection.</span>
       </p>
     </div>
   );
 });
 
+/**
+ * One attach button instead of three (picture · file · AI picture).
+ *
+ * On a 360px phone the old row of six 44px buttons plus the send button
+ * overflowed; this keeps every action reachable in a menu that opens upward,
+ * with 44px rows. The labels stay the same screen-reader labels as before.
+ */
+function AttachMenu({
+  onPicture,
+  onFile,
+  onCreateImage,
+  pictureDisabled,
+  fileDisabled,
+  pictureLimit,
+  fileLimit,
+}: {
+  onPicture: () => void;
+  onFile: () => void;
+  onCreateImage: () => void;
+  pictureDisabled: boolean;
+  fileDisabled: boolean;
+  pictureLimit: number;
+  fileLimit: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus({ preventScroll: true });
+      }
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    panelRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus({ preventScroll: true });
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const items = [
+    {
+      id: "picture",
+      label: `Attach a picture (up to ${pictureLimit}, 12 MB each)`,
+      icon: <ImageSquare weight="bold" className="size-4.5" aria-hidden />,
+      run: onPicture,
+      disabled: pictureDisabled,
+    },
+    {
+      id: "file",
+      label: `Attach text or code files (up to ${fileLimit}, 100 KB each)`,
+      icon: <FileCode weight="bold" className="size-4.5" aria-hidden />,
+      run: onFile,
+      disabled: fileDisabled,
+    },
+    {
+      id: "studio",
+      label: "Create or edit a picture with AI",
+      icon: <Sparkle weight="fill" className="size-4.5" aria-hidden />,
+      run: onCreateImage,
+      disabled: false,
+    },
+  ];
+
+  return (
+    // `contents` (not `relative`) makes the panel position itself against the
+    // composer form, so it can open left-aligned on a 320px screen instead of
+    // running off the right edge.
+    <div ref={rootRef} className="contents">
+      <IconButton label="Add a picture or file" onClick={() => setOpen((value) => !value)} pressed={open}>
+        <Paperclip weight="bold" className="size-5" aria-hidden />
+      </IconButton>
+
+      {open && (
+        <div
+          ref={panelRef}
+          id={menuId}
+          role="menu"
+          aria-label="Add to your message"
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+            event.preventDefault();
+            const all = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+            const index = all.indexOf(document.activeElement as HTMLElement);
+            all[(index + (event.key === "ArrowDown" ? 1 : -1) + all.length) % all.length]?.focus();
+          }}
+          className="absolute bottom-full left-0 z-40 mb-2 w-[min(18rem,calc(100vw-1.5rem))] origin-bottom-left animate-scale-in rounded-2xl glass-solid p-1.5 shadow-glow-strong"
+        >
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              disabled={item.disabled}
+              onClick={() => {
+                setOpen(false);
+                item.run();
+              }}
+              className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-colors duration-150 hover:bg-surface-hover focus:bg-surface-hover focus:outline-none disabled:opacity-40"
+            >
+              <span className="text-muted">{item.icon}</span>
+              <span className="min-w-0 flex-1">{item.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IconButton({
+  ref,
   label,
   onClick,
   disabled,
@@ -461,6 +592,7 @@ function IconButton({
   className,
   children,
 }: {
+  ref?: React.Ref<HTMLButtonElement>;
   label: string;
   onClick: () => void;
   disabled?: boolean;
@@ -470,6 +602,7 @@ function IconButton({
 }) {
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
       disabled={disabled}

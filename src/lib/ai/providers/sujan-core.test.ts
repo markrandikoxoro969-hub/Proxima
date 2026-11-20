@@ -33,6 +33,15 @@ describe("sujan-core provider", () => {
     expect(JSON.parse(init.body as string)).toEqual({ message: "Hi", session_id: "s1" });
   });
 
+  it("puts the system prompt (and so the answer mode) above the message", async () => {
+    const { provider, fetchImpl } = setup(ok({ reply: "ok" }));
+    await provider.complete!({ ...request(), system: "Mode: Coding.\nReturn runnable code." });
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { message: string };
+    expect(body.message.startsWith("Mode: Coding.")).toBe(true);
+    expect(body.message.endsWith("Hi")).toBe(true);
+  });
+
   it("retries once when Render is restarting (503)", async () => {
     const { provider, fetchImpl } = setup(ok({}, 503), ok({ reply: "Back!" }));
     await expect(provider.complete!(request())).resolves.toBe("Back!");

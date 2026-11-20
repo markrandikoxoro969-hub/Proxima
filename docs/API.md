@@ -41,6 +41,7 @@ Every error has the same shape, so the app can show a friendly toast:
   "attachments": [{ "name": "app.py", "content": "print('hi')" }], // optional, ≤3 text files, ≤100 KB each
   "demoSessionId": "uuid", // optional: guest demo memory
   "retry": true, // optional: "Try again" after a failed reply (see below)
+  "mode": "thinking", // optional: "thinking" | "fast" | "coding" | "analyze" (default: thinking)
   "showReasoning": true, // optional, default false: also stream the model's private reasoning
   "history": [{ "role": "user", "content": "…" }] // optional, guest demo only (max 20)
 }
@@ -55,13 +56,13 @@ Every error has the same shape, so the app can show a friendly toast:
 Events arrive in this order:
 
 ```
-event: meta       data: {"mode":"user","conversationId":"cm3…","title":"Write a clean Python scri…","userMessageId":"cm3…"}
+event: meta       data: {"mode":"user","answerMode":"coding","conversationId":"cm3…","title":"Write a clean Python scri…","userMessageId":"cm3…"}
 event: status     data: {"state":"thinking"}
 event: status     data: {"state":"waking","message":"Waking up the engine…"}   ← only if the engine is slow to start (>4 s)
 event: reasoning  data: {"text":"The user wants a script…"}                     ← ONLY if showReasoning:true
 event: token      data: {"text":"Here is"}                                       ← many of these
 event: token      data: {"text":" a clean script…"}
-event: done       data: {"messageId":"cm3…","latencyMs":2140,"source":"nvidia+render","text":"Here is a clean script…"}
+event: done       data: {"messageId":"cm3…","latencyMs":2140,"source":"nvidia+render","mode":"coding","text":"Here is a clean script…"}
 ```
 
 If the AI fails, you get one `error` event instead of `done`. Your own message stays saved, so you can retry:
@@ -75,6 +76,11 @@ event: error      data: {"code":"timeout","message":"The engine took too long to
 - Identity questions (for example "Who made you?" or "How old are you?") are answered from `src/config/identity.ts` without calling the AI. `done.source` is then `"identity"`.
 - File contents go to the AI inside code blocks. Only each file's **name, size and language** are stored.
 - If you close the tab mid-reply, whatever text has already arrived is still saved.
+- **Answer modes** (`mode`): `thinking` (default), `fast`, `coding`, `analyze`. The server appends
+  that mode's rules to the system prompt and tunes the model (private thinking on/off, temperature,
+  top_p, token budget, history length) — see `src/lib/ai/modes.ts`. Unknown values are rejected with
+  `validation_error`; old clients that omit `mode` get `thinking`. The mode the server actually used
+  comes back as `meta.answerMode` and `done.mode`.
 - **Reasoning** (`reasoning_content` from the model) is never stored and is not sent at all unless the
   request asks for it. `done.text` is the final, cleaned answer — the client swaps it in if trailing
   filler ("I hope this helps") was removed after streaming.

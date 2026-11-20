@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import type { ChatMode } from "@/lib/ai/modes";
 import type { MessagesPage, SessionSummary } from "../types";
 import { api, ClientApiError } from "./api";
 import { chatReducer, DRAFT, initialChatState, type UiMessage } from "./chat-state";
@@ -22,12 +23,15 @@ export function useChat({
   initialActiveId,
   initialActivePage,
   notify,
+  mode = "thinking",
 }: {
   initialSessions: SessionSummary[];
   initialNextCursor: string | null;
   initialActiveId: string | null;
   initialActivePage: MessagesPage | null;
   notify: Notify;
+  /** Answer style chosen in the composer, applied to each new reply. */
+  mode?: ChatMode;
 }) {
   const [state, dispatch] = useReducer(
     chatReducer,
@@ -116,6 +120,7 @@ export function useChat({
       }
       const history = pool.slice(-20).map((m) => ({ role: m.role, content: m.content }));
 
+      const answerMode = mode;
       const userTemp = tempId("tmp-user");
       const assistantId = tempId("tmp-ai");
       const assistant: UiMessage = {
@@ -127,6 +132,7 @@ export function useChat({
         createdAt: now,
         status: "streaming",
         phase: "thinking",
+        mode: answerMode,
         fresh: true,
         clientKey: assistantId,
       };
@@ -181,6 +187,7 @@ export function useChat({
           images: images.length ? images.map((image) => ({ id: image.id })) : undefined,
           retry: retryOf ? true : undefined,
           showReasoning,
+          mode: answerMode,
           temporary,
           history: history.length ? history : undefined,
         },
@@ -234,7 +241,7 @@ export function useChat({
       );
       if (abortRef.current === controller) abortRef.current = null;
     },
-    [notify, showReasoning, temporary],
+    [mode, notify, showReasoning, temporary],
   );
 
   const send = useCallback(

@@ -3,10 +3,13 @@
 import {
   ArrowDown,
   Brain,
+  ChartBar,
   ChatCircleText,
+  Code,
   Copy,
   GearSix,
   ImageSquare,
+  Lightning,
   Moon,
   Plus,
   SlidersHorizontal,
@@ -23,6 +26,7 @@ import { api } from "@/lib/chat/client/api";
 import { DRAFT } from "@/lib/chat/client/chat-state";
 import { draftFromImage, type DraftImage } from "@/lib/chat/client/images";
 import { useChat } from "@/lib/chat/client/use-chat";
+import { useChatMode } from "@/lib/chat/client/use-mode";
 import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
 import { EASE } from "@/lib/motion/tokens";
 import type { EngineStatus, MessagesPage, Profile, SessionSummary } from "@/lib/chat/types";
@@ -30,7 +34,7 @@ import type { ImageDTO } from "@/lib/image/types";
 import type { ThemePreference } from "@/lib/theme";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { ChatHeader } from "./chat-header";
-import { CommandPalette, type Command } from "./command-palette";
+import type { Command } from "./command-palette";
 import { Composer } from "./composer";
 import { EmptyState } from "./empty-state";
 import { MessageList } from "./message-list";
@@ -38,6 +42,7 @@ import { Sidebar } from "./sidebar";
 
 // Loaded only when needed (keeps the first load small and fast).
 const SettingsDialog = dynamic(() => import("./settings-dialog").then((m) => m.SettingsDialog));
+const CommandPalette = dynamic(() => import("./command-palette").then((m) => m.CommandPalette));
 const ImageStudio = dynamic(() => import("@/components/image/image-studio").then((m) => m.ImageStudio));
 const Onboarding = dynamic(() => import("./onboarding").then((m) => m.Onboarding));
 const Particles = dynamic(() => import("./particles"), { ssr: false });
@@ -71,7 +76,11 @@ function ChatScreen({
   const router = useRouter();
   const { theme, paletteId, syncFromAccount, setPreference, resolved } = useTheme();
   const [showReasoning, setShowReasoning] = useShowReasoning();
+  const [mode, setMode] = useChatMode();
   const isDesktop = useMediaQuery("(min-width: 1024px)", true);
+  // Separate from `isDesktop` (which renders as true on the server for layout):
+  // this one starts false, so a phone never even downloads the canvas chunk.
+  const canShowParticles = useMediaQuery("(min-width: 1024px)", false);
   const [profile, setProfile] = useState(initialProfile);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -86,7 +95,14 @@ function ChatScreen({
   const [studioOpen, setStudioOpen] = useState(false);
   const [images, setImages] = useState<DraftImage[]>([]);
 
-  const chat = useChat({ initialSessions, initialNextCursor, initialActiveId, initialActivePage, notify });
+  const chat = useChat({
+    initialSessions,
+    initialNextCursor,
+    initialActiveId,
+    initialActivePage,
+    notify,
+    mode,
+  });
   const { state, active, newChat: startNewChat, send: sendMessage, select: selectChat } = chat;
   const shownName = profile.displayName ?? profile.name?.split(" ")[0] ?? "Explorer";
 
@@ -257,6 +273,21 @@ function ChatScreen({
         keywords: "theme dark light appearance",
         run: () => setPreference(resolved === "dark" ? "light" : "dark"),
       },
+      ...(
+        [
+          { id: "thinking", label: "Thinking", icon: <Brain weight="bold" className="size-4" /> },
+          { id: "fast", label: "Fast", icon: <Lightning weight="bold" className="size-4" /> },
+          { id: "coding", label: "Coding", icon: <Code weight="bold" className="size-4" /> },
+          { id: "analyze", label: "Analyze", icon: <ChartBar weight="bold" className="size-4" /> },
+        ] as const
+      ).map((entry) => ({
+        id: `mode-${entry.id}`,
+        label: `Answer mode: ${entry.label}`,
+        hint: mode === entry.id ? "On" : undefined,
+        icon: entry.icon,
+        keywords: "mode fast thinking coding analyze answer style",
+        run: () => setMode(entry.id),
+      })),
       {
         id: "reasoning",
         label: showReasoning ? "Hide the model's reasoning" : "Show the model's reasoning",
@@ -306,6 +337,8 @@ function ChatScreen({
       openStudio,
       resolved,
       setPreference,
+      mode,
+      setMode,
       showReasoning,
       setShowReasoning,
     ],
@@ -327,7 +360,9 @@ function ChatScreen({
 
   return (
     <div className="app-shell relative isolate flex h-dvh overflow-hidden bg-bg">
-      {profile.particles && <Particles />}
+      {/* Ambient canvas is desktop-only: on a phone it is a constant repaint for
+          an effect you cannot see behind the chat. */}
+      {profile.particles && canShowParticles && <Particles />}
 
       {/* While onboarding is open, everything behind it is unreachable (keyboard + screen readers). */}
       <div className="flex min-w-0 flex-1" inert={!profile.onboarded || undefined}>
@@ -411,6 +446,8 @@ function ChatScreen({
             setImages={setImages}
             onOpenStudio={openStudio}
             onTemporaryChange={chat.newChat}
+            mode={mode}
+            onModeChange={setMode}
           />
         </main>
       </div>

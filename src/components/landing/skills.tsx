@@ -1,11 +1,4 @@
-import {
-  Bug,
-  CodeBlock,
-  Database,
-  GitBranch,
-  Microphone,
-  Paperclip,
-} from "@phosphor-icons/react/ssr";
+import { Bug, CodeBlock, Database, GitBranch, Microphone, Paperclip } from "@phosphor-icons/react/ssr";
 import { Stagger, StaggerItem } from "@/components/motion/primitives";
 import { SectionHeading } from "./magnetic";
 
@@ -50,7 +43,7 @@ const CAPABILITIES = [
 
 export function Skills() {
   return (
-    <section id="skills" aria-labelledby="skills-title" className="px-5 py-24 sm:px-8 sm:py-32">
+    <section id="skills" aria-labelledby="skills-title" className="cv-auto px-5 py-24 sm:px-8 sm:py-32">
       <SectionHeading
         id="skills-title"
         eyebrow="Capabilities"

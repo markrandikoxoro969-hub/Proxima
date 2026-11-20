@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 
 /**
  * Gentle floating dots behind the chat (like the original), made cheap:
- *  - 60 dots on desktop, 28 on phones.
+ *  - 42 dots on desktop, 22 on phones, painted at 30fps.
  *  - Sharp on retina screens, but resolution capped at 2× (3× phones would
  *    draw 2.25× more pixels for no visible gain).
  *  - Pauses when the tab is hidden or the canvas is off-screen.
@@ -46,7 +46,7 @@ export default function Particles({
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const count = width < 768 ? 28 : 60;
+      const count = width < 768 ? 22 : 42;
       if (dots.length !== count) {
         dots = Array.from({ length: count }, () => ({
           x: Math.random() * width,
@@ -69,7 +69,13 @@ export default function Particles({
       }
     };
 
-    const tick = () => {
+    // 30fps is plenty for dots this slow, and it halves the canvas work.
+    // (The original drew 60 full-screen frames a second forever.)
+    let lastPaint = 0;
+    const tick = (now: number) => {
+      frame = requestAnimationFrame(tick);
+      if (now - lastPaint < 33) return;
+      lastPaint = now;
       for (const d of dots) {
         d.x += d.vx;
         d.y += d.vy;
@@ -79,7 +85,6 @@ export default function Particles({
         else if (d.y > height + 5) d.y = -5;
       }
       draw();
-      frame = requestAnimationFrame(tick);
     };
 
     const start = () => {

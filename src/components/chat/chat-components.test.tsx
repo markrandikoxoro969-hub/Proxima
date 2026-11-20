@@ -81,7 +81,9 @@ describe("<MessageItem />", () => {
       <MessageItem message={msg({ status: "streaming", phase: "waking" })} onRetry={() => {}} canRetry />,
     );
     expect(screen.getByText("Waking up", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("The engine was asleep. The first reply can take up to a minute.")).toBeInTheDocument();
+    expect(
+      screen.getByText("The engine was asleep. The first reply can take up to a minute."),
+    ).toBeInTheDocument();
   });
 
   it("collapses the live thinking state as soon as the first answer text arrives", () => {
@@ -134,6 +136,8 @@ describe("<Composer />", () => {
         images={[]}
         setImages={() => {}}
         onOpenStudio={() => {}}
+        mode="thinking"
+        onModeChange={() => {}}
         {...props}
       />,
     );

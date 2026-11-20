@@ -21,7 +21,7 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <section id="how" aria-labelledby="how-title" className="px-5 py-24 sm:px-8 sm:py-32">
+    <section id="how" aria-labelledby="how-title" className="cv-auto px-5 py-24 sm:px-8 sm:py-32">
       <SectionHeading
         id="how-title"
         eyebrow="How it works"

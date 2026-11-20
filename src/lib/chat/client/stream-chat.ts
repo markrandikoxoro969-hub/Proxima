@@ -1,3 +1,4 @@
+import type { ChatMode } from "@/lib/ai/modes";
 import { toApiError } from "./api";
 import { FrameBatcher } from "./frame-batcher";
 import { readChatStream, type ChatStreamEvent } from "./sse";
@@ -18,6 +19,8 @@ export type ChatRequestBody = {
   retry?: boolean;
   /** Ask the server to stream the model's private reasoning (off by default). */
   showReasoning?: boolean;
+  /** Answer style: fast / thinking / coding / analyze. */
+  mode?: ChatMode;
   /** Temporary chat: nothing is saved and memory is not used. */
   temporary?: boolean;
   /** Guest demo only: recent turns so the demo keeps its memory. */
