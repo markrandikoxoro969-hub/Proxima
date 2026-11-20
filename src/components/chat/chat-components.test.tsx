@@ -80,7 +80,7 @@ describe("<MessageItem />", () => {
     render(
       <MessageItem message={msg({ status: "streaming", phase: "waking" })} onRetry={() => {}} canRetry />,
     );
-    expect(screen.getByText("Waking up the engine…")).toBeInTheDocument();
+    expect(screen.getByText(/Waking up the engine…/)).toBeInTheDocument();
   });
 
   it("shows a friendly error with Try again", async () => {

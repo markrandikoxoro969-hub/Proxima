@@ -42,6 +42,7 @@ Every error has the same shape, so the app can show a friendly toast:
   "demoSessionId": "uuid", // optional: guest demo memory
   "retry": true, // optional: "Try again" after a failed reply (see below)
   "showReasoning": true, // optional, default false: also stream the model's private reasoning
+  "mode": "thinking",    // optional: "thinking" | "fast" | "pro" | "coding" (see lib/ai/modes.ts)
   "history": [{ "role": "user", "content": "…" }] // optional, guest demo only (max 20)
 }
 ```
@@ -97,6 +98,8 @@ event: error      data: {"code":"timeout","message":"The engine took too long to
 | `PATCH /api/sessions/:id`          | Rename. Body `{ "title": "My project" }` (1–120 characters)                                                                                                   |
 | `DELETE /api/sessions/:id`         | Delete this chat and its messages → `204`                                                                                                                     |
 | `DELETE /api/sessions?confirm=all` | Delete **all your** chats → `{ deleted: 7 }`. This fixes the original file, which wiped the whole localStorage.                                               |
+| `GET /api/memory`                  | What PROXIMA remembers about you between chats: `{ notes, updatedAt }` (`notes` is the "- 2026-11-19: going to the gym" list, or `null`)                       |
+| `DELETE /api/memory`               | Forget everything → `{ cleared: true }`. Chats themselves are not deleted.                                                                                     |
 
 ## Export
 

@@ -21,7 +21,11 @@ export function LandingEffects() {
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const desktop = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-    const rich = desktop && !reduced;
+    // Low-core machines (cheap laptops, old tablets) skip the expensive extras:
+    // smooth scrolling and the trailing cursor ring both cost a frame budget.
+    const cores = navigator.hardwareConcurrency ?? 8;
+    const capable = cores > 4;
+    const rich = desktop && !reduced && capable;
     const cleanups: (() => void)[] = [];
 
     // 1) Scroll reveals ------------------------------------------------------
@@ -68,7 +72,8 @@ export function LandingEffects() {
       if (disposed) return;
       lenis = new LenisClass({
         autoRaf: true,
-        lerp: 0.12,
+        // Snappier than the default 0.1: smooth, but the page keeps up with the wheel.
+        lerp: 0.16,
         anchors: { offset: -88 },
         stopInertiaOnNavigate: true,
       });
@@ -104,7 +109,15 @@ export function LandingEffects() {
 const INTERACTIVE = "a, button, summary, label, select, [role='button'], [data-cursor]";
 const TEXT = "input, textarea, [contenteditable='true']";
 
-/** Dot follows the mouse exactly; the ring trails softly. Transform-only. */
+/**
+ * Dot follows the mouse exactly; the ring trails softly.
+ *
+ * Everything is batched into one rAF frame: the old version toggled four
+ * attributes and wrote two transforms on *every* pointermove, which forced a
+ * style recalculation per mouse event and made the cursor feel heavy. It also
+ * kept `cursor: none` on the document after the window lost focus (alt-tab,
+ * a native dialog, a browser menu), which is what left the pointer "stuck".
+ */
 function Cursor() {
   const dotRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
@@ -114,18 +127,31 @@ function Cursor() {
     const ring = ringRef.current;
     if (!dot || !ring) return;
     const root = document.documentElement;
+
     let x = 0;
     let y = 0;
     let rx = 0;
     let ry = 0;
     let frame: number | null = null;
     let visible = false;
+    let hover = false;
+    let text = false;
+    let down = false;
 
-    const loop = () => {
-      rx += (x - rx) * 0.2;
-      ry += (y - ry) * 0.2;
+    const paint = () => {
+      frame = null;
+      if (!visible) return;
+      rx += (x - rx) * 0.22;
+      ry += (y - ry) * 0.22;
+      dot.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       ring.style.transform = `translate3d(${rx.toFixed(1)}px, ${ry.toFixed(1)}px, 0)`;
-      frame = Math.abs(x - rx) + Math.abs(y - ry) > 0.2 ? requestAnimationFrame(loop) : null;
+      if (Math.abs(x - rx) + Math.abs(y - ry) > 0.2) frame = requestAnimationFrame(paint);
+    };
+    const schedule = () => {
+      if (frame === null) frame = requestAnimationFrame(paint);
+    };
+    const setState = (el: HTMLElement, name: string, on: boolean) => {
+      if (el.hasAttribute(name) !== on) el.toggleAttribute(name, on);
     };
 
     const onMove = (e: PointerEvent) => {
@@ -136,38 +162,78 @@ function Cursor() {
         visible = true;
         rx = x;
         ry = y;
-        root.classList.add("has-cursor"); // hide the system cursor only once ours is showing
-        dot.setAttribute("data-visible", "");
-        ring.setAttribute("data-visible", "");
+        // Hide the system cursor only after ours is on screen.
+        root.classList.add("has-cursor");
+        setState(dot, "data-visible", true);
+        setState(ring, "data-visible", true);
       }
-      dot.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       const target = e.target instanceof Element ? e.target : null;
-      const onText = Boolean(target?.closest(TEXT));
-      const onInteractive = !onText && Boolean(target?.closest(INTERACTIVE));
-      dot.toggleAttribute("data-hover", onInteractive);
-      ring.toggleAttribute("data-hover", onInteractive);
-      dot.toggleAttribute("data-text", onText);
-      ring.toggleAttribute("data-text", onText);
-      if (frame === null) frame = requestAnimationFrame(loop);
+      const nextText = Boolean(target?.closest(TEXT));
+      const nextHover = !nextText && Boolean(target?.closest(INTERACTIVE));
+      if (nextText !== text) {
+        text = nextText;
+        setState(dot, "data-text", text);
+        setState(ring, "data-text", text);
+      }
+      if (nextHover !== hover) {
+        hover = nextHover;
+        setState(dot, "data-hover", hover);
+        setState(ring, "data-hover", hover);
+      }
+      schedule();
     };
+
+    const onDown = () => {
+      if (!down) {
+        down = true;
+        setState(ring, "data-down", true);
+      }
+    };
+    const onUp = () => {
+      if (down) {
+        down = false;
+        setState(ring, "data-down", false);
+      }
+    };
+
+    /** Give the real pointer back whenever we can't be sure where it is. */
     const hide = () => {
       visible = false;
+      hover = false;
+      text = false;
+      if (frame !== null) {
+        cancelAnimationFrame(frame);
+        frame = null;
+      }
       root.classList.remove("has-cursor");
-      dot.removeAttribute("data-visible");
-      ring.removeAttribute("data-visible");
+      for (const el of [dot, ring]) {
+        for (const name of ["data-visible", "data-hover", "data-text", "data-down"]) el.removeAttribute(name);
+      }
     };
-    const down = () => ring.setAttribute("data-down", "");
-    const up = () => ring.removeAttribute("data-down");
+
+    const onVisibility = () => {
+      if (document.hidden) hide();
+    };
 
     document.addEventListener("pointermove", onMove, { passive: true });
-    document.addEventListener("pointerdown", down);
-    document.addEventListener("pointerup", up);
+    document.addEventListener("pointerdown", onDown, { passive: true });
+    document.addEventListener("pointerup", onUp, { passive: true });
+    document.addEventListener("pointercancel", hide);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", hide);
+    // Scrolls triggered by the wheel keep the pointer over new content; the ring
+    // stays put visually but must not go stale after a jump (anchor links).
+    window.addEventListener("scroll", schedule, { passive: true });
     root.addEventListener("pointerleave", hide);
+
     return () => {
-      if (frame !== null) cancelAnimationFrame(frame);
       document.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerdown", down);
-      document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", hide);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", hide);
+      window.removeEventListener("scroll", schedule);
       root.removeEventListener("pointerleave", hide);
       hide();
     };

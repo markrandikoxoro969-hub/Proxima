@@ -326,7 +326,7 @@ function ChatScreen({
   const isEmpty = !active || (active.status === "ready" && active.messages.length === 0);
 
   return (
-    <div className="relative isolate flex h-dvh overflow-hidden bg-bg">
+    <div className="app-shell relative isolate flex h-dvh overflow-hidden bg-bg">
       {profile.particles && <Particles />}
 
       {/* While onboarding is open, everything behind it is unreachable (keyboard + screen readers). */}

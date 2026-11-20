@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  Brain,
   DownloadSimple,
   FileText,
   Info,
@@ -69,6 +70,10 @@ function SettingsScreen({
         </div>
 
         <ProfileSection profile={profile} onSaved={setProfile} />
+        <MemorySection
+          notes={profile.memoryNotes}
+          onCleared={() => setProfile({ ...profile, memoryNotes: null })}
+        />
         <DataSection chatCount={chatCount} onCleared={() => setChatCount(0)} />
         <AccountSection profile={profile} />
         <AboutSection />
@@ -183,6 +188,85 @@ function ProfileSection({ profile, onSaved }: { profile: Profile; onSaved: (p: P
           {saving ? "Saving…" : "Save changes"}
         </Button>
       </form>
+    </Section>
+  );
+}
+
+/* ── Memory ───────────────────────────────────────────────────────── */
+
+/**
+ * What PROXIMA remembers between chats. It is deliberately small and readable:
+ * the person can see every line and wipe it in one tap. Notes are written on
+ * the server while chatting (src/lib/ai/memory-store.ts) — never by the browser.
+ */
+function MemorySection({ notes, onCleared }: { notes: string | null; onCleared: () => void }) {
+  const notify = useToast();
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const entries = (notes ?? "")
+    .split("\n")
+    .map((line) => line.replace(/^-\s*/, "").trim())
+    .filter(Boolean);
+
+  return (
+    <Section
+      id="settings-memory"
+      title="Memory"
+      description="A few short notes so PROXIMA can pick up where you left off, even days later."
+      icon={<Brain weight="bold" className="size-5" />}
+    >
+      {entries.length > 0 ? (
+        <ul className="flex flex-col gap-1.5 text-sm text-muted">
+          {entries.map((entry) => {
+            const [date, ...rest] = entry.split(": ");
+            const hasDate = /^\d{4}-\d{2}-\d{2}$/.test(date);
+            return (
+              <li key={entry} className="flex gap-2 leading-relaxed">
+                <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
+                <span>
+                  {hasDate && <span className="mr-1.5 font-mono text-[11px] text-subtle">{date}</span>}
+                  {hasDate ? rest.join(": ") : entry}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted">
+          Nothing yet. Say something like “I’m training for a half marathon” and it shows up here.
+        </p>
+      )}
+
+      <div className="mt-5 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted">
+          Notes are never shared and never used to train anything. Forget them any time.
+        </p>
+        <Button variant="danger" disabled={entries.length === 0} onClick={() => setConfirm(true)}>
+          <Trash weight="bold" className="size-4" aria-hidden /> Forget everything
+        </Button>
+      </div>
+
+      <ConfirmDialog
+        open={confirm}
+        title="Forget everything?"
+        message="PROXIMA will no longer remember anything from earlier chats. Your chats themselves are not deleted."
+        confirmLabel="Forget it all"
+        busy={busy}
+        onCancel={() => setConfirm(false)}
+        onConfirm={async () => {
+          setBusy(true);
+          try {
+            await api.clearMemory();
+            onCleared();
+            notify("Memory cleared.", "success");
+            setConfirm(false);
+          } catch (error) {
+            notify((error as Error).message, "error");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
     </Section>
   );
 }
