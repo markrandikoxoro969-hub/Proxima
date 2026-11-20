@@ -22,7 +22,8 @@ const serverSchema = z.object({
   AUTH_RESEND_KEY: z.string().optional(),
   AUTH_EMAIL_FROM: z.string().optional(),
   // Phase 3: AI engine (all optional — sensible defaults).
-  AI_PROVIDER: z.enum(["sujan-core", "mock"]).optional(),
+  // Any value is accepted: mistakes are handled (with a tip) in src/lib/ai/settings.ts.
+  AI_PROVIDER: z.string().optional(),
   AI_API_URL: z.url("must be a full URL like https://sujancoreapi.onrender.com/chat").optional(),
   AI_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(300_000).optional(),
   ALLOWED_ORIGINS: z.string().optional(),

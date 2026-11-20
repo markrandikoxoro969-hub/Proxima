@@ -1,8 +1,9 @@
 import "server-only";
+import { AiProviderError, getAiProvider, resolveAiSettings } from "@/lib/ai";
 import { db } from "@/lib/db";
 
 /**
- * "Why can't I sign in?" doctor for the live site:  /api/status?setup=1
+ * "Why doesn't it work?" doctor for the live site:  /api/status?setup=1
  *
  * Auth.js hides the real reason behind "Configuration" (on purpose: errors can
  * contain secrets). This tests each part separately and says what to fix.
@@ -97,6 +98,8 @@ export async function runSetupCheck(origin: string): Promise<{ ok: boolean; chec
     }
   }
 
+  checks.push(await checkAi());
+
   checks.push({
     name: "Google redirect URI to add",
     ok: true,
@@ -104,4 +107,41 @@ export async function runSetupCheck(origin: string): Promise<{ ok: boolean; chec
   });
 
   return { ok: checks.every((check) => check.ok), checks };
+}
+
+const AI_TEST_TIMEOUT_MS = 20_000;
+
+/** Sends one tiny real message to the AI and checks that a reply comes back. */
+async function checkAi(): Promise<SetupCheck> {
+  const name = "AI engine";
+  const settings = resolveAiSettings();
+  const setting =
+    settings.id === "mock"
+      ? 'AI_PROVIDER is "mock": replies are FAKE. Set AI_PROVIDER to sujan-core (or delete it) on Vercel, then Redeploy.'
+      : null;
+  if (setting) return { name, ok: false, detail: setting };
+
+  const tip = settings.warning ? ` Tip: ${settings.warning}` : "";
+  const provider = getAiProvider();
+  if (!provider.complete) return { name, ok: true, detail: `Using ${provider.label}.${tip}` };
+
+  const started = Date.now();
+  try {
+    await provider.complete({
+      message: "Reply with the single word: ok",
+      sessionId: "proxima-setup-check",
+      signal: AbortSignal.timeout(AI_TEST_TIMEOUT_MS),
+    });
+    return { name, ok: true, detail: `Replied in ${((Date.now() - started) / 1000).toFixed(1)} s.${tip}` };
+  } catch (error) {
+    const code = error instanceof AiProviderError ? error.code : undefined;
+    const host = new URL(settings.url).origin;
+    const detail =
+      code === "timeout" || code === "aborted"
+        ? `No reply within ${AI_TEST_TIMEOUT_MS / 1000} s. The free Render server is probably waking up: reload this page in a minute.`
+        : code === "bad_response"
+          ? `The AI answered, but not in the expected format { "reply": "..." }. Check ${settings.url}.`
+          : `Couldn't get a reply from ${settings.url}${error instanceof AiProviderError && error.status ? ` (HTTP ${error.status})` : ""}. Open ${host} in your browser to see if the AI server is up.`;
+    return { name, ok: false, detail: detail + tip };
+  }
 }
