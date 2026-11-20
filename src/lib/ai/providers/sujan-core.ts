@@ -56,8 +56,9 @@ export function createSujanCoreProvider(options: Options = {}): AiProvider {
         response = await callOnce(request);
       }
       if (!response.ok) {
+        const reason = await readErrorReason(response);
         throw new AiProviderError(
-          `AI API responded with HTTP ${response.status}`,
+          `AI API responded with HTTP ${response.status}${reason ? `: ${reason}` : ""}`,
           "upstream",
           response.status,
         );
@@ -103,4 +104,25 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
       { once: true },
     );
   });
+}
+
+/**
+ * The AI server explains failures in its body, e.g.
+ * { "reply": "Unable to contact AI.", "error": "401 Client Error: Unauthorized ..." }.
+ * Kept for server logs and /api/status?setup=1 only; chat users see a friendly message.
+ */
+async function readErrorReason(response: Response): Promise<string> {
+  const text = await response.text().catch(() => "");
+  let reason = text;
+  try {
+    const body = JSON.parse(text) as { error?: unknown; reply?: unknown; message?: unknown };
+    reason = [body.reply, body.error ?? body.message].filter((part) => typeof part === "string").join(" ");
+  } catch {
+    // Not JSON (e.g. an HTML error page): keep the plain text.
+  }
+  reason = reason
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return reason.length > 300 ? `${reason.slice(0, 300)}…` : reason;
 }
