@@ -50,13 +50,6 @@ adds `User.themePalette` / `User.customThemes` and the `ImageAsset` table. Run
 `npm run db:migrate` locally and `npx prisma migrate deploy` in production (the
 Vercel build does it for you).
 
-`20261120120000_user_memory` adds `User.memoryNotes` / `User.memoryUpdatedAt`:
-the short "- 2026-11-19: going to the gym" list that lets an answer days later
-still know what you told PROXIMA before. It is written by
-`src/lib/ai/memory-store.ts` (one select per message, one small update when the
-message contains a new first-person fact) and can be wiped in
-Settings → Memory or with `DELETE /api/memory`.
-
 ## Everyday commands
 
 | Command                                     | When to use it                                                                                                                                             |

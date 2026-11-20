@@ -59,8 +59,6 @@ export type Profile = {
   /** Themes this person created (already validated). */
   customThemes: ThemePalette[] | null;
   particles: boolean;
-  /** What PROXIMA remembers between chats ("- 2026-11-19: going to the gym"). */
-  memoryNotes: string | null;
   onboarded: boolean;
 };
 

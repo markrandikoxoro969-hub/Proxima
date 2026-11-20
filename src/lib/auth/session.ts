@@ -31,7 +31,6 @@ export const getCurrentUser = cache(async () => {
       themePalette: true,
       customThemes: true,
       particles: true,
-      memoryNotes: true,
     },
   });
 });
