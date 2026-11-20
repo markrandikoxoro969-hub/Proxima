@@ -47,7 +47,13 @@ export default function Home() {
           <Hero />
           <Skills />
           <HowItWorks />
-          <section id="demo" aria-labelledby="demo-title" className="px-4 py-24 sm:px-8 sm:py-32">
+          {/* One centred block: no carousel, no sideways slider — the demo sits
+              in the middle of the viewport when you reach it. */}
+          <section
+            id="demo"
+            aria-labelledby="demo-title"
+            className="flex min-h-[100svh] flex-col justify-center px-4 py-24 sm:px-8 sm:py-32"
+          >
             <SectionHeading
               id="demo-title"
               eyebrow="Live demo"
