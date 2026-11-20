@@ -3,6 +3,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { site } from "@/lib/site";
 import { HeroParticles } from "./hero-particles";
 import { Magnetic } from "./magnetic";
+import { Parallax } from "./scroll-fx";
 
 const LINES = ["Think brighter.", "Build faster."];
 /** Word number each line starts at (so words reveal one after another across lines). */
@@ -33,8 +34,8 @@ export function Hero() {
         aria-hidden
         className="pointer-events-none absolute top-1/2 left-1/2 -z-10 size-[80vmax] -translate-1/2 rounded-full bg-[radial-gradient(circle,var(--glow)_0%,transparent_60%)]"
       />
-      <div aria-hidden data-parallax="0.18" className="pointer-events-none absolute inset-0 -z-10">
-        <div className="vblur absolute top-1/2 left-1/2 -translate-1/2">
+      <Parallax speed={0.55} className="pointer-events-none absolute inset-0 -z-10">
+        <div aria-hidden className="vblur flex h-full w-full items-center justify-center">
           <div className="absolute top-1/2 left-1/2 size-[min(92vw,760px)] -translate-1/2 rounded-full border border-line" />
           <div className="orbit-ring absolute top-1/2 left-1/2 size-[min(70vw,560px)] -translate-1/2 rounded-full border border-dashed border-line-strong">
             <span className="absolute top-0 left-1/2 size-2 -translate-1/2 rounded-full bg-fg shadow-glow-strong" />
@@ -43,14 +44,10 @@ export function Hero() {
             <span className="absolute bottom-0 left-1/2 size-1.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-subtle" />
           </div>
         </div>
-      </div>
+      </Parallax>
 
-      <p className="inline-flex animate-fade-up items-center gap-2 rounded-full border border-line bg-surface-hover px-3.5 py-1.5 font-mono text-[10px] font-bold tracking-[0.25em] text-muted uppercase sm:text-[11px]">
-        <span className="relative flex size-2">
-          <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/60" />
-          <span className="relative size-2 rounded-full bg-emerald-500" />
-        </span>
-        {site.version} · by {site.developer}
+      <p className="animate-fade-up font-mono text-[11px] text-subtle">
+        {site.version} · built by {site.developer}
       </p>
 
       <h1
@@ -69,8 +66,7 @@ export function Hero() {
         className="mt-7 max-w-xl animate-fade-up text-base leading-relaxed text-pretty text-muted sm:text-lg"
         style={{ animationDelay: "450ms" }}
       >
-        {site.shortName} is your premium AI for coding, learning, writing and brainstorming — with voice input
-        and file help, in a calm black-and-white glass interface.
+        One quiet place for code, files and hard questions. Answers stream as they are written.
       </p>
 
       <div
@@ -88,13 +84,6 @@ export function Hero() {
           </ButtonLink>
         </Magnetic>
       </div>
-
-      <p
-        className="mt-8 animate-fade-up font-mono text-[10px] font-bold tracking-[0.2em] text-subtle uppercase sm:text-[11px]"
-        style={{ animationDelay: "750ms" }}
-      >
-        Streaming replies · Code highlighting · Voice &amp; files
-      </p>
 
       <a
         href="#skills"

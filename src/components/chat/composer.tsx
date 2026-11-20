@@ -1,11 +1,13 @@
 "use client";
 
-import { ArrowUp, FileText, LockSimple, Microphone, Paperclip, Stop, X } from "@phosphor-icons/react";
+import { ArrowUp, FileText, Microphone, Paperclip, Stop, X } from "@phosphor-icons/react";
+import { AnimatePresence, m } from "motion/react";
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ACCEPT_ATTRIBUTE, formatBytes, readAttachments, type ReadFile } from "@/lib/chat/client/files";
 import { useSpeech } from "@/lib/chat/client/use-speech";
 import { cn } from "@/lib/cn";
 import { LIMITS } from "@/lib/limits";
+import { SPRING } from "@/lib/motion/tokens";
 
 const MAX_HEIGHT = 200;
 const WARN_AT = 3900;
@@ -213,34 +215,49 @@ export const Composer = memo(function Composer({
             {length}/{LIMITS.messageMax}
           </span>
 
-          {streaming ? (
-            <button
-              type="button"
-              onClick={onStop}
-              aria-label="Stop generating"
-              className="inline-flex size-11 items-center justify-center rounded-2xl bg-inverse text-on-inverse transition-transform duration-200 active:scale-95"
-            >
-              <Stop weight="fill" className="size-4" aria-hidden />
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={!canSend}
-              aria-label="Send message"
-              className="inline-flex size-11 items-center justify-center rounded-2xl bg-inverse text-on-inverse shadow-glow transition-[transform,opacity] duration-200 active:scale-95 disabled:opacity-30"
-            >
-              <ArrowUp weight="bold" className="size-5" aria-hidden />
-            </button>
-          )}
+          <span className="relative inline-grid size-11 place-items-center">
+            <AnimatePresence initial={false} mode="popLayout">
+              {streaming ? (
+                <m.button
+                  key="stop"
+                  type="button"
+                  onClick={onStop}
+                  aria-label="Stop generating"
+                  initial={{ opacity: 0, scale: 0.5, rotate: -90 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  exit={{ opacity: 0, scale: 0.5, rotate: 90 }}
+                  transition={SPRING.snappy}
+                  whileTap={{ scale: 0.92 }}
+                  className="col-start-1 row-start-1 inline-flex size-11 items-center justify-center rounded-2xl bg-inverse text-on-inverse"
+                >
+                  <Stop weight="fill" className="size-4" aria-hidden />
+                </m.button>
+              ) : (
+                <m.button
+                  key="send"
+                  type="submit"
+                  disabled={!canSend}
+                  aria-label="Send message"
+                  initial={{ opacity: 0, scale: 0.5, rotate: 90 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  exit={{ opacity: 0, scale: 0.5, rotate: -90 }}
+                  transition={SPRING.snappy}
+                  whileTap={{ scale: 0.92 }}
+                  className="col-start-1 row-start-1 inline-flex size-11 items-center justify-center rounded-2xl bg-inverse text-on-inverse shadow-glow disabled:opacity-30"
+                >
+                  <ArrowUp weight="bold" className="size-5" aria-hidden />
+                </m.button>
+              )}
+            </AnimatePresence>
+          </span>
         </div>
       </form>
       <p
         id={hintId}
-        className="mt-2 flex items-center justify-center gap-1.5 text-[10px] font-bold tracking-[0.25em] text-subtle uppercase"
+        className="mt-2 text-center text-[11px] font-medium text-subtle"
       >
-        <LockSimple weight="fill" className="size-3" aria-hidden />
-        Secure context engine active
-        <span className="sr-only">. Press Enter to send, Shift plus Enter for a new line.</span>
+        Enter sends · Shift + Enter adds a line
+        <span className="sr-only">. Your messages are sent over an encrypted connection.</span>
       </p>
     </div>
   );

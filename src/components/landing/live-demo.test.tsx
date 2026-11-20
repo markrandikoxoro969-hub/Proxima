@@ -11,7 +11,7 @@ const sse = (...events: [string, unknown][]) =>
 const okReply = (text: string) =>
   sse(
     ["meta", { mode: "guest", conversationId: null, title: null, userMessageId: null }],
-    ["delta", { text }],
+    ["token", { text }],
     ["done", { messageId: null, latencyMs: 10, source: "mock" }],
   );
 
@@ -21,16 +21,16 @@ const bodies = (fetchMock: ReturnType<typeof vi.fn>) =>
 afterEach(() => vi.unstubAllGlobals());
 
 describe("<LiveDemo />", () => {
-  it("sends a suggestion as a guest and streams the reply", async () => {
+  it("streams a guest reply and sends no conversation id", async () => {
     const fetchMock = vi.fn(async () => okReply("Black holes are very dense."));
     vi.stubGlobal("fetch", fetchMock);
     render(<LiveDemo />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Explain black holes simply" }));
+    await userEvent.type(screen.getByLabelText("Message Proxima (demo)"), "Explain black holes{Enter}");
     expect(await screen.findByText(/Black holes are very dense\./)).toBeInTheDocument();
 
     const [body] = bodies(fetchMock);
-    expect(body.message).toBe("Explain black holes simply");
+    expect(body.message).toBe("Explain black holes");
     expect(body.demoSessionId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );

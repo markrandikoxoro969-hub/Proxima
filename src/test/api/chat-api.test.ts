@@ -5,14 +5,20 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb, type TestDb } from "@/test/test-db";
-import { ctx, readSse, replyText, req } from "./helpers";
+import { ctx, readSse, reasoningText, replyText, req } from "./helpers";
 
 // ── Fakes ──────────────────────────────────────────────────────────
 const state = vi.hoisted(() => ({
   db: undefined as unknown,
   userId: null as string | null,
-  calls: [] as { message: string; sessionId: string }[],
+  calls: [] as {
+    message: string;
+    sessionId: string;
+    history?: { role: string; content: string }[];
+    showReasoning?: boolean;
+  }[],
   reply: "Hello from the **fake** AI." as string | Error,
+  stream: null as { type: "text" | "reasoning"; text: string }[] | null,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -25,15 +31,50 @@ vi.mock("@/lib/ai", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/ai")>();
   return {
     ...real,
-    getAiProvider: () => ({
-      id: "fake",
-      label: "Fake AI",
-      async complete({ message, sessionId }: { message: string; sessionId: string }) {
-        state.calls.push({ message, sessionId });
-        if (state.reply instanceof Error) throw state.reply;
-        return state.reply;
-      },
-    }),
+    getAiProvider: () => {
+      const record = (request: {
+        message: string;
+        sessionId: string;
+        history?: { role: string; content: string }[];
+        showReasoning?: boolean;
+      }) =>
+        state.calls.push({
+          message: request.message,
+          sessionId: request.sessionId,
+          history: request.history,
+          showReasoning: request.showReasoning,
+        });
+
+      const base = {
+        id: "fake",
+        label: "Fake AI",
+        async complete(request: {
+          message: string;
+          sessionId: string;
+          history?: { role: string; content: string }[];
+          showReasoning?: boolean;
+        }) {
+          record(request);
+          if (state.reply instanceof Error) throw state.reply;
+          return state.reply;
+        },
+      };
+
+      // Only expose stream() when a test wants to stream reasoning/text.
+      if (!state.stream) return base;
+      return {
+        ...base,
+        async *stream(request: {
+          message: string;
+          sessionId: string;
+          history?: { role: string; content: string }[];
+          showReasoning?: boolean;
+        }) {
+          record(request);
+          for (const delta of state.stream ?? []) yield delta;
+        },
+      };
+    },
   };
 });
 
@@ -65,6 +106,7 @@ beforeEach(async () => {
   state.userId = null;
   state.calls = [];
   state.reply = "Hello from the **fake** AI.";
+  state.stream = null;
   await t.prisma.rateLimit.deleteMany();
 });
 
@@ -81,7 +123,7 @@ describe("POST /api/chat — signed in", () => {
     expect(res.headers.get("x-ratelimit-limit")).toBe("20");
 
     const events = await readSse(res);
-    expect(events.map((e) => e.event)).toEqual(expect.arrayContaining(["meta", "status", "delta", "done"]));
+    expect(events.map((e) => e.event)).toEqual(expect.arrayContaining(["meta", "status", "token", "done"]));
     expect(replyText(events)).toBe("Hello from the **fake** AI.");
 
     const meta = events.find((e) => e.event === "meta")!.data;
@@ -228,6 +270,81 @@ describe("POST /api/chat — guest demo", () => {
     expect((await send({ message: "x", attachments: [{ name: "a.txt", content: "a" }] })).status).toBe(401);
     expect((await send({ message: "x".repeat(501) })).status).toBe(400);
     expect((await send({ message: "x", conversationId: "cm0000000000000000000000a" })).status).toBe(401);
+  });
+});
+
+
+describe("POST /api/chat — context, reasoning and clean answers", () => {
+  it("sends the last 20 messages of the conversation, not just the newest", async () => {
+    state.userId = alice;
+    // 25 older messages in one chat.
+    const convo = await t.prisma.conversation.create({ data: { userId: alice, title: "Long chat" } });
+    const base = Date.now();
+    await t.prisma.message.createMany({
+      data: Array.from({ length: 25 }, (_, i) => ({
+        conversationId: convo.id,
+        role: i % 2 ? ("assistant" as const) : ("user" as const),
+        content: `older-${i}`,
+        createdAt: new Date(base + i * 1000),
+      })),
+    });
+
+    await readSse(await send({ message: "And now?", conversationId: convo.id }));
+
+    const history = state.calls[0].history ?? [];
+    expect(history).toHaveLength(20);
+    expect(history[0].content).toBe("older-5");
+    expect(history.at(-1)!.content).toBe("older-24");
+    // The newest message travels separately (so it is never duplicated).
+    expect(history.some((m) => m.content === "And now?")).toBe(false);
+  });
+
+  it("lets the guest demo send its own recent turns", async () => {
+    const turns = [
+      { role: "user" as const, content: "first" },
+      { role: "assistant" as const, content: "reply" },
+    ];
+    await readSse(await send({ message: "follow up", history: turns }, freshIp()));
+    expect(state.calls[0].history).toEqual(turns);
+  });
+
+  it("never sends or saves reasoning unless the user asked for it", async () => {
+    state.userId = alice;
+    state.stream = [
+      { type: "reasoning", text: "The user wants a short answer." },
+      { type: "text", text: "Use a Map." },
+    ];
+
+    // Default: reasoning is dropped on the server.
+    const quiet = await readSse(await send({ message: "Which collection?" }));
+    expect(reasoningText(quiet)).toBe("");
+    expect(replyText(quiet)).toBe("Use a Map.");
+    expect(state.calls[0].showReasoning).toBe(false);
+
+    // Opt-in: reasoning is streamed, but still not stored.
+    const loud = await readSse(await send({ message: "Which collection?", showReasoning: true }));
+    expect(reasoningText(loud)).toBe("The user wants a short answer.");
+    expect(replyText(loud)).toBe("Use a Map.");
+
+    const saved = await t.prisma.message.findMany({ where: { role: "assistant" } });
+    expect(saved.every((m) => !m.content.includes("The user wants"))).toBe(true);
+  });
+
+  it("strips filler from the streamed text and from what is saved", async () => {
+    state.userId = alice;
+    state.reply = "Great question! Use a Map for key → value pairs. I hope this helps!";
+    const events = await readSse(await send({ message: "Map or object?" }));
+
+    const streamed = replyText(events);
+    expect(streamed).toBe("Use a Map for key → value pairs.");
+    const done = events.find((e) => e.event === "done")!.data;
+    expect(done.text).toBe("Use a Map for key → value pairs.");
+
+    const id = events.find((e) => e.event === "meta")!.data.conversationId as string;
+    const saved = await t.prisma.message.findFirstOrThrow({
+      where: { conversationId: id, role: "assistant" },
+    });
+    expect(saved.content).toBe("Use a Map for key → value pairs.");
   });
 });
 

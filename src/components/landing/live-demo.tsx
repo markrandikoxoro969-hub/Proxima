@@ -27,13 +27,6 @@ type DemoMessage = {
 
 type MarkdownComponent = ComponentType<{ content: string; streaming?: boolean }>;
 
-export const DEMO_SUGGESTIONS = [
-  "Explain black holes simply",
-  "Write a haiku about coding",
-  "Give me 3 weekend project ideas",
-  "Who built you?",
-];
-
 const MAX_MESSAGES = 20;
 let nextId = 1;
 
@@ -59,6 +52,7 @@ export function LiveDemo() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const stickRef = useRef(true);
+  const messagesRef = useRef<DemoMessage[]>([]);
   const markdownRequested = useRef(false);
 
   const loadMarkdown = useCallback(() => {
@@ -71,6 +65,11 @@ export function LiveDemo() {
 
   // Stop any reply if you leave the page.
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // Current turns, for the guest history sent with the next message.
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   // Keep the newest text in view — only inside the box, and only if you haven't scrolled up.
   useLayoutEffect(() => {
@@ -112,7 +111,16 @@ export function LiveDemo() {
       abortRef.current = controller;
       let finished = "Reply finished.";
       await streamChat(
-        { message: text, demoSessionId: sessionRef.current },
+        {
+          message: text,
+          demoSessionId: sessionRef.current,
+          // Guests have no server-side history: send the last few turns so the
+          // demo keeps its thread (nothing is stored).
+          history: messagesRef.current
+            .filter((m) => m.content.trim())
+            .slice(-20)
+            .map((m) => ({ role: m.role, content: m.content })),
+        },
         {
           signal: controller.signal,
           onStatus: (s) => patch(() => ({ phase: s.state })),
@@ -203,22 +211,10 @@ export function LiveDemo() {
               <span className="flex size-14 items-center justify-center rounded-2xl border border-line bg-surface-hover">
                 <Planet weight="fill" className="size-7" aria-hidden />
               </span>
-              <p className="mt-5 text-xl font-black tracking-tight">Ask Proxima anything</p>
-              <p className="mt-1.5 text-sm text-muted">Pick an idea or type your own below.</p>
-              <ul className="mt-6 flex max-w-lg flex-wrap justify-center gap-2">
-                {DEMO_SUGGESTIONS.map((s) => (
-                  <li key={s}>
-                    <button
-                      type="button"
-                      onClick={() => void send(s)}
-                      onPointerEnter={loadMarkdown}
-                      className="tap rounded-full border border-line px-4 text-[13px] font-bold text-muted transition-[color,background-color,border-color,transform] duration-300 ease-premium hover:border-line-strong hover:bg-surface-hover hover:text-fg active:scale-95"
-                    >
-                      {s}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <p className="mt-5 text-xl font-black tracking-tight">Ask one real question.</p>
+              <p className="mt-1.5 max-w-xs text-sm text-muted">
+                Same engine, five messages a minute, nothing saved.
+              </p>
             </div>
           ) : (
             <ol className="flex flex-col gap-6">

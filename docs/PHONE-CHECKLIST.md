@@ -15,7 +15,7 @@ Open your live address, e.g. `https://proxima.vercel.app`.
 - [ ] Scrolling feels like normal phone scrolling (no lag, no "floaty" feeling).
 - [ ] Sections fade in as you scroll; none stay invisible.
 - [ ] **Slides:** swipe left/right → they change; the **← →** buttons work; the counter shows `02 / 05` etc.
-- [ ] **Live demo:** tap a suggestion → the reply streams in word by word. Type your own question → **Send**.
+- [ ] **Live demo:** type a question → **Send** → the reply streams in word by word (no example buttons).
 - [ ] **Stop** while it's answering → it stops. **New demo** clears it.
 - [ ] **FAQ:** tap a question → it opens; tap another → the first closes.
 - [ ] The sun/moon button switches light/dark. Both look right (readable text, no invisible buttons).
@@ -32,7 +32,9 @@ Open your live address, e.g. `https://proxima.vercel.app`.
       _(iPhone: Safari supports this on recent iOS versions. If the button is missing, that browser doesn't support voice input.)_
 - [ ] **Attach** a small `.txt` or `.py` file → send → Proxima talks about its content.
 - [ ] Try a file over 100 KB or an image → a friendly message explains why it's refused.
-- [ ] **☰ menu** → sidebar opens → chats listed → open an older chat → **rename** it → **delete** another.
+- [ ] **☰ menu** → the sidebar slides up from the bottom → drag its handle down to close → reopen and
+      scroll the list (it must scroll, even though the sheet can be dragged).
+- [ ] Chats listed → open an older chat → **rename** it → **delete** another.
 - [ ] **New chat** works. **Export** (top right) downloads Markdown/JSON.
 - [ ] Turn on **airplane mode** → send → a clear “offline” message. Turn it off → **Try again** works.
 - [ ] Close the browser, open the site again → you're still signed in and your chats are there.
@@ -40,6 +42,8 @@ Open your live address, e.g. `https://proxima.vercel.app`.
 ## 3. Settings and other pages
 
 - [ ] `/settings`: change name, theme and particles → **Save changes** → “Settings saved.”
+- [ ] **Show reasoning** is off by default. Turn it on, send a message → a collapsed “Reasoning” block
+      appears; turn it off and it disappears. It must never appear in a saved reply after a reload.
 - [ ] **Download all (Markdown)** saves a file you can open.
 - [ ] `/privacy` and `/terms` are easy to read and links work.
 - [ ] Open a wrong address like `/hello` → the **404 “Lost in space”** page with working buttons.

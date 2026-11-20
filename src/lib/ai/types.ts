@@ -3,24 +3,42 @@
  * write a new file in ./providers that returns an `AiProvider`, register it
  * in ./index.ts and set AI_PROVIDER in your environment. Nothing else changes.
  */
+export type AiHistoryMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export type AiRequest = {
-  /** The full text to send (user message + any attached file contents). */
+  /** The newest message (user message + any attached file contents). */
   message: string;
   /** Stable id for the conversation, so the AI can remember context. */
   sessionId: string;
   /** Cancelled when the user leaves or the request times out. */
   signal: AbortSignal;
+  /** Earlier turns, oldest → newest (at most 20). */
+  history?: AiHistoryMessage[];
+  /** Overrides PROXIMA's default system prompt. */
+  system?: string;
+  /** Let the provider emit its private reasoning (never shown by default). */
+  showReasoning?: boolean;
 };
 
+/**
+ * A piece of the stream. `text` becomes the answer; `reasoning` is the model's
+ * private thinking. Reasoning is never saved and never shown unless the user
+ * turns on Settings → Show reasoning.
+ */
+export type AiDelta = { type: "text" | "reasoning"; text: string };
+
 export interface AiProvider {
-  /** Short id used in AI_PROVIDER, e.g. "sujan-core". */
+  /** Short id used in AI_PROVIDER, e.g. "nvidia". */
   readonly id: string;
   /** Human-friendly name for logs/status. */
   readonly label: string;
   /** Use this if the API returns the whole reply at once (like the PROXIMA Core API). */
   complete?(request: AiRequest): Promise<string>;
-  /** Use this if the API streams tokens. Yield text pieces as they arrive. */
-  stream?(request: AiRequest): AsyncIterable<string>;
+  /** Use this if the API streams tokens. Yield pieces as they arrive. */
+  stream?(request: AiRequest): AsyncIterable<AiDelta>;
   /** Optional health check / wake-up call. Resolves with latency in ms. */
   ping?(signal: AbortSignal): Promise<number>;
 }

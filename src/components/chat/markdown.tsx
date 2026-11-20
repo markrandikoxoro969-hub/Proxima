@@ -89,7 +89,7 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, live }: { text: string
 export function Markdown({ content, streaming = false }: { content: string; streaming?: boolean }) {
   const blocks = useMemo(() => toBlocks(content), [content]);
   return (
-    <div className="markdown">
+    <div className={streaming ? "markdown is-streaming" : "markdown"}>
       {blocks.map((block, i) => (
         <MarkdownBlock key={i} text={block} live={streaming && i === blocks.length - 1} />
       ))}

@@ -30,7 +30,7 @@ export function SiteFooter() {
         <div className="max-w-xs">
           <Logo />
           <p className="mt-3 text-sm leading-relaxed text-muted">
-            {site.tagline} — your AI for coding, learning, writing and ideas.
+            {site.tagline} — code, files and long questions, answered plainly.
           </p>
         </div>
         <nav aria-label="Footer" className="grid grid-cols-2 gap-x-10 gap-y-1 sm:grid-cols-3">

@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, Check, Planet, WarningCircle } from "@phosphor-icons/react";
-import { AnimatePresence, m, useReducedMotion } from "framer-motion";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/chat/client/api";
@@ -114,7 +114,7 @@ function Intro({ onNext }: { onNext: () => void }) {
         <Planet weight="fill" className="size-14 drop-shadow-[0_0_25px_var(--glow)]" />
       </div>
       <h1
-        className="mt-8 h-14 text-5xl font-black tracking-tight text-glow-strong sm:text-6xl"
+        className="mt-8 h-14 text-5xl font-black tracking-tight sm:text-6xl"
         aria-label={WORD}
       >
         <span aria-hidden>{WORD.slice(0, typed)}</span>

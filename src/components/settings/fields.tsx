@@ -1,6 +1,8 @@
 "use client";
 
+import { m } from "motion/react";
 import { cn } from "@/lib/cn";
+import { SPRING } from "@/lib/motion/tokens";
 import type { ThemePreference } from "@/lib/theme";
 
 /**
@@ -108,11 +110,19 @@ export function ThemeChoice({
           <label
             key={option}
             className={cn(
-              "flex min-h-11 cursor-pointer items-center justify-center rounded-xl text-sm font-bold capitalize transition-[background-color,color] duration-200",
+              "relative flex min-h-11 cursor-pointer items-center justify-center rounded-xl text-sm font-bold capitalize transition-colors duration-200",
               "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-fg",
-              value === option ? "bg-inverse text-on-inverse" : "text-muted hover:text-fg",
+              value === option ? "text-on-inverse" : "text-muted hover:text-fg",
             )}
           >
+            {value === option && (
+              <m.span
+                layoutId="theme-tab"
+                transition={SPRING.soft}
+                className="absolute inset-0 rounded-xl bg-inverse"
+                aria-hidden
+              />
+            )}
             <input
               type="radio"
               name="theme"
@@ -121,7 +131,7 @@ export function ThemeChoice({
               onChange={() => onChange(option)}
               className="sr-only"
             />
-            {option}
+            <span className="relative z-10">{option}</span>
           </label>
         ))}
       </div>

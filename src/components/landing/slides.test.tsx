@@ -58,7 +58,7 @@ describe("<Slides />", () => {
   it("next/previous buttons and dots move the slides and announce them", async () => {
     render(<Slides />);
     await userEvent.click(screen.getByRole("button", { name: "Next slide" }));
-    expect(screen.getByText("Slide 2 of 5: Learning")).toBeInTheDocument();
+    expect(screen.getByText("Slide 2 of 5: Answers")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Go to slide 5: Everywhere" }));
     expect(screen.getByRole("button", { name: "Next slide" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Go to slide 5: Everywhere" })).toHaveAttribute(

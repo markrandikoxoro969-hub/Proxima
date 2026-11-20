@@ -18,7 +18,7 @@ export function createMockProvider(): AiProvider {
       return [
         `**Mock reply** — you said: _“${firstLine}”_`,
         "",
-        "This answer comes from the **mock provider** (set `AI_PROVIDER=sujan-core` for the real API).",
+        "This answer comes from the **mock provider** (set `AI_PROVIDER=nvidia` or `render` for the real API).",
         "",
         "- Markdown lists work",
         "- So does `inline code`",

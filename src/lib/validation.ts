@@ -25,6 +25,15 @@ export const attachmentSchema = z.object({
     .refine((c) => byteLength(c) <= LIMITS.attachmentBytesMax, "Each file must be 100 KB or smaller."),
 });
 
+/** Guest demo only: the browser sends its own recent turns (nothing is stored). */
+export const historyMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z
+    .string()
+    .transform(stripControl)
+    .pipe(z.string().trim().min(1).max(LIMITS.messageMax)),
+});
+
 export const chatRequestSchema = z.object({
   message: z
     .string()
@@ -46,6 +55,13 @@ export const chatRequestSchema = z.object({
    * this same user message, reply to it instead of saving it a second time.
    */
   retry: z.boolean().optional(),
+  /**
+   * Ask the server to stream the model's private reasoning. Off by default:
+   * when false, reasoning never leaves the server and is never stored.
+   */
+  showReasoning: z.boolean().optional(),
+  /** Guest demo only — signed-in chats use the messages saved in the database. */
+  history: z.array(historyMessageSchema).max(20).optional(),
 });
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
 

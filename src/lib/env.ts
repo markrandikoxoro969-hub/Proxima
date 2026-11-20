@@ -26,6 +26,12 @@ const serverSchema = z.object({
   AI_PROVIDER: z.string().optional(),
   AI_API_URL: z.url("must be a full URL like https://sujancoreapi.onrender.com/chat").optional(),
   AI_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(300_000).optional(),
+  // Phase 6: NVIDIA NIM. The key is optional here because Render is a valid fallback.
+  NVIDIA_API_KEY: z.string().min(10, "copy the API key from build.nvidia.com").optional(),
+  NVIDIA_MODEL: z.string().optional(),
+  NVIDIA_MAX_TOKENS: z.coerce.number().int().min(256).max(65_536).optional(),
+  NVIDIA_ENABLE_THINKING: z.enum(["true", "false"]).optional(),
+  NVIDIA_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(300_000).optional(),
   ALLOWED_ORIGINS: z.string().optional(),
 });
 

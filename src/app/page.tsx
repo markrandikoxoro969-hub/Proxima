@@ -5,6 +5,8 @@ import { HowItWorks } from "@/components/landing/how-it-works";
 import { LandingEffects } from "@/components/landing/landing-effects";
 import { LiveDemo } from "@/components/landing/live-demo";
 import { SectionHeading } from "@/components/landing/magnetic";
+import { ScrollFx } from "@/components/landing/scroll-fx";
+import { MotionProvider } from "@/components/motion/motion-provider";
 import { SiteFooter } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { Skills } from "@/components/landing/skills";
@@ -33,6 +35,7 @@ const jsonLd = {
  */
 export default function Home() {
   return (
+    <MotionProvider>
     <div className="relative overflow-x-clip pr-safe pl-safe">
       <script
         type="application/ld+json"
@@ -50,7 +53,7 @@ export default function Home() {
             id="demo-title"
             eyebrow="Live demo"
             title="Try it right now."
-            text="A real conversation with Proxima — no account needed. Ask anything."
+            text="A real conversation, no account needed. Nothing is saved."
           />
           <div data-reveal className="mt-12">
             <LiveDemo />
@@ -60,6 +63,8 @@ export default function Home() {
       </main>
       <SiteFooter />
       <LandingEffects />
+      <ScrollFx />
     </div>
+    </MotionProvider>
   );
 }

@@ -21,6 +21,7 @@ import { Button, ButtonLink, buttonClasses } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { ToastProvider, useToast } from "@/components/ui/toast";
 import { api } from "@/lib/chat/client/api";
+import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
 import type { Profile } from "@/lib/chat/types";
 import { site } from "@/lib/site";
 import type { ThemePreference } from "@/lib/theme";
@@ -120,7 +121,8 @@ function ProfileSection({ profile, onSaved }: { profile: Profile; onSaved: (p: P
   const [particles, setParticles] = useState(profile.particles);
   const [errors, setErrors] = useState<{ name?: string; age?: string }>({});
   const [saving, setSaving] = useState(false);
-  const ids = { name: useId(), age: useId(), particles: useId() };
+  const [showReasoning, setShowReasoning] = useShowReasoning();
+  const ids = { name: useId(), age: useId(), particles: useId(), reasoning: useId() };
 
   const save = async () => {
     const nextErrors = validateProfile(name, age);
@@ -173,6 +175,14 @@ function ProfileSection({ profile, onSaved }: { profile: Profile; onSaved: (p: P
           hint="Turn off to save battery."
           checked={particles}
           onChange={setParticles}
+        />
+
+        <SwitchRow
+          id={ids.reasoning}
+          title="Show reasoning"
+          hint="Reveal the model's private thinking in a collapsed block. Off by default; never saved."
+          checked={showReasoning}
+          onChange={setShowReasoning}
         />
         <Button type="submit" size="lg" disabled={saving} className="sm:self-start">
           {saving ? "Saving…" : "Save changes"}
@@ -387,8 +397,10 @@ function AboutSection() {
       icon={<Info weight="bold" className="size-5" />}
     >
       <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr] sm:gap-y-2">
+        <dt className="font-mono text-xs leading-6 text-subtle">⌘K / Ctrl+K</dt>
+        <dd className="mb-2 text-muted sm:mb-0">Open the command palette (in the chat)</dd>
         <dt className="font-mono text-xs leading-6 text-subtle">/</dt>
-        <dd className="mb-2 text-muted sm:mb-0">Jump to the message box (in the chat)</dd>
+        <dd className="mb-2 text-muted sm:mb-0">Jump to the message box</dd>
         <dt className="font-mono text-xs leading-6 text-subtle">Ctrl/Cmd + Shift + O</dt>
         <dd className="mb-2 text-muted sm:mb-0">Start a new chat</dd>
         <dt className="font-mono text-xs leading-6 text-subtle">Enter · Shift + Enter</dt>

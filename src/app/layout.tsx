@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   },
   description: site.description,
   applicationName: site.name,
-  keywords: ["AI assistant", "AI chat", "coding help", "learning", "writing", "brainstorming", site.name],
+  keywords: ["AI assistant", "AI chat", "code review", "debugging", "file analysis", site.name],
   authors: [{ name: site.developer, url: site.links.facebook }],
   creator: site.developer,
   // The share picture comes from src/app/opengraph-image.tsx automatically.
