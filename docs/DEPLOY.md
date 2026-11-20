@@ -109,6 +109,22 @@ Add `SKIP_DB_MIGRATE` = `1` in **Settings → Environment Variables**, redeploy,
 skip migrations. The landing page, privacy and terms pages will work; **sign-in and chat will not**
 until you add the two database URLs and redeploy without the flag.
 
+### Branch (Preview) deploys fail with the same error
+
+Production works, but every branch/PR deploy dies with
+`Command "npm run vercel-build" exited with 1`: the database URLs were saved with only the
+**Production** box ticked, so a Preview build sees no `DATABASE_URL` at all.
+
+1. **Settings → Environment Variables** → open `DATABASE_URL` → tick **Preview** (and
+   **Development**) → **Save**. Same for `DIRECT_URL`.
+2. Values of `sensitive` variables **cannot be copied for you** — not by the dashboard, not by the
+   Vercel API. Re-paste the two Neon strings; that is the only way to widen the targets.
+3. **Deployments** → the branch deploy → **⋯** → **Redeploy**.
+
+If you only want the branch link to load (no login, no chats), add `SKIP_DB_MIGRATE` = `1` scoped to
+**Preview** instead: the build then skips migrations and succeeds. This project already has that
+Preview flag set, so branch builds are green while the real URLs stay Production-only.
+
 ### Checking from your computer first
 
 ```bash

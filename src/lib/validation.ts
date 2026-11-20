@@ -67,6 +67,8 @@ export const chatRequestSchema = z.object({
    * when false, reasoning never leaves the server and is never stored.
    */
   showReasoning: z.boolean().optional(),
+  /** Thinking | Fast | Pro | Coding — see src/lib/ai/modes.ts. */
+  mode: z.enum(["thinking", "fast", "pro", "coding"]).optional(),
   /** Guest demo only — signed-in chats use the messages saved in the database. */
   history: z.array(historyMessageSchema).max(20).optional(),
 });
