@@ -91,6 +91,19 @@ if (looksPlaceholder(url)) {
     console.log(dim("  DATABASE_URL and DIRECT_URL are set."));
     process.exit(0);
   }
+  /*
+   * Preview deployments of a branch only see the Preview environment variables.
+   * Many projects (including this one) keep the database settings on Production
+   * only, so a feature branch would otherwise never get a build to review. Skip
+   * the migration on Preview, but still fail Production loudly: shipping a
+   * production build against a missing database is not something to paper over.
+   */
+  if (process.env.VERCEL_ENV === "preview") {
+    console.log(yellow("• No database configured for this Preview deployment — skipping migrations."));
+    console.log(dim("  The build can still be reviewed; login and chats need DATABASE_URL and"));
+    console.log(dim("  DIRECT_URL in the Preview environment. Production builds still fail without them."));
+    process.exit(0);
+  }
   explainFix();
   process.exit(1);
 }
