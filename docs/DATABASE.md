@@ -57,6 +57,7 @@ Deleting a user automatically deletes their conversations and messages.
 | Problem                                          | Fix                                                                                                                        |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | `P1001: Can't reach database server`             | Neon may be "sleeping" (free tier) — run the command again. Check `DIRECT_URL` has no `-pooler`.                           |
+| `P1001 … at "not-set:5432"` (or `database-url-is-not-set`) | The settings are missing, not the database. Vercel: add `DATABASE_URL` + `DIRECT_URL` to **all** environments, then redeploy. Locally: fill `.env.local`. See [DEPLOY.md](./DEPLOY.md#build-failed-p1001-at-not-set). |
 | `P1000: Authentication failed`                   | Password changed/wrong — copy both connection strings again from Neon → Connect.                                           |
 | `The table "public.User" does not exist`         | You skipped `npm run db:deploy`.                                                                                           |
 | `Cannot find module '@/generated/prisma/client'` | Run `npm run db:generate` (or `npm install`).                                                                              |
@@ -85,6 +86,8 @@ and run `npm run db:deploy` and `npm run env:check`. (Production on Vercel still
 
 Vercel uses the same Neon variables (`DATABASE_URL` + `DIRECT_URL`, added in
 **Vercel → Settings → Environment Variables**). On every deploy Vercel runs the `vercel-build`
-script (`prisma migrate deploy && next build`), so new tables and changes are applied automatically
-before the new version goes live. If a migration fails, the deploy stops and the old version keeps
-running. Full guide: [DEPLOY.md](./DEPLOY.md).
+script (`node scripts/migrate-deploy.mjs && next build`). That script first checks that both URLs
+are real, explains exactly what to paste if they aren't, and only then runs
+`prisma migrate deploy`. New tables and changes are applied before the new version goes live. If a
+migration fails, the deploy stops and the old version keeps running. Full guide:
+[DEPLOY.md](./DEPLOY.md).

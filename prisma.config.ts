@@ -19,7 +19,12 @@ export default defineConfig({
   datasource: {
     // Migrations need the DIRECT (non-pooled) Neon URL.
     // The fallback only lets `prisma generate` run before you've set up .env.local
-    // (generate never connects to the database).
-    url: process.env.DIRECT_URL || process.env.DATABASE_URL || "postgresql://not-set:5432/not-set",
+    // (generate never connects to the database). It is deliberately readable, so a
+    // missing setting produces "Can't reach database server at
+    // database-url-is-not-set" instead of a mysterious hostname.
+    url:
+      process.env.DIRECT_URL ||
+      process.env.DATABASE_URL ||
+      "postgresql://database-url-is-not-set:5432/database-url-is-not-set",
   },
 });

@@ -13,8 +13,9 @@ personal, non-commercial projects; switch to Pro if you start making money from 
 
 > **What happens automatically on every deploy** (already set up in the code):
 >
-> - New database tables/changes are applied first (`prisma migrate deploy`, via the `vercel-build`
->   script in `package.json`). If that fails, the deploy stops and the old site stays online.
+> - New database tables/changes are applied first (via `scripts/migrate-deploy.mjs`, which checks
+>   `DATABASE_URL`/`DIRECT_URL` and then runs `prisma migrate deploy`). If that fails, the deploy
+>   stops and the old site stays online.
 > - The servers run in **Singapore** (`vercel.json` → `sin1`), next to your Neon database and close to Nepal.
 > - Security headers, the sitemap, robots.txt, share image and app manifest are all built in.
 
@@ -44,7 +45,8 @@ personal, non-commercial projects; switch to Pro if you start making money from 
    | `AUTH_SECRET`        | a **new** random string. Run the command below and paste the result. |
    | `AUTH_GOOGLE_ID`     | copy from `.env.local`                                               |
    | `AUTH_GOOGLE_SECRET` | copy from `.env.local`                                               |
-   | `AI_PROVIDER`        | `sujan-core` (exactly this word, **not** the web address)            |
+   | `AI_PROVIDER`        | `nvidia` (the engine; Render stays as automatic fallback)            |
+  | `NVIDIA_API_KEY`     | your key from https://build.nvidia.com (server only)                 |
 
    New secret for production (run in your project folder):
 
@@ -63,6 +65,58 @@ personal, non-commercial projects; switch to Pro if you start making money from 
 > 🔴 **Build failed?** Click the failed deployment → **Building** to read the log. The two most
 > common causes: a missing/misspelled variable (fix it in **Settings → Environment Variables**,
 > then **Deployments → ⋯ → Redeploy**), or `DIRECT_URL` pointing to the wrong database.
+>
+> The most common one by far is `P1001: Can't reach database server at not-set:5432` — see the
+> section [Build failed: P1001 at not-set](#build-failed-p1001-at-not-set) below.
+
+
+## Build failed: P1001 at not-set
+
+You saw something like:
+
+```
+Datasource "db": PostgreSQL database "not-set", schema "public" at "not-set:5432"
+Error: P1001: Can't reach database server at `not-set:5432`
+Error: [BUILD_UTILS_SPAWN_1] Command "npm run vercel-build" exited with 1
+```
+
+**Translation:** `not-set` is not your database. It is the placeholder Prisma uses when
+`DATABASE_URL` and `DIRECT_URL` are **empty in the build environment**. The database itself is fine;
+the build simply doesn't know its address. (The build runs `scripts/migrate-deploy.mjs`, which now
+stops earlier and prints these steps directly in the Vercel log.)
+
+### Fix it (2 minutes)
+
+1. Vercel → your project → **Settings** → **Environment Variables**.
+2. Neon → your project → **Connect** → copy the connection string with **pooling ON**
+   (the host contains `-pooler`). Paste it as `DATABASE_URL`.
+3. Go back to Connect, switch **pooling OFF**, copy that string, paste it as `DIRECT_URL`.
+4. For **each** variable, tick **Production**, **Preview** and **Development**, then **Save**.
+5. **Deployments** → newest deployment → **⋯** → **Redeploy**. (Saving a variable does not
+   rebuild by itself.)
+
+Two details that catch people:
+
+- **Do the values have quotes?** Vercel keeps them if you paste `"postgresql://…"`. Paste the bare
+  string, or leave it — PROXIMA strips stray quotes itself.
+- **Wrong variable name?** It must be exactly `DATABASE_URL` and `DIRECT_URL`. Vercel's Neon
+  integration sometimes adds `POSTGRES_URL` / `DATABASE_URL_UNPOOLED` instead; either copy those
+  into our two names or add ours by hand.
+
+### If you just want the site online now
+
+Add `SKIP_DB_MIGRATE` = `1` in **Settings → Environment Variables**, redeploy, and the build will
+skip migrations. The landing page, privacy and terms pages will work; **sign-in and chat will not**
+until you add the two database URLs and redeploy without the flag.
+
+### Checking from your computer first
+
+```bash
+npm run env:check     # checks both URLs, the connection and the tables
+npm run db:deploy     # applies migrations using the same script Vercel runs
+```
+
+If those pass locally, the same two values will work on Vercel.
 
 ---
 
