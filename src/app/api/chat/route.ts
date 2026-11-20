@@ -1,9 +1,6 @@
 import { AI_TIMEOUT_MS, AiProviderError, getAiProvider } from "@/lib/ai";
 import { LeadingCleanGate, stripFiller } from "@/lib/ai/clean-reply";
-import { readMemoryAndLearn } from "@/lib/ai/memory-store";
-import { withMemory } from "@/lib/ai/memory";
-import { withMode } from "@/lib/ai/modes";
-import { HISTORY_LIMIT, SYSTEM_PROMPT } from "@/lib/ai/prompt";
+import { HISTORY_LIMIT } from "@/lib/ai/prompt";
 import { generateReply, typeOut } from "@/lib/ai/reply";
 import type { AiErrorCode, AiHistoryMessage } from "@/lib/ai/types";
 import { ApiError, apiErrors, readJson, withApi } from "@/lib/api/http";
@@ -163,13 +160,6 @@ export const POST = withApi(async (request: Request) => {
     history.push(...input.history);
   }
 
-  // ── What we remember about this person (Settings → Memory) ──
-  // Reading is one small select; learning from this message is one update and
-  // only happens when the message contains a first-person fact. No extra AI
-  // call, so the reply never waits on memory.
-  const memory = userId ? await readMemoryAndLearn(userId, input.message) : null;
-  const system = withMemory(withMode(SYSTEM_PROMPT, input.mode), memory);
-
   // ── Stream the reply ──
   const provider = getAiProvider();
   const prompt = composePrompt(input.message, attachments, pictures.length);
@@ -226,7 +216,6 @@ export const POST = withApi(async (request: Request) => {
               history,
               showReasoning,
               images: pictures,
-              ...(system ? { system } : {}),
             });
 
         for await (const delta of deltas) {

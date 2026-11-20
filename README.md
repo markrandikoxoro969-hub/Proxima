@@ -362,26 +362,11 @@ https://pagespeed.web.dev after deploying (docs/PHONE-CHECKLIST.md → 6).
 
 ### Themes + pictures (November 2026)
 
-- [x] **Themes:** 13 built-in themes (Proxima, Daylight, Midnight, Ocean, Ember, Paper, Aurora,
-      Sakura, Graphite, Neon, Sky, Nature, Verdant) chosen in Settings, plus a builder for your
-      own theme from three colours. Sky, Ocean, Nature and Verdant also paint a slow animated
-      backdrop (clouds, swell, fireflies) and set their own typeface — glassy sans, book serif or
-      console mono — through `--font-body` / `--font-display`. Colours are derived (and contrast-checked) from those three, synced to the account,
+- [x] **Themes:** 10 built-in themes (Proxima, Daylight, Midnight, Ocean, Ember, Paper, Aurora,
+      Sakura, Graphite, Neon) chosen in Settings, plus a builder for your own theme from three
+      colours. Colours are derived (and contrast-checked) from those three, synced to the account,
       and painted before the first frame — no flash. The sun/moon button keeps a theme's character
       (Midnight ⇄ Ocean).
-- [x] **Memory:** PROXIMA keeps a short note list per account ("- 2026-11-19: going to the gym"),
-      so "which protein is good?" asked two days later is answered in context. Notes are pulled out
-      with small deterministic rules (no extra AI call, no invented facts), shown in
-      Settings → Memory, and wiped in one tap or with `DELETE /api/memory`.
-- [x] **Answer modes:** Thinking / Fast / Pro / Coding in the composer. Each mode is one extra
-      paragraph in the system prompt (`src/lib/ai/modes.ts`), so it works with every provider.
-- [x] **Waiting + smoothness:** an Arena-style "Thinking" label (light sweeping through the word,
-      dots, skeleton lines), spring entrances instead of blur filters, and the scroll-lag fixes:
-      the full-page velocity blur was removed, the custom cursor now batches its writes into one
-      rAF frame and gives the real pointer back on blur/tab-switch, and Lenis is skipped on
-      low-core machines.
-- [x] **Copy everywhere:** replies, reasoning and the footer wordmark are normal selectable text —
-      long-press on a phone shows the copy handles, drag-select works on desktop.
 - [x] **Upload:** attach up to 4 pictures to a message; the browser shrinks them to ≤1280 px WebP,
       the server re-checks the real type and size, and the chat shows the actual picture.
 - [x] **Image studio:** create a picture from a prompt (style + shape presets) and edit one with

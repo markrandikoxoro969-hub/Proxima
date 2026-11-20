@@ -176,9 +176,6 @@ export function ThemePicker({
                   </span>
                   <span className="line-clamp-2 text-[10px] leading-snug font-medium text-subtle">
                     {palette.description}
-                    {palette.scene && (
-                      <span className="ml-1 font-bold text-[var(--accent)]">· animated</span>
-                    )}
                   </span>
                 </button>
                 {palette.custom && (

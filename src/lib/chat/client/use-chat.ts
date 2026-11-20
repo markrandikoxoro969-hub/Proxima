@@ -5,7 +5,6 @@ import type { MessagesPage, SessionSummary } from "../types";
 import { api, ClientApiError } from "./api";
 import { chatReducer, DRAFT, initialChatState, type UiMessage } from "./chat-state";
 import { streamChat } from "./stream-chat";
-import { useChatMode } from "./use-chat-mode";
 import { useShowReasoning } from "./use-show-reasoning";
 
 type Notify = (message: string, kind?: "info" | "success" | "error") => void;
@@ -41,7 +40,6 @@ export function useChat({
   );
   const [lastLatency, setLastLatency] = useState<number | null>(null);
   const [showReasoning] = useShowReasoning();
-  const [mode] = useChatMode();
   const abortRef = useRef<AbortController | null>(null);
   const stateRef = useRef(state);
   useEffect(() => {
@@ -178,7 +176,6 @@ export function useChat({
           images: images.length ? images.map((image) => ({ id: image.id })) : undefined,
           retry: retryOf ? true : undefined,
           showReasoning,
-          mode,
           history: history.length ? history : undefined,
         },
         {
@@ -219,7 +216,7 @@ export function useChat({
       );
       if (abortRef.current === controller) abortRef.current = null;
     },
-    [notify, showReasoning, mode],
+    [notify, showReasoning],
   );
 
   const send = useCallback(

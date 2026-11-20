@@ -67,22 +67,12 @@ export const THEME_TOKEN_VARS: Record<ThemeTokenKey, string> = {
 
 export const THEME_TOKEN_KEYS = Object.keys(THEME_TOKEN_VARS) as ThemeTokenKey[];
 
-/** An animated backdrop that belongs to a theme (painted by ThemeBackdrop). */
-export type ThemeScene = "sky" | "ocean" | "nature";
-
-/** Which voice the theme sets: geometric sans, a book serif, or a console mono. */
-export type ThemeDisplay = "sans" | "serif" | "mono";
-
 export type ThemePalette = {
   /** Built-in id ("midnight") or "custom-…" for themes made by a person. */
   id: string;
   name: string;
   description: string;
   mode: ThemeMode;
-  /** Slow-moving light behind the whole app, when the theme has one. */
-  scene?: ThemeScene;
-  /** Body + heading voice. Omitted = the original geometric sans. */
-  display?: ThemeDisplay;
   /** The matching theme in the other mode; the sun/moon button swaps to it. */
   twin?: string;
   /** Three colours for the picker card: background, surface, accent. */
@@ -150,7 +140,7 @@ function theme(
   description: string,
   mode: ThemeMode,
   colors: ThemeColors,
-  extra: { twin?: string; scene?: ThemeScene; display?: ThemeDisplay } = {},
+  twin?: string,
 ): ThemePalette {
   const tokens = deriveTokens(mode, colors);
   return {
@@ -158,23 +148,11 @@ function theme(
     name,
     description,
     mode,
-    twin: extra.twin,
-    scene: extra.scene,
-    display: extra.display,
+    twin,
     swatch: [tokens.bg, tokens.surfaceSolid, tokens.accent],
     tokens,
   };
 }
-
-/**
- * Font stacks per voice. The two families are self-hosted (see app/fonts.ts);
- * the serif is the system one, so no extra download.
- */
-export const THEME_FONT_STACKS: Record<ThemeDisplay, string> = {
-  sans: 'var(--font-montserrat), ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif',
-  serif: 'ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif',
-  mono: 'var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace',
-};
 
 /**
  * The themes that ship with PROXIMA.
@@ -183,90 +161,107 @@ export const THEME_FONT_STACKS: Record<ThemeDisplay, string> = {
  * design system in globals.css), so existing accounts see no change.
  */
 export const THEME_PALETTES: readonly ThemePalette[] = [
-  theme("proxima", "Proxima", "The original: deep black with a violet light.", "dark", {
-    bg: "#050505",
-    fg: "#f8fafc",
-    accent: "#a78bfa",
-    solid: "#0b0b0c",
-  }, { twin: "daylight" }),
-  theme("daylight", "Daylight", "Clean white with the same violet light.", "light", {
-    bg: "#f8fafc",
-    fg: "#0f172a",
-    accent: "#6d28d9",
-  }, { twin: "proxima" }),
-  theme("midnight", "Midnight", "Navy depth with an electric blue glow, and slow ocean light.", "dark", {
-    bg: "#060b1a",
-    fg: "#e8eefc",
-    accent: "#60a5fa",
-    solid: "#0b1224",
-  }, { twin: "ocean", scene: "ocean" }),
-  theme("ocean", "Ocean", "Cool daylight blue that drifts like water.", "light", {
-    bg: "#eef4fb",
-    fg: "#0b2239",
-    accent: "#0369a1",
-  }, { twin: "midnight", scene: "ocean" }),
-  theme("ember", "Ember", "Warm charcoal with a firelight accent.", "dark", {
-    bg: "#120806",
-    fg: "#fdf0e8",
-    accent: "#fb923c",
-    solid: "#1c0d09",
-  }, { twin: "paper" }),
-  theme("paper", "Paper", "A warm cream page, set in a book serif.", "light", {
-    bg: "#f7f2e8",
-    fg: "#221c14",
-    accent: "#b45309",
-    solid: "#fffdf8",
-  }, { twin: "ember", display: "serif" }),
+  theme(
+    "proxima",
+    "Proxima",
+    "The original: deep black with a violet light.",
+    "dark",
+    {
+      bg: "#050505",
+      fg: "#f8fafc",
+      accent: "#a78bfa",
+      solid: "#0b0b0c",
+    },
+    "daylight",
+  ),
+  theme(
+    "daylight",
+    "Daylight",
+    "Clean white with the same violet light.",
+    "light",
+    {
+      bg: "#f8fafc",
+      fg: "#0f172a",
+      accent: "#6d28d9",
+    },
+    "proxima",
+  ),
+  theme(
+    "midnight",
+    "Midnight",
+    "Navy depth with an electric blue glow.",
+    "dark",
+    {
+      bg: "#060b1a",
+      fg: "#e8eefc",
+      accent: "#60a5fa",
+      solid: "#0b1224",
+    },
+    "ocean",
+  ),
+  theme(
+    "ocean",
+    "Ocean",
+    "Cool daylight blue, easy on long reads.",
+    "light",
+    {
+      bg: "#eef4fb",
+      fg: "#0b2239",
+      accent: "#0369a1",
+    },
+    "midnight",
+  ),
+  theme(
+    "ember",
+    "Ember",
+    "Warm charcoal with a firelight accent.",
+    "dark",
+    {
+      bg: "#120806",
+      fg: "#fdf0e8",
+      accent: "#fb923c",
+      solid: "#1c0d09",
+    },
+    "paper",
+  ),
+  theme(
+    "paper",
+    "Paper",
+    "A warm cream page, like a good book.",
+    "light",
+    {
+      bg: "#f7f2e8",
+      fg: "#221c14",
+      accent: "#b45309",
+      solid: "#fffdf8",
+    },
+    "ember",
+  ),
   theme("aurora", "Aurora", "Forest black with a green northern light.", "dark", {
     bg: "#04120e",
     fg: "#e6fff5",
     accent: "#34d399",
     solid: "#071a14",
-  }, { scene: "nature" }),
+  }),
   theme("sakura", "Sakura", "Soft blossom pink for daylight.", "light", {
     bg: "#fdf1f5",
     fg: "#2b121c",
     accent: "#be185d",
     solid: "#fffafc",
-  }, { display: "serif" }),
-  theme("graphite", "Graphite", "Pure monochrome, set in a console mono.", "dark", {
+  }),
+  theme("graphite", "Graphite", "Pure monochrome. The quietest option.", "dark", {
     bg: "#0a0a0a",
     fg: "#f5f5f5",
     accent: "#a3a3a3",
     solid: "#141414",
-  }, { display: "mono" }),
+  }),
   theme("neon", "Neon", "Near-black with a sharp lime edge.", "dark", {
     bg: "#050a05",
     fg: "#eaffef",
     accent: "#a3e635",
     solid: "#0a120a",
-  }, { display: "mono" }),
-
-  // ── The scene themes: a slow, painted light behind the whole app ──────
-  theme("sky", "Sky", "High-altitude daylight with clouds drifting overhead.", "light", {
-    bg: "#e9f4ff",
-    fg: "#0a2540",
-    accent: "#0284c7",
-    solid: "#f8fcff",
-  }, { scene: "sky", twin: "midnight" }),
-  theme("nature", "Nature", "Moss, leaf and morning light, set in a book serif.", "light", {
-    bg: "#f1f6ec",
-    fg: "#1b2a17",
-    accent: "#3f7d20",
-    solid: "#fbfdf8",
-  }, { scene: "nature", display: "serif", twin: "aurora" }),
-  theme("verdant", "Verdant", "Deep forest at dusk with fireflies of light.", "dark", {
-    bg: "#06130c",
-    fg: "#e8f7e9",
-    accent: "#4ade80",
-    solid: "#0a1d12",
-  }, { scene: "nature", twin: "nature" }),
+  }),
 ] as const;
-
-/** scene per built-in theme, for the pre-paint script and <html data-scene>. */
-export const BUILT_IN_THEME_SCENES: Record<string, ThemeScene> = Object.fromEntries(
-  THEME_PALETTES.filter((t) => t.scene).map((t) => [t.id, t.scene!]),
-);
 
 const BUILT_IN_BY_ID = new Map(THEME_PALETTES.map((t) => [t.id, t]));
 
@@ -312,12 +307,8 @@ export function twinThemeId(theme: ThemePalette, mode: ThemeMode): string {
 
 /* ── The style sheet (built once per server start) ─────────────────── */
 
-const cssVariables = (palette: ThemePalette): string => {
-  const vars = THEME_TOKEN_KEYS.map((key) => `${THEME_TOKEN_VARS[key]}:${palette.tokens[key]}`);
-  vars.push(`--font-body:${THEME_FONT_STACKS[palette.display ?? "sans"]}`);
-  vars.push(`--font-display:${THEME_FONT_STACKS[palette.display ?? "sans"]}`);
-  return vars.join(";");
-};
+const cssVariables = (tokens: ThemeTokens): string =>
+  THEME_TOKEN_KEYS.map((key) => `${THEME_TOKEN_VARS[key]}:${tokens[key]}`).join(";");
 
 /**
  * CSS for every built-in theme. Custom themes are applied as inline styles on
@@ -331,7 +322,7 @@ export function buildThemeCss(palettes: readonly ThemePalette[] = THEME_PALETTES
     palettes
       .map(
         (palette) =>
-          `:root[data-theme="${palette.id}"]{${cssVariables(palette)};color-scheme:${palette.mode}}`,
+          `:root[data-theme="${palette.id}"]{${cssVariables(palette.tokens)};color-scheme:${palette.mode}}`,
       )
       .join("\n") + "\n"
   );
@@ -345,9 +336,6 @@ export const themeStyleSheet = buildThemeCss();
 export function cssPropertiesFor(theme: ThemePalette): Record<string, string> {
   const style: Record<string, string> = {};
   for (const key of THEME_TOKEN_KEYS) style[THEME_TOKEN_VARS[key]] = theme.tokens[key];
-  // Custom themes keep the clean sans voice: the person only chose colours.
-  style["--font-body"] = THEME_FONT_STACKS.sans;
-  style["--font-display"] = THEME_FONT_STACKS.sans;
   return style;
 }
 

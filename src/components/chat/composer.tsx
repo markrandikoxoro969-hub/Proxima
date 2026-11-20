@@ -21,7 +21,6 @@ import {
 } from "@/lib/chat/client/images";
 import { useSpeech } from "@/lib/chat/client/use-speech";
 import { cn } from "@/lib/cn";
-import { ModePicker } from "./mode-picker";
 import { IMAGE_LIMITS } from "@/lib/image/limits";
 import { LIMITS } from "@/lib/limits";
 import { SPRING } from "@/lib/motion/tokens";
@@ -316,7 +315,6 @@ export const Composer = memo(function Composer({
         )}
 
         <div className="flex items-center gap-1 px-2 pb-2">
-          <ModePicker />
           <input
             ref={fileInputRef}
             type="file"

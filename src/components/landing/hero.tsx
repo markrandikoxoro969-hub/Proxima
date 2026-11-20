@@ -35,7 +35,7 @@ export function Hero() {
         className="pointer-events-none absolute top-1/2 left-1/2 -z-10 size-[80vmax] -translate-1/2 rounded-full bg-[radial-gradient(circle,var(--glow)_0%,transparent_60%)]"
       />
       <Parallax speed={0.55} className="pointer-events-none absolute inset-0 -z-10">
-        <div aria-hidden className="flex h-full w-full items-center justify-center">
+        <div aria-hidden className="vblur flex h-full w-full items-center justify-center">
           <div className="absolute top-1/2 left-1/2 size-[min(92vw,760px)] -translate-1/2 rounded-full border border-line" />
           <div className="orbit-ring absolute top-1/2 left-1/2 size-[min(70vw,560px)] -translate-1/2 rounded-full border border-dashed border-line-strong">
             <span className="absolute top-0 left-1/2 size-2 -translate-1/2 rounded-full bg-fg shadow-glow-strong" />

@@ -76,8 +76,6 @@ export const api = {
   deleteAccount: () =>
     request<{ deleted: true }>("/api/me", { method: "DELETE", body: JSON.stringify({ confirm: "DELETE" }) }),
   clearAll: () => request<{ deleted: number }>(`/api/sessions?confirm=all`, { method: "DELETE" }),
-  /** Wipes what PROXIMA remembers about you between chats. */
-  clearMemory: () => request<{ cleared: true }>("/api/memory", { method: "DELETE" }),
   updateProfile: (
     patch: Partial<Pick<Profile, "displayName" | "age" | "theme" | "themePalette" | "particles">> & {
       /** Only the three source colours are needed; the server rebuilds the rest. */

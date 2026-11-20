@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { contrastRatio, parseHex } from "@/lib/color";
 import {
-  BUILT_IN_THEME_SCENES,
   CUSTOM_THEME_LIMIT,
-  THEME_FONT_STACKS,
   DEFAULT_THEME_FOR_MODE,
   THEME_PALETTES,
   THEME_TOKEN_KEYS,
@@ -60,26 +58,6 @@ describe("built-in themes", () => {
       expect(twin, `${theme.id} twin`).toBeDefined();
       expect(twin!.mode).not.toBe(theme.mode);
     }
-  });
-
-  it("ships the animated scene themes with their own typefaces", () => {
-    for (const id of ["sky", "nature", "verdant", "ocean"]) {
-      expect(BUILT_IN_THEME_SCENES[id], `${id} scene`).toBeTruthy();
-    }
-    expect(BUILT_IN_THEME_SCENES.sky).toBe("sky");
-    expect(BUILT_IN_THEME_SCENES.nature).toBe("nature");
-    const nature = THEME_PALETTES.find((theme) => theme.id === "nature")!;
-    expect(nature.display).toBe("serif");
-    expect(THEME_PALETTES.find((theme) => theme.id === "graphite")!.display).toBe("mono");
-  });
-
-  it("writes the theme fonts into the stylesheet, and no scene for plain themes", () => {
-    const css = buildThemeCss();
-    expect(css).toContain(`:root[data-theme="nature"]`);
-    expect(css).toContain("--font-body:");
-    expect(css).toContain("--font-display:");
-    // Themes without a scene keep the default sans voice.
-    expect(css).toContain(THEME_FONT_STACKS.sans.split(",")[0]);
   });
 
   it("splits themes by mode", () => {
