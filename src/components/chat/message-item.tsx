@@ -131,10 +131,13 @@ function AssistantMessage({
         <Planet weight="fill" className="size-4.5" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="mb-1 flex items-center gap-2 text-[11px] font-extrabold tracking-[0.25em] text-subtle uppercase">
-          Proxima<span className="sr-only"> replied:</span>
-          {message.mode && message.mode !== "thinking" && (
-            <span className="rounded-full border border-line px-1.5 py-0.5 text-[9px] tracking-[0.18em] text-muted">
+        <p className="mb-1 flex min-w-0 items-center gap-2 text-[11px] font-extrabold tracking-[0.25em] text-subtle uppercase">
+          <span className="shrink-0">Proxima</span>
+          <span className="sr-only">{message.status === "error" ? " error:" : " replied:"}</span>
+          {message.mode && message.mode !== "thinking" && message.status !== "error" && (
+            // Nowrap + shrink-0: on a narrow phone a squeezed badge used to
+            // wrap "Analyze" one letter per line.
+            <span className="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[9px] tracking-[0.18em] whitespace-nowrap text-muted">
               {MODE_CONFIG[message.mode].label}
             </span>
           )}

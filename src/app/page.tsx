@@ -10,7 +10,6 @@ import { MotionProvider } from "@/components/motion/motion-provider";
 import { SiteFooter } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { Skills } from "@/components/landing/skills";
-import { Slides } from "@/components/landing/slides";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
@@ -30,9 +29,9 @@ const jsonLd = {
 
 /**
  * The PROXIMA landing page.
- * Static (built once, served instantly). Only the slides, the theme button and
- * the motion effects ship JavaScript up front; the live demo's chunk loads
- * when you approach it.
+ * Static (built once, served instantly). Only the theme button and the motion
+ * effects ship JavaScript up front; the live demo's chunk loads when you
+ * approach it.
  */
 export default function Home() {
   return (
@@ -48,7 +47,6 @@ export default function Home() {
           <Hero />
           <Skills />
           <HowItWorks />
-          <Slides />
           <section id="demo" aria-labelledby="demo-title" className="px-4 py-24 sm:px-8 sm:py-32">
             <SectionHeading
               id="demo-title"

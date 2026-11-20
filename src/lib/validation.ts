@@ -34,7 +34,12 @@ export const chatImageSchema = z.object({ id: z.cuid() });
 /** Guest demo only: the browser sends its own recent turns (nothing is stored). */
 export const historyMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
-  content: z.string().transform(stripControl).pipe(z.string().trim().min(1).max(LIMITS.messageMax)),
+  // Trim instead of rejecting: a long earlier reply is normal, and the model
+  // only receives a bounded window of it anyway.
+  content: z
+    .string()
+    .transform((value) => stripControl(value).trim().slice(0, LIMITS.historyMessageMax))
+    .pipe(z.string().min(1, "A history message can't be empty.")),
 });
 
 export const chatRequestSchema = z.object({

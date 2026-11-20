@@ -5,7 +5,6 @@ import { ButtonLink } from "@/components/ui/button";
 export const NAV = [
   { href: "#skills", label: "Skills" },
   { href: "#how", label: "How it works" },
-  { href: "#features", label: "Features" },
   { href: "#demo", label: "Live demo" },
   { href: "#faq", label: "FAQ" },
 ] as const;

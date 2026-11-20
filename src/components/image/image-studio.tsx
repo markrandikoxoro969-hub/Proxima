@@ -261,7 +261,7 @@ function StudioBody({
           <input
             ref={uploadRef}
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
             className="sr-only"
             tabIndex={-1}
             aria-hidden

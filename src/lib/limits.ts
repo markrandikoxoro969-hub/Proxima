@@ -6,6 +6,12 @@
 export const LIMITS = {
   messageMax: 4000,
   demoMessageMax: 500,
+  /**
+   * Earlier turns are context, not the thing being sent. A saved assistant
+   * reply can be much longer than a new message, so this is deliberately
+   * larger — and anything beyond it is trimmed rather than rejected.
+   */
+  historyMessageMax: 6000,
   attachmentsMax: 3,
   attachmentBytesMax: 100 * 1024, // 100 KB per file
   attachmentNameMax: 200,

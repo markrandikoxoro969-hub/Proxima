@@ -41,7 +41,7 @@ export const ChatHeader = memo(function ChatHeader({
           <svg
             viewBox="0 0 16 16"
             aria-hidden
-            className="inline-block size-3 align-[0.1em]"
+            className="hidden size-3 align-[0.1em] min-[380px]:inline-block"
             fill="currentColor"
           >
             <path d="M8 0c.5 4.2 3.8 7.5 8 8-4.2.5-7.5 3.8-8 8-.5-4.2-3.8-7.5-8-8 4.2-.5 7.5-3.8 8-8Z" />

@@ -39,6 +39,8 @@ Every error has the same shape, so the app can show a friendly toast:
   "message": "Write a clean Python script", // required, 1–4000 characters
   "conversationId": "cm3…", // optional: continue this chat (signed in)
   "attachments": [{ "name": "app.py", "content": "print('hi')" }], // optional, ≤3 text files, ≤100 KB each
+  "images": [{ "id": "cm3…" }], // optional, ≤4 pictures already uploaded (signed in)
+  "temporary": true, // optional: do not save this turn or use memory
   "demoSessionId": "uuid", // optional: guest demo memory
   "retry": true, // optional: "Try again" after a failed reply (see below)
   "mode": "thinking", // optional: "thinking" | "fast" | "coding" | "analyze" (default: thinking)
@@ -86,7 +88,10 @@ event: error      data: {"code":"timeout","message":"The engine took too long to
   filler ("I hope this helps") was removed after streaming.
 - **Context**: signed-in requests send the system prompt, the last 20 stored messages and the new
   message. The browser cannot rewrite that history. Guests may send up to 20 of their own recent turns
-  (nothing is stored on the server).
+  (nothing is stored on the server). Earlier turns are trimmed to 6,000 characters each rather than
+  rejected, so one long reply can't make the next message fail.
+- **Pictures** are uploaded first (`POST /api/images`) and sent by id. A text-only chat model gets a
+  description from a vision model, so the main model can answer questions about what the picture shows.
 - **Fallback**: when `AI_PROVIDER=nvidia`, a failure _before any text_ is retried automatically on the
   Render API. You only see an `error` event if both fail.
 - **`retry: true`** is what the **Try again** button sends. If the last saved message in that chat is

@@ -387,7 +387,7 @@ function ChatScreen({
 
         <main
           id="main"
-          className="flex min-w-0 flex-1 flex-col pr-safe"
+          className="flex min-w-0 flex-1 flex-col pr-safe pl-safe"
           inert={(!isDesktop && sidebarOpen) || undefined}
         >
           <ChatHeader

@@ -35,6 +35,25 @@ export function json(data: unknown, init: ResponseInit = {}): Response {
   return Response.json(data, { ...init, headers });
 }
 
+/**
+ * Zod's default messages are developer-facing ("Too big: expected string to
+ * have <=4000 characters"). People should never see those in a chat. Custom
+ * messages (our `.max(…, "…")` ones) are kept as written.
+ */
+function friendlyZodMessage(issue: ZodError["issues"][number] | undefined): string {
+  if (!issue) return "Invalid input.";
+  // A message we wrote for people wins over the generic translation.
+  const technical =
+    /^(too big|too small|invalid\b|expected |unrecognized key|too many items|not a multiple)/i.test(
+      issue.message,
+    );
+  if (!technical) return issue.message;
+  if (issue.code === "too_big") return "That input is too long.";
+  if (issue.code === "too_small") return "That input is too short.";
+  if (issue.code === "invalid_type") return "That input isn't valid.";
+  return "Please check that input and try again.";
+}
+
 export function errorResponse(error: unknown): Response {
   if (error instanceof ApiError) {
     return json(
@@ -48,8 +67,11 @@ export function errorResponse(error: unknown): Response {
       {
         error: {
           code: "validation_error",
-          message: first?.message ?? "Invalid input.",
-          fields: error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+          message: friendlyZodMessage(first),
+          fields: error.issues.map((i) => ({
+            path: i.path.join("."),
+            message: friendlyZodMessage(i),
+          })),
         },
       },
       { status: 400 },

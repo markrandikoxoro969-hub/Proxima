@@ -75,14 +75,16 @@ A `401` means the key is wrong; a `404` means the model name is wrong.
 | `AI_PROVIDER`            | `nvidia`                                   | `nvidia`, `render` or `mock`                                |
 | `NVIDIA_API_KEY`         | —                                          | Your key. Server only.                                      |
 | `NVIDIA_MODEL`           | `nvidia/nemotron-3-ultra-550b-a55b`        | Which model answers                                         |
-| `NVIDIA_MAX_TOKENS`      | `4096`                                     | Longest answer                                              |
+| `NVIDIA_VISION_MODEL`    | `meta/llama-3.2-90b-vision-instruct`       | Reads attached pictures for a text-only main model. `off` disables |
+| `NVIDIA_MAX_TOKENS`      | `8192`                                     | Ceiling for one answer, including reasoning                 |
 | `NVIDIA_ENABLE_THINKING` | `true`                                     | Let the model reason privately (`chat_template_kwargs`)     |
 | `NVIDIA_TIMEOUT_MS`      | `45000`                                    | Switch to Render if NVIDIA hasn't answered by then          |
 | `AI_API_URL`             | `https://sujancoreapi.onrender.com/chat`   | Render fallback address                                     |
-| `AI_TIMEOUT_MS`          | `90000`                                    | Total budget. Render cold starts can take ~60 s             |
+| `AI_TIMEOUT_MS`          | `110000`                                   | Total budget (route limit: 120 s)                           |
 
-Request shape (fixed in `src/lib/ai/providers/nvidia.ts`):
-`stream: true`, `temperature: 1`, `top_p: 0.95`, `max_tokens` from env.
+Request shape (`src/lib/ai/providers/nvidia.ts`): `stream: true`; `temperature`,
+`top_p` and `max_tokens` come from the selected answer mode (Thinking, Fast,
+Coding, Analyze — see `src/lib/ai/modes.ts`), capped by `NVIDIA_MAX_TOKENS`.
 
 ## 4. Reasoning is private
 

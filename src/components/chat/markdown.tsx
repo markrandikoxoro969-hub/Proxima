@@ -4,6 +4,7 @@ import { memo, useMemo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toBlocks } from "@/lib/chat/client/markdown-blocks";
+import { cn } from "@/lib/cn";
 import { CodeBlock } from "./code-block";
 
 /**
@@ -66,7 +67,14 @@ function makeComponents(live: boolean): Components {
     },
     table({ children }) {
       return (
-        <div className="my-4 overflow-x-auto rounded-xl border border-line">
+        // Focusable so a keyboard user can scroll a wide table sideways.
+        <div
+          className="my-4 overflow-x-auto rounded-xl border border-line"
+          tabIndex={0}
+          role="region"
+          aria-label="Table — scroll sideways to see every column"
+          data-lenis-prevent
+        >
           <table>{children}</table>
         </div>
       );
@@ -89,7 +97,7 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, live }: { text: string
 export function Markdown({ content, streaming = false }: { content: string; streaming?: boolean }) {
   const blocks = useMemo(() => toBlocks(content), [content]);
   return (
-    <div className={`markdown message-text${streaming ? " is-streaming" : ""}`}>
+    <div className={cn("markdown message-text", streaming && "is-streaming")}>
       {blocks.map((block, i) => (
         <MarkdownBlock key={i} text={block} live={streaming && i === blocks.length - 1} />
       ))}
