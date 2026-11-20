@@ -88,6 +88,30 @@ export const chatRequestSchema = z.object({
 });
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
 
+/**
+ * One piece of a spoken reply. The browser splits long answers before calling
+ * `/api/speech`; this is the server's own hard limit, not a target.
+ */
+export const speechRequestSchema = z.object({
+  text: z
+    .string()
+    .transform(stripControl)
+    .pipe(
+      z
+        .string()
+        .trim()
+        .min(1, "There's nothing to read.")
+        .max(LIMITS.speechChunkMax, `A spoken piece must be ${LIMITS.speechChunkMax} characters or fewer.`),
+    ),
+  voice: z.enum(["girl", "boy"], { error: "Choose a girl or boy voice." }),
+  speed: z
+    .number()
+    .min(0.5, "Speed must be between 0.5× and 2×.")
+    .max(2, "Speed must be between 0.5× and 2×.")
+    .default(1),
+});
+export type SpeechRequestInput = z.infer<typeof speechRequestSchema>;
+
 /* ── Memory ───────────────────────────────────────────────────────── */
 
 /** Settings → Memory switch. */

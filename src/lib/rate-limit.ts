@@ -16,6 +16,10 @@ export const RATE_LIMITS = {
   api: { limit: 120, windowMs: 60_000 }, // other API calls per user
   image: { limit: 6, windowMs: 60_000 }, // AI pictures per user (they cost money)
   status: { limit: 30, windowMs: 60_000 }, // engine status checks per visitor
+  // Voice: one request per 900-character piece, cached by the browser. 90/min
+  // is roughly ten minutes of listening and leaves room to replay a reply.
+  speechUser: { limit: 90, windowMs: 60_000 },
+  speechGuest: { limit: 20, windowMs: 60_000 },
 } as const;
 
 export type RateLimitRule = { limit: number; windowMs: number };

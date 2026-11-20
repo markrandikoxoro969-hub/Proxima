@@ -19,6 +19,8 @@ Every error has the same shape, so the app can show a friendly toast:
 | `unsupported_media_type` | 415  | Body must be JSON                                                |
 | `rate_limited`           | 429  | Too many requests; see the `Retry-After` header (seconds)        |
 | `service_unavailable`    | 503  | Database not reachable right now                                 |
+| `speech_unavailable`     | 503  | Natural voice is off or no engine could speak                    |
+| `speech_timeout`         | 504  | The voice service took too long; the client uses the device voice |
 | `internal_error`         | 500  | Bug on our side; the message includes a `ref` to find it in logs |
 
 **Security on every endpoint:**
@@ -97,6 +99,33 @@ event: error      data: {"code":"timeout","message":"The engine took too long to
 - **`retry: true`** is what the **Try again** button sends. If the last saved message in that chat is
   your same question, the server reuses it instead of saving it twice (`meta.userMessageId` is the old
   message). If the text is different, it's saved as a normal new message.
+
+## `POST /api/speech`: speak one piece of a reply
+
+**Body**
+
+```json
+{
+  "text": "A short piece of the answer.", // required, 1–1200 characters, no Markdown needed
+  "voice": "girl", // "girl" | "boy"
+  "speed": 1 // optional, 0.5–2 (default 1)
+}
+```
+
+**Reply:** raw `audio/mpeg` bytes, **not JSON**. The browser splits long answers at sentence
+boundaries (900 characters) and caches each returned blob, so replay is instant.
+
+| Who          | Limit             | Notes                                              |
+| ------------ | ----------------- | -------------------------------------------------- |
+| Signed in    | 90 pieces/minute  | Fails open if the database is down                 |
+| Guest (demo) | 20 pieces/minute  | The landing demo uses the same route              |
+
+- The same-origin rule applies: another website gets `403`.
+- `SPEECH_PROVIDER` chooses the engine: `auto` (OpenAI → Pollinations → free Edge), `openai`,
+  `pollinations`, `edge`, or `off`. Keys stay server-side — see [VOICE.md](VOICE.md).
+- Any failure returns the normal JSON error. The client treats it as a signal to use the browser's
+  built-in voice, so the speaker button still works offline.
+- No text or audio is stored in the database.
 
 ## Sessions (the sidebar)
 

@@ -1,46 +1,121 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { VOICE_PROFILES, pickVoice, splitForSpeech, toSpeechText, type VoiceChoice } from "./voice";
+import { LIMITS } from "@/lib/limits";
+import {
+  VOICE_PROFILES,
+  pickVoice,
+  splitForSpeech,
+  toSpeechText,
+  type VoiceChoice,
+  type VoiceEngine,
+} from "./voice";
 
 type SpeakOptions = {
   voice: VoiceChoice;
   speed?: number;
+  /** "natural" asks /api/speech; "device" uses the browser's own engine. */
+  engine?: VoiceEngine;
   /** Replaces the hook-level onEnd for this utterance (used by voice previews). */
   onDone?: () => void;
 };
 
+const noopSubscribe = () => () => {};
+const canPlayAudio = () => typeof window !== "undefined" && typeof window.Audio === "function";
+const canSpeakDevice = () => typeof window !== "undefined" && "speechSynthesis" in window;
+const canSpeak = () => canPlayAudio() || canSpeakDevice();
+
 /**
- * Speaks Proxima's answers with the browser's speech synthesis.
+ * Replaying the same chunk should be instant and should not cost another API
+ * call. Blobs live only in this tab (a few MB at most) and are never stored.
+ */
+const audioCache = new Map<string, Blob>();
+const AUDIO_CACHE_MAX = 24;
+/** A normal piece arrives in 1–3 s; never leave the listener in silence. */
+const SPEECH_FETCH_TIMEOUT_MS = 10_000;
+
+function cacheKey(text: string, voice: VoiceChoice, speed: number) {
+  return `${voice}|${speed}|${text}`;
+}
+
+async function requestSpeech(
+  text: string,
+  voice: VoiceChoice,
+  speed: number,
+  signal: AbortSignal,
+): Promise<Blob | null> {
+  if (signal.aborted) return null;
+  const key = cacheKey(text, voice, speed);
+  const remembered = audioCache.get(key);
+  if (remembered) return remembered;
+
+  // A slow piece must not hold the whole reply hostage: abandon this request
+  // after 10 s and let the caller fall back to the device voice.
+  const local = new AbortController();
+  const forwardAbort = () => local.abort();
+  signal.addEventListener("abort", forwardAbort, { once: true });
+  const timer = setTimeout(() => local.abort(), SPEECH_FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch("/api/speech", {
+      method: "POST",
+      signal: local.signal,
+      headers: { "Content-Type": "application/json", Accept: "audio/mpeg" },
+      body: JSON.stringify({ text, voice, speed }),
+    });
+    if (!response.ok) return null;
+    const type = (response.headers.get("content-type") ?? "").toLowerCase();
+    if (!type.startsWith("audio/")) return null;
+    const blob = await response.blob();
+    if (blob.size === 0) return null;
+
+    audioCache.set(key, blob);
+    if (audioCache.size > AUDIO_CACHE_MAX) {
+      const oldest = audioCache.keys().next().value;
+      if (oldest) audioCache.delete(oldest);
+    }
+    return blob;
+  } catch {
+    return null; // offline, aborted, timed out, or the route said no
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", forwardAbort);
+  }
+}
+
+/**
+ * Speaks Proxima's answers with a real neural voice, falling back to the
+ * browser's built-in voice whenever the natural one is unavailable.
  *
  * Why a hook instead of one `speak()` call:
- *  - long replies are split into sentence-sized utterances (Chrome and Android
- *    cut off or stall a single very long utterance);
+ *  - long replies are split into sentence-sized pieces (limits, latency and
+ *    smoother stop);
+ *  - the next piece downloads while the current one plays;
  *  - cancelling/replacing a reply must not fire the previous reply's "finished"
  *    callback (the generation counter);
  *  - voices load asynchronously on Chrome, so we listen for `voiceschanged`.
  *
- * Nothing is sent to our server. Most voices are on-device; some phones use a
- * network voice supplied by the browser vendor.
+ * Natural audio is requested from our own server. The answer text is sent to
+ * the chosen voice vendor to be spoken; it is not stored there by Proxima.
  */
-const noopSubscribe = () => () => {};
-const canSpeak = () => typeof window !== "undefined" && "speechSynthesis" in window;
-
 export function useVoiceOutput({
   onEnd,
   onError,
 }: {
-  /** Called once when the last chunk has finished speaking (not on stop). */
+  /** Called once when the last piece has finished speaking (not on stop). */
   onEnd?: () => void;
   onError?: (message: string) => void;
 } = {}) {
-  // The server can't know whether speech synthesis exists; assume it doesn't.
+  // The server can't know whether this browser can play audio; assume it can't.
   const supported = useSyncExternalStore(noopSubscribe, canSpeak, () => false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [speaking, setSpeaking] = useState(false);
+  const [activeEngine, setActiveEngine] = useState<VoiceEngine | null>(null);
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const generation = useRef(0);
   const alive = useRef(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
   const endRef = useRef(onEnd);
   const errorRef = useRef(onError);
 
@@ -50,8 +125,27 @@ export function useVoiceOutput({
   });
 
   useEffect(() => {
-    if (!canSpeak()) return;
     alive.current = true;
+    return () => {
+      alive.current = false;
+      requestRef.current?.abort();
+      requestRef.current = null;
+      const audio = audioRef.current;
+      if (audio) {
+        audio.onended = null;
+        audio.onerror = null;
+        try {
+          audio.pause();
+        } catch {
+          /* already stopped */
+        }
+      }
+      if (canSpeakDevice()) window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!canSpeakDevice()) return;
     const load = () => {
       try {
         const list = window.speechSynthesis.getVoices();
@@ -64,85 +158,217 @@ export function useVoiceOutput({
     load();
     window.speechSynthesis.addEventListener("voiceschanged", load);
     return () => {
-      alive.current = false;
       window.speechSynthesis.removeEventListener("voiceschanged", load);
-      window.speechSynthesis.cancel();
     };
   }, []);
 
-  const stop = useCallback(() => {
+  const stopCurrent = useCallback(() => {
     generation.current++;
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+    requestRef.current?.abort();
+    requestRef.current = null;
+    const audio = audioRef.current;
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      try {
+        audio.pause();
+      } catch {
+        /* already stopped */
+      }
+      audioRef.current = null;
     }
+    if (canSpeakDevice()) window.speechSynthesis.cancel();
     setSpeaking(false);
   }, []);
 
-  const speak = useCallback((text: string, { voice, speed = 1, onDone }: SpeakOptions) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      errorRef.current?.("This browser can't speak replies. Try Chrome, Edge or Safari for voice mode.");
-      return false;
-    }
-    let clean = toSpeechText(text);
-    let truncated = false;
-    if (clean.length > 12_000) {
-      clean = clean.slice(0, 12_000);
-      truncated = true;
-    }
-    const chunks = splitForSpeech(clean);
-    if (chunks.length === 0) return false;
-    if (truncated) chunks.push("The rest is on screen.");
+  const stop = useCallback(() => {
+    stopCurrent();
+  }, [stopCurrent]);
 
-    const run = ++generation.current;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.resume();
-
-    const profile = VOICE_PROFILES[voice];
-    const lang = document.documentElement.lang || "en-US";
-    const picked = pickVoice(voicesRef.current, voice, lang);
-    let finished = 0;
-    setSpeaking(true);
-
-    try {
-      for (const chunk of chunks) {
-        const utterance = new SpeechSynthesisUtterance(chunk);
-        if (picked) utterance.voice = picked;
-        // The replies are written in the page's language (English); using the
-        // device locale here would pick a Nepali/etc. voice for English text.
-        utterance.lang = picked?.lang || lang;
-        utterance.pitch = profile.pitch;
-        utterance.rate = Math.min(2, Math.max(0.5, speed));
-        utterance.onend = () => {
-          if (!alive.current || run !== generation.current) return;
-          finished++;
-          if (finished < chunks.length) return;
-          setSpeaking(false);
-          (onDone ?? endRef.current)?.();
-        };
-        utterance.onerror = (event) => {
-          if (!alive.current || run !== generation.current) return;
-          // A replaced/stopped reply is expected, not an error to show.
-          if (event.error === "interrupted" || event.error === "canceled") return;
-          generation.current++;
-          window.speechSynthesis.cancel();
-          setSpeaking(false);
-          errorRef.current?.(
-            event.error === "not-allowed"
-              ? "Your browser blocked speech. Allow sound for this site and try again."
-              : "This device couldn't play the voice. Try another voice or browser.",
-          );
-        };
-        window.speechSynthesis.speak(utterance);
+  const speak = useCallback(
+    (text: string, { voice, speed = 1, engine = "natural", onDone }: SpeakOptions) => {
+      if (!canSpeak()) {
+        errorRef.current?.(
+          "This browser can't play spoken replies. Try Chrome, Edge or Safari for voice mode.",
+        );
+        return false;
       }
-    } catch {
-      generation.current++;
-      window.speechSynthesis.cancel();
-      setSpeaking(false);
-      errorRef.current?.("This device couldn't start the voice. Try another browser.");
-      return false;
-    }
-    return true;
-  }, []);
 
-  return { supported, voices, speaking, speak, stop };
+      let clean = toSpeechText(text);
+      let truncated = false;
+      if (clean.length > LIMITS.speechReplyMax) {
+        clean = clean.slice(0, LIMITS.speechReplyMax);
+        truncated = true;
+      }
+      const chunks = splitForSpeech(clean, LIMITS.speechChunkChars);
+      if (chunks.length === 0) return false;
+      if (truncated) chunks.push("The rest is on screen.");
+
+      stopCurrent();
+      const run = generation.current;
+      const profile = VOICE_PROFILES[voice];
+
+      setSpeaking(true);
+      setActiveEngine(engine);
+
+      const finish = () => {
+        if (!alive.current || run !== generation.current) return;
+        requestRef.current = null;
+        setSpeaking(false);
+        (onDone ?? endRef.current)?.();
+      };
+
+      const playBlob = (blob: Blob, signal: AbortSignal): Promise<boolean> =>
+        new Promise((resolve) => {
+          if (!canPlayAudio() || signal.aborted) {
+            resolve(false);
+            return;
+          }
+          let url: string;
+          let audio: HTMLAudioElement;
+          try {
+            url = URL.createObjectURL(blob);
+            audio = new Audio(url);
+          } catch {
+            resolve(false);
+            return;
+          }
+          let settled = false;
+
+          const cleanup = () => {
+            signal.removeEventListener("abort", onAbort);
+            audio.onended = null;
+            audio.onerror = null;
+            if (audioRef.current === audio) audioRef.current = null;
+            URL.revokeObjectURL(url);
+          };
+          const settle = (ok: boolean) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve(ok);
+          };
+          const onAbort = () => {
+            try {
+              audio.pause();
+            } catch {
+              /* already stopped */
+            }
+            settle(true);
+          };
+
+          signal.addEventListener("abort", onAbort, { once: true });
+          audio.onended = () => settle(true);
+          audio.onerror = () => settle(false);
+          audioRef.current = audio;
+          try {
+            void audio.play().catch(() => settle(false));
+          } catch {
+            settle(false);
+          }
+        });
+
+      const playNatural = async (signal: AbortSignal): Promise<{ ok: boolean; spoken: number }> => {
+        let spoken = 0;
+        // Fetch piece 1 now; while it plays, piece 2 downloads behind it.
+        let next = requestSpeech(chunks[0]!, voice, speed, signal);
+        for (let index = 0; index < chunks.length; index++) {
+          if (!alive.current || run !== generation.current || signal.aborted) {
+            return { ok: true, spoken };
+          }
+          const blob = await next;
+          if (!alive.current || run !== generation.current || signal.aborted) {
+            return { ok: true, spoken };
+          }
+          if (!blob) return { ok: false, spoken };
+          if (index + 1 < chunks.length) {
+            next = requestSpeech(chunks[index + 1]!, voice, speed, signal);
+          }
+          const played = await playBlob(blob, signal);
+          if (!alive.current || run !== generation.current || signal.aborted) {
+            return { ok: true, spoken };
+          }
+          if (!played) return { ok: false, spoken };
+          spoken++;
+        }
+        finish();
+        return { ok: true, spoken };
+      };
+
+      const playDevice = (parts: string[] = chunks): boolean => {
+        if (!canSpeakDevice() || parts.length === 0) return false;
+        const lang = document.documentElement.lang || "en-US";
+        const picked = pickVoice(voicesRef.current, voice, lang);
+        let spokenDevice = 0;
+        try {
+          for (const chunk of parts) {
+            const utterance = new SpeechSynthesisUtterance(chunk);
+            if (picked) utterance.voice = picked;
+            // Replies are in the page's language; the device locale might be Nepali.
+            utterance.lang = picked?.lang || lang;
+            utterance.pitch = profile.pitch;
+            utterance.rate = Math.min(2, Math.max(0.5, speed));
+            utterance.onend = () => {
+              if (!alive.current || run !== generation.current) return;
+              spokenDevice++;
+              if (spokenDevice < parts.length) return;
+              finish();
+            };
+            utterance.onerror = (event) => {
+              if (!alive.current || run !== generation.current) return;
+              // A replaced/stopped reply is expected, not an error to show.
+              if (event.error === "interrupted" || event.error === "canceled") return;
+              generation.current++;
+              window.speechSynthesis.cancel();
+              setSpeaking(false);
+              errorRef.current?.(
+                event.error === "not-allowed"
+                  ? "Your browser blocked speech. Allow sound for this site and try again."
+                  : "This device couldn't play the voice. Try another voice or browser.",
+              );
+            };
+            window.speechSynthesis.speak(utterance);
+          }
+          return true;
+        } catch {
+          window.speechSynthesis.cancel();
+          return false;
+        }
+      };
+
+      if (engine === "natural" && canPlayAudio()) {
+        const controller = new AbortController();
+        requestRef.current = controller;
+        void playNatural(controller.signal).then(({ ok, spoken }) => {
+          if (!alive.current || run !== generation.current) return;
+          if (ok) return;
+          // Natural voice failed (offline, rate limit, provider outage): keep
+          // the reply audible with the device voice instead of showing an error.
+          // Continue from the first unheard piece rather than repeating audio.
+          controller.abort();
+          requestRef.current = null;
+          setActiveEngine("device");
+          if (!playDevice(chunks.slice(spoken))) {
+            requestRef.current = null;
+            setSpeaking(false);
+            errorRef.current?.(
+              "The voice couldn't play. Check your connection, or switch Voice quality to Device.",
+            );
+          }
+        });
+        return true;
+      }
+
+      setActiveEngine("device");
+      if (playDevice()) return true;
+      setSpeaking(false);
+      errorRef.current?.(
+        "This browser can't play spoken replies. Try Chrome, Edge or Safari for voice mode.",
+      );
+      return false;
+    },
+    [stopCurrent],
+  );
+
+  return { supported, voices, speaking, activeEngine, speak, stop };
 }

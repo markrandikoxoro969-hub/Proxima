@@ -9,7 +9,7 @@ Google login (Auth.js), Framer Motion, and server-side streaming from the PROXIM
 
 **What's inside:** cinematic landing page with a live demo · `/app` chat (streaming replies,
 four answer modes — Thinking, Fast, Coding, Analyze — markdown + code copy, voice input and
-spoken replies in a girl or boy voice, hands-free voice mode, file + picture attach, export) ·
+natural spoken replies in a girl or boy voice, hands-free voice mode, file + picture attach, export) ·
 selectable themes, including
 themes you build yourself · an image studio (AI create + AI edit) · `/settings` (profile,
 appearance, download/delete data, delete account) · Privacy & Terms · 404 · installable phone app
@@ -24,6 +24,7 @@ share image.
 | [docs/DATABASE.md](docs/DATABASE.md)               | Database commands and troubleshooting                 |
 | [docs/API.md](docs/API.md)                         | Every API endpoint, the chat stream, switching the AI |
 | [docs/IMAGES.md](docs/IMAGES.md)                   | Image upload, AI create/edit engines and their keys   |
+| [docs/VOICE.md](docs/VOICE.md)                     | Natural spoken voice, engines, keys, privacy          |
 | [docs/DEPLOY.md](docs/DEPLOY.md)                   | Put the site online with Vercel (+ your own domain)   |
 | [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) | Final test on a real phone                            |
 | [docs/WEB-DESIGN-AUDIT.md](docs/WEB-DESIGN-AUDIT.md) | Accessibility, responsive and performance audit       |
@@ -142,6 +143,7 @@ Proxima/
 │  ├─ ACCOUNTS.md          ← click-by-click: Neon, Google login, Resend
 │  ├─ API.md               ← every API endpoint, the chat stream format, how to switch AI
 │  ├─ IMAGES.md            ← pictures: upload, AI create/edit, engines, limits, privacy
+│  ├─ VOICE.md             ← natural voice: engines, voices, keys, fallback, privacy
 │  ├─ DATABASE.md          ← database setup, commands, troubleshooting
 │  ├─ DEPLOY.md            ← put it online with Vercel, click by click
 │  └─ PHONE-CHECKLIST.md   ← final test on a real phone
@@ -200,7 +202,7 @@ Proxima/
 │  │  │  ├─ code-block.tsx      ← code colours (Prism) + Copy button
 │  │  │  ├─ composer.tsx        ← message box: Enter to send, files, voice, hands-free status
 │  │  │  ├─ mode-menu.tsx       ← Thinking / Fast / Coding / Analyze picker + Show thinking
-│  │  │  ├─ voice-menu.tsx      ← girl/boy voice, speed, preview, read-aloud + hands-free
+│  │  │  ├─ voice-menu.tsx      ← girl/boy, natural/device quality, speed, preview, hands-free
 │  │  │  ├─ empty-state.tsx     ← greeting + one line of guidance (no cards)
 │  │  │  ├─ settings-dialog.tsx ← name, age, theme, particles, clear logs, sign out
 │  │  │  ├─ onboarding.tsx      ← typing logo → name → age → loading
@@ -231,7 +233,8 @@ Proxima/
 │  │  ├─ chat/             ← attachments → prompt, titles, export, database queries
 │  │  │  └─ client/        ← browser side: reading the stream, chat state (useChat),
 │  │  │                       answer mode (use-mode), files, voice input, code highlighting,
-│  │  │                       voice output (use-voice-output, use-voice-mode, voice.ts)
+│  │  │                       voice output (natural audio + device fallback) + voice prefs
+│  │  ├─ speech/           ← ⭐ natural-voice engines (Edge free, OpenAI, Pollinations)
 │  │  ├─ identity.ts       ← detects identity questions, cleans leaks in AI replies
 │  │  ├─ rate-limit.ts     ← limits stored in Postgres (20/min signed in, 5/min demo)
 │  │  ├─ validation.ts     ← all input rules (zod): 4000 chars, 100 KB files, …
@@ -312,10 +315,13 @@ The landing page is plain, fast HTML. Sections just carry **labels**, and one sm
   aloud_ on, each new answer is spoken once it finishes (never while it is still streaming).
   **Hands-free** opens the mic after the answer finishes, and closes it again while Proxima talks.
   Every finished reply also has a speaker button for a one-off replay, and **Stop reading** is always
-  one tap away. Speech comes from the browser, not from a Proxima key; Markdown, links and code
-  fences are cleaned before speaking, and long answers are split into sentence-sized chunks for
-  Chrome and Android. The preference is remembered on that device. The landing-page demo has a
-  small **Hear this** button under each answer, so voice works before signing in.
+  one tap away. **Quality → Natural** uses a neural voice from our own server (free Edge voices by
+  default, or OpenAI / ElevenLabs with a key); **Device** uses the browser and works offline. If the
+  natural voice is unavailable, Proxima continues with the device voice automatically. Markdown,
+  links and code fences are cleaned before speaking, and long answers are split into sentence-sized
+  chunks that download ahead of playback. The preference is remembered on that device. The
+  landing-page demo has a small **Hear this** button under each answer, so voice works before
+  signing in. Engine details, keys and privacy: **[docs/VOICE.md](docs/VOICE.md)**.
 - **Quick follow-ups on a reply.** _Simplify_ asks for the same answer in plainer words with an
   example; _Make a checklist_ turns it into a short, practical list. Both send a normal follow-up,
   so they work with the same history and answer mode.
@@ -393,12 +399,15 @@ This was a prior simulated-device snapshot, not a repeatable local Chrome measur
 
 ### Voice mode (November 2026)
 
-- [x] **Proxima talks back:** browser speech synthesis with a **girl** and **boy** voice, three
-      speeds, a preview, read-each-reply and a per-message replay button.
+- [x] **Proxima talks back:** natural neural voices (**girl** and **boy**), three speeds, a preview,
+      read-each-reply and a per-message replay button. Free Edge voices work with no key; OpenAI and
+      Pollinations / ElevenLabs are one environment variable away. The browser voice remains the
+      offline fallback instead of the default.
 - [x] **Hands-free loop:** when the answer finishes speaking, the mic opens for the next question;
       it never listens while Proxima is talking, and it sends the transcript straight away.
 - [x] **Safe by default:** speech never starts mid-stream, stops on send, chat switch or stop, and
-      the choice is stored per device — no account field and no server round-trip.
+      the choice is stored per device. Keys stay server-side; the answer text goes to the chosen
+      voice service only to be spoken, and audio is cached in the tab (never in the database).
 - [x] **Clean pronunciation:** Markdown emphasis, links, tables and code fences are stripped, and
       long replies are chunked so browsers don't cut them off.
 

@@ -17,4 +17,13 @@ export const LIMITS = {
   attachmentNameMax: 200,
   titleMax: 120,
   displayNameMax: 40,
+  /**
+   * Voice: the browser reads long replies in pieces. The server refuses one
+   * piece above `speechChunkMax`; `speechChunkChars` leaves room for the
+   * sentence splitter to pack a chunk close to the limit without going over.
+   */
+  speechChunkMax: 1200,
+  speechChunkChars: 900,
+  /** Hard cap for one spoken reply (about 15 minutes of speech). */
+  speechReplyMax: 12_000,
 } as const;

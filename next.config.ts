@@ -76,6 +76,9 @@ const extraDevOrigins = (process.env.ALLOWED_DEV_ORIGINS ?? "")
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Edge TTS opens a Node WebSocket; keep it out of the server bundle so its
+  // optional `ws`/`stream` internals resolve the Node versions at runtime.
+  serverExternalPackages: ["msedge-tts"],
   allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.*.*.*", ...extraDevOrigins],
   images: {
     formats: ["image/avif", "image/webp"],
