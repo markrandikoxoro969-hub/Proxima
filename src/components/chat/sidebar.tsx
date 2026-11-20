@@ -10,12 +10,14 @@ import {
   Trash,
   X,
 } from "@phosphor-icons/react";
+import { m, useDragControls } from "motion/react";
 import Image from "next/image";
 import { memo, useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import type { ThemePreference } from "@/lib/theme";
 import type { EngineStatus, Profile, SessionSummary } from "@/lib/chat/types";
 import { cn } from "@/lib/cn";
+import { SPRING } from "@/lib/motion/tokens";
 import { site } from "@/lib/site";
 
 const ENGINE_LABEL: Record<EngineStatus, string> = {
@@ -54,6 +56,7 @@ type SidebarProps = {
 export const Sidebar = memo(function Sidebar(props: SidebarProps) {
   const { open, isDesktop, onClose } = props;
   const panelRef = useRef<HTMLElement>(null);
+  const controls = useDragControls();
   const hidden = !isDesktop && !open;
 
   // Mobile: Escape closes the drawer, and focus moves into it when opened.
@@ -76,20 +79,45 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
           open ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       />
-      <aside
+      <m.aside
         ref={panelRef}
         id="sidebar"
         aria-label="Chat sessions"
         inert={hidden || undefined}
+        dragControls={controls}
+        dragListener={false}
+        initial={false}
+        animate={isDesktop ? { y: 0 } : { y: open ? 0 : "100%" }}
+        transition={SPRING.gentle}
+        drag={isDesktop ? false : "y"}
+        dragDirectionLock
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 0.4 }}
+        onDragEnd={(_event, info) => {
+          if (!isDesktop && (info.offset.y > 120 || info.velocity.y > 700)) onClose();
+        }}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[86vw] max-w-[19rem] flex-col pt-safe pb-safe pl-safe",
-          "border-r border-line bg-bg transition-transform duration-500 ease-premium",
-          "lg:static lg:z-auto lg:w-72 lg:max-w-none lg:translate-x-0 lg:border-y-0 lg:border-l-0 lg:glass lg:shadow-none",
-          open ? "translate-x-0" : "-translate-x-full",
+          // Phones: a bottom sheet, dragged down to dismiss.
+          "fixed inset-x-0 bottom-0 z-50 flex h-[86dvh] flex-col rounded-t-3xl border-t border-line bg-surface-solid pb-safe",
+          // Desktop: the normal sidebar.
+          "lg:static lg:z-auto lg:h-auto lg:w-72 lg:shrink-0 lg:translate-y-0 lg:rounded-none lg:border-t-0 lg:border-r lg:bg-transparent lg:shadow-none lg:backdrop-blur-none lg:glass lg:pb-0",
         )}
       >
-        <SidebarContent {...props} />
-      </aside>
+        {/* Drag handle: only this strip starts the dismiss gesture, so the
+            session list still scrolls normally under a finger. */}
+        <button
+          type="button"
+          aria-label="Drag down to close the menu"
+          onPointerDown={(e) => controls.start(e)}
+          className="mx-auto flex h-7 w-full shrink-0 items-center justify-center lg:hidden"
+          style={{ touchAction: "none" }}
+        >
+          <span aria-hidden className="h-1 w-10 rounded-full bg-line-strong" />
+        </button>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <SidebarContent {...props} />
+        </div>
+      </m.aside>
     </>
   );
 });
@@ -288,13 +316,21 @@ const SessionItem = memo(function SessionItem({
 
   return (
     <li className="group/item relative">
+      {active && (
+        <m.span
+          layoutId="active-session"
+          transition={SPRING.soft}
+          className="absolute inset-0 rounded-xl bg-surface-hover"
+          aria-hidden
+        />
+      )}
       <button
         type="button"
         onClick={() => onSelect(session.id)}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "flex min-h-12 w-full items-center gap-3 rounded-xl py-2 pr-[5.25rem] pl-3 text-left transition-[background-color,color] duration-200",
-          active ? "bg-surface-hover text-fg" : "text-muted hover:bg-surface-hover hover:text-fg",
+          "relative flex min-h-12 w-full items-center gap-3 rounded-xl py-2 pr-[5.25rem] pl-3 text-left transition-colors duration-200",
+          active ? "text-fg" : "text-muted hover:bg-surface-hover hover:text-fg",
         )}
       >
         <ChatCircleText weight={active ? "fill" : "bold"} className="size-4 shrink-0" aria-hidden />

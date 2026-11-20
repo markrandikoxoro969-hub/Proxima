@@ -7,7 +7,7 @@ export const site = {
   shortName: "Proxima",
   tagline: "Premium Core AI",
   description:
-    "PROXIMA is a premium AI assistant for coding, learning, writing and brainstorming — with voice input, file help and a beautiful glass interface.",
+    "PROXIMA answers plainly. Code, files and long questions in one quiet, private chat — with voice input and live replies.",
   version: "V2.81 CORE",
   developer: "Sujan Shrestha",
   /** Full public URL, e.g. https://proxima.vercel.app (see resolveSiteUrl below). */

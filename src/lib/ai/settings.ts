@@ -1,46 +1,108 @@
 /**
- * Works out which AI to use from the environment, forgiving common mistakes:
- *   AI_PROVIDER="sujan-core" (or empty)   → the real PROXIMA Core API  ✓ normal
- *   AI_PROVIDER="mock"                     → fake offline AI for design work
- *   AI_PROVIDER="https://…/chat"           → a web address in the wrong box: we use it as
- *                                            the AI address with sujan-core (and log a tip)
- *   AI_PROVIDER="something-else"           → unknown name: use the real AI instead of
- *                                            breaking every chat (and log a tip)
- * The AI address itself belongs in AI_API_URL (optional; the default is below).
+ * Works out which AI to use from the environment, forgiving common mistakes.
+ *
+ *   AI_PROVIDER="nvidia"       → NVIDIA NIM (default when a key is set)
+ *   AI_PROVIDER="render"       → the old PROXIMA Core API on Render
+ *   AI_PROVIDER="mock"         → fake offline AI for design work
+ *   AI_PROVIDER="https://…"    → a web address in the wrong box: used as the
+ *                                Render address, with a tip in the logs
+ *   AI_PROVIDER="something"    → unknown name: use the default, with a tip
+ *
+ * NVIDIA settings (all optional except the key):
+ *   NVIDIA_API_KEY, NVIDIA_MODEL, NVIDIA_MAX_TOKENS, NVIDIA_ENABLE_THINKING
+ * Render settings:
+ *   AI_API_URL (defaults to the PROXIMA Core API)
+ *
+ * Nothing in this file touches the network or reads a secret into the browser:
+ * it is only ever imported by server code.
  */
-export const DEFAULT_SUJAN_CORE_URL = "https://sujancoreapi.onrender.com/chat";
-export const KNOWN_AI_PROVIDERS = ["sujan-core", "mock"] as const;
-export type AiProviderId = (typeof KNOWN_AI_PROVIDERS)[number];
+export const DEFAULT_RENDER_URL = "https://sujancoreapi.onrender.com/chat";
+/** Kept for older code/tests that imported the old name. */
+export const DEFAULT_SUJAN_CORE_URL = DEFAULT_RENDER_URL;
 
-export type AiSettings = { id: AiProviderId; url: string; warning?: string };
+export const DEFAULT_NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
+export const DEFAULT_NVIDIA_MODEL = "nvidia/nemotron-3-ultra-550b-a55b";
+export const DEFAULT_NVIDIA_MAX_TOKENS = 4096;
+
+/** The default provider when AI_PROVIDER is not set. */
+export const DEFAULT_AI_PROVIDER = "nvidia";
+
+export const KNOWN_AI_PROVIDERS = ["nvidia", "render", "sujan-core", "mock"] as const;
+export type AiProviderId = (typeof KNOWN_AI_PROVIDERS)[number];
+/** The providers that can actually be used (sujan-core is an alias of render). */
+export type NormalizedProviderId = "nvidia" | "render" | "mock";
+
+export type AiSettings = {
+  /** Which provider to try first. */
+  id: NormalizedProviderId;
+  /** Render address (only used by the render provider / fallback). */
+  url: string;
+  /** A friendly note for the logs when a setting looked wrong. */
+  warning?: string;
+};
 
 const isWebAddress = (value: string) => /^https?:\/\//i.test(value);
+const number = (value: string | undefined, fallback: number) => {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+};
 
 export function resolveAiSettings(env: Record<string, string | undefined> = process.env): AiSettings {
   const raw = (env.AI_PROVIDER ?? "").trim();
   const apiUrl = (env.AI_API_URL ?? "").trim();
-  const url = (fallback: string) => (isWebAddress(apiUrl) ? apiUrl : fallback);
+  const url = isWebAddress(apiUrl) ? apiUrl : DEFAULT_RENDER_URL;
 
-  if (!raw) return { id: "sujan-core", url: url(DEFAULT_SUJAN_CORE_URL) };
+  if (!raw) return { id: DEFAULT_AI_PROVIDER, url };
 
   if (isWebAddress(raw)) {
     return {
-      id: "sujan-core",
-      url: url(raw),
+      id: "render",
+      url: raw,
       warning:
-        'AI_PROVIDER contains a web address. It should be the name "sujan-core". The address was used anyway; ' +
-        "move it to AI_API_URL (or delete it: the PROXIMA Core API is the default).",
+        'AI_PROVIDER contains a web address. It should be a name like "nvidia" or "render". ' +
+        "The address was used for Render anyway; move it to AI_API_URL.",
     };
   }
 
   const name = raw.toLowerCase();
-  if ((KNOWN_AI_PROVIDERS as readonly string[]).includes(name)) {
-    return { id: name as AiProviderId, url: url(DEFAULT_SUJAN_CORE_URL) };
-  }
+  if (name === "sujan-core" || name === "render") return { id: "render", url };
+  if (name === "nvidia") return { id: "nvidia", url };
+  if (name === "mock") return { id: "mock", url };
 
   return {
-    id: "sujan-core",
-    url: url(DEFAULT_SUJAN_CORE_URL),
-    warning: `AI_PROVIDER "${raw}" is unknown (options: ${KNOWN_AI_PROVIDERS.join(", ")}). Using "sujan-core".`,
+    id: DEFAULT_AI_PROVIDER,
+    url,
+    warning: `AI_PROVIDER "${raw}" is unknown (options: ${KNOWN_AI_PROVIDERS.join(
+      ", ",
+    )}). Using "${DEFAULT_AI_PROVIDER}".`,
+  };
+}
+
+export type NvidiaSettings = {
+  apiKey: string;
+  model: string;
+  maxTokens: number;
+  enableThinking: boolean;
+  baseURL: string;
+  /** How long to wait for the first token before falling back (ms). */
+  firstTokenTimeoutMs: number;
+};
+
+/**
+ * NVIDIA settings, read fresh on every call so tests (and Vercel env changes)
+ * take effect without a rebuild.
+ */
+export function resolveNvidiaSettings(
+  env: Record<string, string | undefined> = process.env,
+): NvidiaSettings {
+  const thinking = (env.NVIDIA_ENABLE_THINKING ?? "true").trim().toLowerCase();
+  return {
+    apiKey: (env.NVIDIA_API_KEY ?? "").trim(),
+    model: (env.NVIDIA_MODEL ?? "").trim() || DEFAULT_NVIDIA_MODEL,
+    maxTokens: number(env.NVIDIA_MAX_TOKENS, DEFAULT_NVIDIA_MAX_TOKENS),
+    // On by default: the model reasons silently before it answers.
+    enableThinking: thinking !== "false" && thinking !== "0" && thinking !== "off",
+    baseURL: (env.NVIDIA_BASE_URL ?? "").trim() || DEFAULT_NVIDIA_BASE_URL,
+    firstTokenTimeoutMs: number(env.NVIDIA_TIMEOUT_MS, 45_000),
   };
 }

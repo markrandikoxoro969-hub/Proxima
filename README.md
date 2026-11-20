@@ -259,10 +259,13 @@ The landing page is plain, fast HTML. Sections just carry **labels**, and one sm
 | ---------------------- | --------------------------------------------------------------------------- | ---------- |
 | `data-reveal`          | blurs/fades in when scrolled into view (`style={{"--d": "120ms"}}` = delay) | ✅         |
 | `data-parallax="0.15"` | drifts slightly while scrolling                                             | ❌ desktop |
-| `data-magnetic`        | button follows the mouse a little                                           | ❌ desktop |
 | `class="spotlight"`    | card glow follows the mouse                                                 | ❌ desktop |
 | `class="vblur"`        | tiny blur (max 3px) only while scrolling **fast**                           | ❌ desktop |
 
+- New sections are built from the shared motion primitives: `Reveal`, `Stagger`/`StaggerItem`,
+  `Headline` (word-by-word blur → sharp) and `Parallax` — all in `src/components/motion/`, all
+  reading their timings from `src/lib/motion/tokens.ts`. They use `motion/react` with
+  `LazyMotion` + `domAnimation`, and `MotionConfig reducedMotion="user"` follows the device setting.
 - Smooth scrolling (Lenis) and the custom cursor are **desktop only** and are downloaded only
   on desktop — phones keep their natural scrolling.
 - With "reduce motion" switched on (phone/computer accessibility setting) everything simply
@@ -271,6 +274,18 @@ The landing page is plain, fast HTML. Sections just carry **labels**, and one sm
   stuck invisible.
 - The hero headline animates with pure CSS, so it paints immediately (measured LCP ≈ 0.9 s
   on a simulated slow phone, layout shift 0).
+
+## Chat behaviour worth knowing
+
+- **Reasoning is private by default.** Newer models (NVIDIA Nemotron) stream their thinking in a
+  separate field. PROXIMA never shows it and never saves it. While the model thinks you see a
+  wordless orb and a shimmer line. Settings → **Show reasoning** (off by default) reveals it in a
+  collapsed block for that browser only, for debugging.
+- **The reply is cleaned, then streamed.** The server removes openers like "Great question" before
+  the first sentence is shown, so what you read is exactly what gets saved.
+- **⌘K / Ctrl+K** opens the command palette in the chat (new chat, theme, copy last reply, settings).
+  `?` isn't used; `/` jumps to the message box.
+- Mobile sidebar is a **bottom sheet**: drag the handle down, tap outside or press Escape to close.
 
 ## Security notes
 
@@ -326,3 +341,17 @@ https://pagespeed.web.dev after deploying (docs/PHONE-CHECKLIST.md → 6).
 - [x] **Phase 6 — Polish + ship:** `/settings` (download/delete data, delete account), Privacy, Terms,
       404 + error pages, SEO metadata, share image, sitemap, robots, installable app + offline page,
       accessibility/performance pass, Vercel setup + deploy guide, phone checklist
+
+### Upgrade pass (November 2026)
+
+- [x] **NVIDIA provider:** `openai` client pointed at `https://integrate.api.nvidia.com/v1`, chosen by
+      `AI_PROVIDER=nvidia`; Render stays as an automatic fallback. Check it with `npm run ai:check`.
+- [x] **Silent reasoning:** `reasoning_content` is dropped server-side unless you switch it on for
+      display, and it is never stored.
+- [x] **Copy cleanup:** generic AI phrasing and emoji removed across landing, chat, errors and share
+      text; headlines are six words or fewer.
+- [x] **Motion v2:** shared motion tokens, `LazyMotion`/`m`, stagger + word reveal + `layoutId`
+      (sidebar pill, theme tabs), `AnimatePresence` view/panel transitions, magnetic buttons,
+      parallax, velocity blur, mobile sheet drag, send → stop morph.
+- [x] **Chat UX:** gradient-mesh empty state with film grain, shimmer skeletons, ⌘K palette,
+      copy/regenerate, jump-to-latest, per-chunk token fade.

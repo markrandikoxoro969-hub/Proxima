@@ -27,8 +27,8 @@ describe("streamChat", () => {
         sse(
           ["meta", { mode: "user", conversationId: "c1", title: "Hi", userMessageId: "u1" }],
           ["status", { state: "thinking" }],
-          ["delta", { text: "Hel" }],
-          ["delta", { text: "lo" }],
+          ["token", { text: "Hel" }],
+          ["token", { text: "lo" }],
           ["done", { messageId: "m1", latencyMs: 120, source: "mock" }],
         ),
       ),
@@ -58,7 +58,7 @@ describe("streamChat", () => {
   it("reports a dropped connection when the stream ends early", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => sse(["delta", { text: "partial" }])),
+      vi.fn(async () => sse(["token", { text: "partial" }])),
     );
     const h = handlers();
     await streamChat({ message: "Hi" }, h);

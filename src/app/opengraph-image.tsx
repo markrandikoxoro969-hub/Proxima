@@ -91,7 +91,7 @@ export default async function OpenGraphImage() {
       </div>
 
       <div style={{ marginTop: 40, fontSize: 30, fontWeight: 500, color: "rgba(248,250,252,0.68)" }}>
-        AI for coding, learning, writing and ideas
+        Code, files and long questions. Answered plainly.
       </div>
 
       <div

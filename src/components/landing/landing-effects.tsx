@@ -4,24 +4,21 @@ import type Lenis from "lenis";
 import { useEffect, useRef, useState } from "react";
 
 /**
- * All landing-page motion in ONE small client component. Sections stay
- * server-rendered (no JavaScript) and simply mark elements with attributes:
+ * Landing page pointer + reveal behaviour. Sections stay server-rendered and
+ * mark elements with data attributes:
  *
- *   data-reveal          → blur/fade in when scrolled into view (style --d = delay)
- *   data-parallax="0.2"  → drifts while scrolling (desktop)
- *   data-magnetic        → wrapper whose child follows the mouse (desktop)
- *   .spotlight           → card glow that follows the mouse (desktop)
- *   .vblur               → gentle blur while scrolling fast (desktop)
- *   data-header          → gets data-scrolled after you scroll a bit
+ *   data-reveal      → blur/fade in when scrolled into view (still CSS)
+ *   .spotlight       → card glow that follows the mouse (desktop)
+ *   data-header      → gets data-scrolled after you scroll a bit
  *
- * Phones get the light version: reveals only, native scrolling (fastest).
- * Reduced motion: everything is visible immediately and nothing moves.
+ * Motion-driven effects (parallax, velocity blur) live in ./scroll-fx.tsx and
+ * magnetic buttons in ./magnetic.tsx — this file only does what motion values
+ * can't: IntersectionObserver, the custom cursor and smooth scrolling.
  */
 export function LandingEffects() {
   const [cursor, setCursor] = useState(false);
 
   useEffect(() => {
-    const root = document.documentElement;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const desktop = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
     const rich = desktop && !reduced;
@@ -46,37 +43,8 @@ export function LandingEffects() {
       revealTargets.forEach((el) => el.setAttribute("data-revealed", ""));
     }
 
-    // 2) Header state + parallax (one rAF-throttled scroll handler) ----------
+    // 2) Header state (one rAF-throttled scroll handler) ----------------------
     const header = document.querySelector<HTMLElement>("[data-header]");
-    const layers = rich
-      ? Array.from(document.querySelectorAll<HTMLElement>("[data-parallax]")).map((el) => ({
-          el,
-          speed: Number(el.dataset.parallax) || 0.15,
-          top: 0,
-          height: 0,
-        }))
-      : [];
-
-    const updateParallax = () => {
-      const y = window.scrollY;
-      const vh = window.innerHeight;
-      for (const layer of layers) {
-        if (layer.top + layer.height < y - 300 || layer.top > y + vh + 300) continue; // off-screen
-        const offset = (y + vh / 2 - (layer.top + layer.height / 2)) * layer.speed;
-        const clamped = Math.max(-180, Math.min(180, offset));
-        layer.el.style.transform = `translate3d(0, ${clamped.toFixed(1)}px, 0)`;
-      }
-    };
-    const measure = () => {
-      for (const layer of layers) {
-        layer.el.style.transform = "";
-        const rect = layer.el.getBoundingClientRect();
-        layer.top = rect.top + window.scrollY;
-        layer.height = rect.height;
-      }
-      updateParallax();
-    };
-
     let ticking = false;
     const onScroll = () => {
       if (ticking) return;
@@ -84,36 +52,18 @@ export function LandingEffects() {
       requestAnimationFrame(() => {
         ticking = false;
         header?.toggleAttribute("data-scrolled", window.scrollY > 8);
-        if (layers.length) updateParallax();
       });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     cleanups.push(() => window.removeEventListener("scroll", onScroll));
 
-    if (layers.length) {
-      measure();
-      window.addEventListener("resize", measure);
-      cleanups.push(() => {
-        window.removeEventListener("resize", measure);
-        layers.forEach((l) => (l.el.style.transform = ""));
-      });
-    }
-
     if (!rich) return () => cleanups.forEach((fn) => fn());
 
-    // 3) Smooth scrolling (Lenis) + velocity blur — desktop only -------------
+    // 3) Smooth scrolling (Lenis) — desktop only -----------------------------
     // Lenis is downloaded only here, so phones never pay for it.
     let lenis: Lenis | null = null;
-    let offScroll = () => {};
     let disposed = false;
-    let blur = 0;
-    let settle: ReturnType<typeof setTimeout> | undefined;
-    const setBlur = (px: number) => {
-      if (px === blur) return;
-      blur = px;
-      root.style.setProperty("--vblur", `${px}px`);
-    };
     void import("lenis").then(({ default: LenisClass }) => {
       if (disposed) return;
       lenis = new LenisClass({
@@ -122,63 +72,24 @@ export function LandingEffects() {
         anchors: { offset: -88 },
         stopInertiaOnNavigate: true,
       });
-      offScroll = lenis.on("scroll", ({ velocity }) => {
-        // Only FAST scrolling blurs, and never more than 3px.
-        const px = Math.round(Math.min(Math.max(Math.abs(velocity) - 12, 0) * 0.06, 3) * 10) / 10;
-        setBlur(px);
-        clearTimeout(settle);
-        settle = setTimeout(() => setBlur(0), 140);
-      });
     });
     cleanups.push(() => {
       disposed = true;
-      offScroll();
-      clearTimeout(settle);
       lenis?.destroy();
-      root.style.removeProperty("--vblur");
     });
 
-    // 4) Magnetic buttons + card spotlight (one delegated listener) -----------
-    let magnet: HTMLElement | null = null;
-    const release = (el: HTMLElement) => {
-      el.removeAttribute("data-active");
-      const child = el.firstElementChild as HTMLElement | null;
-      if (child) child.style.transform = "";
-    };
+    // 4) Card spotlight (one delegated listener) ------------------------------
     const onMove = (e: PointerEvent) => {
       if (e.pointerType !== "mouse") return;
       const target = e.target instanceof Element ? e.target : null;
-
-      const el = target?.closest<HTMLElement>("[data-magnetic]") ?? null;
-      if (magnet && magnet !== el) release(magnet);
-      magnet = el;
-      const child = el?.firstElementChild as HTMLElement | null | undefined;
-      if (el && child) {
-        const r = el.getBoundingClientRect(); // the wrapper never moves → no feedback loop
-        const dx = e.clientX - (r.left + r.width / 2);
-        const dy = e.clientY - (r.top + r.height / 2);
-        el.setAttribute("data-active", "");
-        child.style.transform = `translate3d(${(dx * 0.22).toFixed(1)}px, ${(dy * 0.32).toFixed(1)}px, 0)`;
-      }
-
       const card = target?.closest<HTMLElement>(".spotlight");
-      if (card) {
-        const r = card.getBoundingClientRect();
-        card.style.setProperty("--mx", `${Math.round(e.clientX - r.left)}px`);
-        card.style.setProperty("--my", `${Math.round(e.clientY - r.top)}px`);
-      }
-    };
-    const onLeave = () => {
-      if (magnet) release(magnet);
-      magnet = null;
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      card.style.setProperty("--mx", `${Math.round(e.clientX - r.left)}px`);
+      card.style.setProperty("--my", `${Math.round(e.clientY - r.top)}px`);
     };
     document.addEventListener("pointermove", onMove, { passive: true });
-    root.addEventListener("pointerleave", onLeave);
-    cleanups.push(() => {
-      document.removeEventListener("pointermove", onMove);
-      root.removeEventListener("pointerleave", onLeave);
-      onLeave();
-    });
+    cleanups.push(() => document.removeEventListener("pointermove", onMove));
 
     // 5) Custom cursor (rendered below)
     const showCursor = requestAnimationFrame(() => setCursor(true));

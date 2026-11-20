@@ -40,7 +40,9 @@ Every error has the same shape, so the app can show a friendly toast:
   "conversationId": "cm3…", // optional: continue this chat (signed in)
   "attachments": [{ "name": "app.py", "content": "print('hi')" }], // optional, ≤3 text files, ≤100 KB each
   "demoSessionId": "uuid", // optional: guest demo memory
-  "retry": true // optional: "Try again" after a failed reply (see below)
+  "retry": true, // optional: "Try again" after a failed reply (see below)
+  "showReasoning": true, // optional, default false: also stream the model's private reasoning
+  "history": [{ "role": "user", "content": "…" }] // optional, guest demo only (max 20)
 }
 ```
 
@@ -53,18 +55,19 @@ Every error has the same shape, so the app can show a friendly toast:
 Events arrive in this order:
 
 ```
-event: meta     data: {"mode":"user","conversationId":"cm3…","title":"Write a clean Python scri…","userMessageId":"cm3…"}
-event: status   data: {"state":"thinking"}
-event: status   data: {"state":"waking","message":"Waking up the PROXIMA engine…"}   ← only if the engine is slow to start (>4 s)
-event: delta    data: {"text":"Here's "}                                               ← many of these
-event: delta    data: {"text":"a clean script…"}
-event: done     data: {"messageId":"cm3…","latencyMs":2140,"source":"sujan-core"}
+event: meta       data: {"mode":"user","conversationId":"cm3…","title":"Write a clean Python scri…","userMessageId":"cm3…"}
+event: status     data: {"state":"thinking"}
+event: status     data: {"state":"waking","message":"Waking up the engine…"}   ← only if the engine is slow to start (>4 s)
+event: reasoning  data: {"text":"The user wants a script…"}                     ← ONLY if showReasoning:true
+event: token      data: {"text":"Here is"}                                       ← many of these
+event: token      data: {"text":" a clean script…"}
+event: done       data: {"messageId":"cm3…","latencyMs":2140,"source":"nvidia+render","text":"Here is a clean script…"}
 ```
 
 If the AI fails, you get one `error` event instead of `done`. Your own message stays saved, so you can retry:
 
 ```
-event: error    data: {"code":"timeout","message":"The PROXIMA engine took too long to answer. Please try again.","retryable":true}
+event: error      data: {"code":"timeout","message":"The engine took too long to answer. Please try again.","retryable":true}
 ```
 
 **Notes:**
@@ -72,6 +75,14 @@ event: error    data: {"code":"timeout","message":"The PROXIMA engine took too l
 - Identity questions (for example "Who made you?" or "How old are you?") are answered from `src/config/identity.ts` without calling the AI. `done.source` is then `"identity"`.
 - File contents go to the AI inside code blocks. Only each file's **name, size and language** are stored.
 - If you close the tab mid-reply, whatever text has already arrived is still saved.
+- **Reasoning** (`reasoning_content` from the model) is never stored and is not sent at all unless the
+  request asks for it. `done.text` is the final, cleaned answer — the client swaps it in if trailing
+  filler ("I hope this helps") was removed after streaming.
+- **Context**: signed-in requests send the system prompt, the last 20 stored messages and the new
+  message. The browser cannot rewrite that history. Guests may send up to 20 of their own recent turns
+  (nothing is stored on the server).
+- **Fallback**: when `AI_PROVIDER=nvidia`, a failure *before any text* is retried automatically on the
+  Render API. You only see an `error` event if both fail.
 - **`retry: true`** is what the **Try again** button sends. If the last saved message in that chat is
   your same question, the server reuses it instead of saving it twice (`meta.userMessageId` is the old
   message). If the text is different, it's saved as a normal new message.
@@ -116,11 +127,13 @@ server**, so `/app` will call it as soon as it opens (Phase 4), and your first m
 
 ## Switching to a different AI later
 
-1. Copy `src/lib/ai/providers/sujan-core.ts` to `src/lib/ai/providers/my-ai.ts`. Change the request and response to match the new API.
+1. Copy `src/lib/ai/providers/nvidia.ts` to `src/lib/ai/providers/my-ai.ts`. Change the request and response to match the new API.
    - If the API returns the whole answer at once, implement `complete()`.
-   - If it streams, implement `stream()` (an async generator that yields text pieces).
-2. Register it in `src/lib/ai/index.ts`: `"my-ai": createMyAiProvider,`
-3. Add it to the `AI_PROVIDER` list in `src/lib/env.ts`, then set `AI_PROVIDER=my-ai` in `.env.local` and on Vercel.
+   - If it streams, implement `stream()` — an async generator that yields `{ type: "text" | "reasoning", text }`.
+2. Register it in `src/lib/ai/index.ts` (`create`) and in `KNOWN_AI_PROVIDERS` in `src/lib/ai/settings.ts`.
+3. Set `AI_PROVIDER=my-ai` in `.env.local` and on Vercel.
+
+See `docs/AI-PROVIDERS.md` for the NVIDIA + Render setup and the curl test.
 
 Put any API key in an environment variable (for example `MY_AI_KEY`) and read it **inside the provider file**.
 It must not start with `NEXT_PUBLIC_`, so it never reaches the browser.

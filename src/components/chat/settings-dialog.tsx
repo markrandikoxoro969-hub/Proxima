@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { useTheme } from "@/components/theme/theme-provider";
 import { api } from "@/lib/chat/client/api";
+import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
 import type { Profile } from "@/lib/chat/types";
 import { NameAgeFields, SwitchRow, ThemeChoice, validateProfile } from "@/components/settings/fields";
 import type { ThemePreference } from "@/lib/theme";
@@ -74,7 +75,8 @@ function SettingsForm({
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; age?: string }>({});
-  const ids = { name: useId(), age: useId(), particles: useId() };
+  const [showReasoning, setShowReasoning] = useShowReasoning();
+  const ids = { name: useId(), age: useId(), particles: useId(), reasoning: useId() };
 
   const save = async () => {
     const ageNumber = Number(age);
@@ -126,6 +128,14 @@ function SettingsForm({
         hint="Turn off to save battery."
         checked={particles}
         onChange={setParticles}
+      />
+
+      <SwitchRow
+        id={ids.reasoning}
+        title="Show reasoning"
+        hint="Reveal the model's private thinking in a collapsed block. Off by default; never saved."
+        checked={showReasoning}
+        onChange={setShowReasoning}
       />
 
       <Button type="submit" size="lg" disabled={saving}>

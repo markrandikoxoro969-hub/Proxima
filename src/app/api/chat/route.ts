@@ -1,13 +1,15 @@
 import { AI_TIMEOUT_MS, AiProviderError, getAiProvider } from "@/lib/ai";
+import { LeadingCleanGate, stripFiller } from "@/lib/ai/clean-reply";
+import { HISTORY_LIMIT } from "@/lib/ai/prompt";
 import { generateReply, typeOut } from "@/lib/ai/reply";
-import type { AiErrorCode } from "@/lib/ai/types";
+import type { AiErrorCode, AiHistoryMessage } from "@/lib/ai/types";
 import { ApiError, apiErrors, readJson, withApi } from "@/lib/api/http";
 import { assertSameOrigin, hashedClientId } from "@/lib/api/security";
 import { createSseStream, SSE_HEADERS } from "@/lib/api/sse";
 import { getApiUserId } from "@/lib/auth/api";
 import { attachmentMeta, composePrompt, DEFAULT_TITLE, makeTitle } from "@/lib/chat/compose";
 import { db } from "@/lib/db";
-import { getIdentityAnswer } from "@/lib/identity";
+import { cleanIdentityLeaks, getIdentityAnswer } from "@/lib/identity";
 import { enforceRateLimit, RATE_LIMITS, rateLimitHeaders } from "@/lib/rate-limit";
 import { chatRequestSchema, LIMITS } from "@/lib/validation";
 
@@ -18,11 +20,15 @@ import { chatRequestSchema, LIMITS } from "@/lib/validation";
  * Guest (landing-page demo) → not saved, max 500 characters, limit 5/minute.
  *
  * Events sent to the browser, in order:
- *   meta    { mode, conversationId, title, userMessageId }
- *   status  { state: "thinking" | "waking", message? }
- *   delta   { text }                     ← many of these
- *   done    { messageId, latencyMs, source }
- *   error   { code, message, retryable } ← instead of done, if the AI fails
+ *   meta       { mode, conversationId, title, userMessageId }
+ *   status     { state: "thinking" | "waking", message? }
+ *   reasoning  { text }   ← only if the browser asked (Settings → Show reasoning)
+ *   token      { text }   ← many of these; the answer as it is written
+ *   done       { messageId, latencyMs, source, text }  ← `text` is the final,
+ *                                                         cleaned answer
+ *   error      { code, message, retryable }            ← instead of done
+ *
+ * Only the final answer is stored. Reasoning never touches the database.
  */
 export const maxDuration = 120; // seconds (Render cold starts can be slow)
 
@@ -30,10 +36,10 @@ const WAKING_AFTER_MS = 4_000;
 const HEARTBEAT_MS = 15_000;
 
 const FRIENDLY_ERRORS: Record<AiErrorCode, string> = {
-  timeout: "The PROXIMA engine took too long to answer. Please try again.",
-  unavailable: "Couldn't reach the PROXIMA engine. It may be waking up — try again in a few seconds.",
-  upstream: "The PROXIMA engine had a problem answering. Please try again.",
-  bad_response: "The PROXIMA engine sent an unexpected answer. Please try again.",
+  timeout: "The engine took too long to answer. Please try again.",
+  unavailable: "Couldn't reach the engine. It may be waking up — try again in a few seconds.",
+  upstream: "The engine had a problem answering. Please try again.",
+  bad_response: "The engine sent an unexpected answer. Please try again.",
   aborted: "The request was cancelled.",
 };
 
@@ -42,6 +48,7 @@ export const POST = withApi(async (request: Request) => {
   const userId = await getApiUserId();
   const input = chatRequestSchema.parse(await readJson(request, 512 * 1024));
   const attachments = input.attachments ?? [];
+  const showReasoning = input.showReasoning === true;
 
   // ── Guest demo rules ──
   if (!userId) {
@@ -122,6 +129,22 @@ export const POST = withApi(async (request: Request) => {
     }
   }
 
+  // ── Context: the last 20 messages of this conversation ──
+  // Signed in: read from the database (the browser can't rewrite its own history).
+  // Guest: use the turns the demo sent (nothing is stored on the server).
+  const history: AiHistoryMessage[] = [];
+  if (userId && conversationId) {
+    const recent = await db.message.findMany({
+      where: { conversationId, ...(userMessageId ? { id: { not: userMessageId } } : {}) },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: HISTORY_LIMIT,
+      select: { role: true, content: true },
+    });
+    for (const m of recent.reverse()) history.push({ role: m.role, content: m.content });
+  } else if (!userId && input.history) {
+    history.push(...input.history);
+  }
+
   // ── Stream the reply ──
   const provider = getAiProvider();
   const prompt = composePrompt(input.message, attachments);
@@ -138,13 +161,16 @@ export const POST = withApi(async (request: Request) => {
       sse.send("status", { state: "thinking" });
 
       const started = Date.now();
-      let text = "";
+      let raw = "";
+      let sentText = "";
       let receivedAny = false;
+      const gate = new LeadingCleanGate();
+
       const waking = setTimeout(() => {
         if (!receivedAny) {
           sse.send("status", {
             state: "waking",
-            message: "Waking up the PROXIMA engine… the first reply can take up to a minute.",
+            message: "Waking up the engine… the first reply can take up to a minute.",
           });
         }
       }, WAKING_AFTER_MS);
@@ -162,16 +188,46 @@ export const POST = withApi(async (request: Request) => {
         return saved.id;
       };
 
+      const finalAnswer = () => stripFiller(cleanIdentityLeaks(raw));
+
       try {
         const identityAnswer = getIdentityAnswer(input.message);
-        const pieces = identityAnswer
+        const deltas = identityAnswer
           ? typeOut(identityAnswer, signal)
-          : generateReply(provider, { message: prompt, sessionId, signal });
+          : generateReply(provider, {
+              message: prompt,
+              sessionId,
+              signal,
+              history,
+              showReasoning,
+            });
 
-        for await (const piece of pieces) {
+        for await (const delta of deltas) {
+          if (delta.type === "reasoning") {
+            // Never stored, never counted as an answer, only sent when asked.
+            if (showReasoning && delta.text) sse.send("reasoning", { text: delta.text });
+            continue;
+          }
           receivedAny = true;
-          text += piece;
-          sse.send("delta", { text: piece });
+          raw += delta.text;
+          const safe = gate.push(delta.text);
+          if (safe) {
+            sentText += safe;
+            sse.send("token", { text: safe });
+          }
+        }
+
+        // Release the first-sentence buffer (filler already removed).
+        const held = gate.flush();
+        if (held) {
+          sentText += held;
+          sse.send("token", { text: held });
+        }
+
+        const text = finalAnswer() || sentText;
+
+        if (!text.trim()) {
+          throw new AiProviderError("The engine returned an empty answer", "bad_response");
         }
 
         if (clientGone.signal.aborted) {
@@ -181,16 +237,22 @@ export const POST = withApi(async (request: Request) => {
         }
 
         const latencyMs = Date.now() - started;
-        const messageId = await saveAssistant(text, latencyMs);
-        sse.send("done", { messageId, latencyMs, source: identityAnswer ? "identity" : provider.id });
+        const messageId = await saveAssistant(text || sentText, latencyMs);
+        sse.send("done", {
+          messageId,
+          latencyMs,
+          source: identityAnswer ? "identity" : provider.id,
+          // The clean final answer. The client swaps it in if trailing filler was removed.
+          text: text || sentText,
+        });
       } catch (error) {
         if (clientGone.signal.aborted) {
-          await saveAssistant(text, null).catch(() => {});
+          await saveAssistant(finalAnswer() || sentText, null).catch(() => {});
           return;
         }
         const code: AiErrorCode =
           error instanceof AiProviderError ? error.code : timeout.aborted ? "timeout" : "unavailable";
-        // Log the failure type only — never the user's message.
+        // Log the failure type only — never the user's message or the API key.
         console.error(`[chat] ${provider.id} failed (${code}):`, (error as Error).message);
         sse.send("error", { code, message: FRIENDLY_ERRORS[code], retryable: code !== "aborted" });
       } finally {

@@ -117,22 +117,29 @@ async function checkAi(): Promise<SetupCheck> {
   const settings = resolveAiSettings();
   const setting =
     settings.id === "mock"
-      ? 'AI_PROVIDER is "mock": replies are FAKE. Set AI_PROVIDER to sujan-core (or delete it) on Vercel, then Redeploy.'
+      ? 'AI_PROVIDER is "mock": replies are FAKE. Set AI_PROVIDER to nvidia or render (or delete it) on Vercel, then Redeploy.'
       : null;
   if (setting) return { name, ok: false, detail: setting };
 
   const tip = settings.warning ? ` Tip: ${settings.warning}` : "";
   const provider = getAiProvider();
-  if (!provider.complete) return { name, ok: true, detail: `Using ${provider.label}.${tip}` };
+  const request = {
+    message: "Reply with the single word: ok",
+    sessionId: "proxima-setup-check",
+    signal: AbortSignal.timeout(AI_TEST_TIMEOUT_MS),
+  };
 
   const started = Date.now();
   try {
-    await provider.complete({
-      message: "Reply with the single word: ok",
-      sessionId: "proxima-setup-check",
-      signal: AbortSignal.timeout(AI_TEST_TIMEOUT_MS),
-    });
-    return { name, ok: true, detail: `Replied in ${((Date.now() - started) / 1000).toFixed(1)} s.${tip}` };
+    if (provider.complete) {
+      await provider.complete(request);
+    } else if (provider.stream) {
+      // Streaming providers (NVIDIA): read only the first answer token.
+      for await (const delta of provider.stream(request)) {
+        if (delta.type === "text" && delta.text.trim()) break;
+      }
+    }
+    return { name, ok: true, detail: `Using ${provider.label}. Replied in ${((Date.now() - started) / 1000).toFixed(1)} s.${tip}` };
   } catch (error) {
     const code = error instanceof AiProviderError ? error.code : undefined;
     const host = new URL(settings.url).origin;

@@ -42,6 +42,12 @@ export async function readSse(response: Response): Promise<SseEvent[]> {
 
 export const replyText = (events: SseEvent[]) =>
   events
-    .filter((e) => e.event === "delta")
+    .filter((e) => e.event === "token")
+    .map((e) => e.data.text)
+    .join("");
+
+export const reasoningText = (events: SseEvent[]) =>
+  events
+    .filter((e) => e.event === "reasoning")
     .map((e) => e.data.text)
     .join("");

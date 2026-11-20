@@ -14,6 +14,10 @@ export type ChatRequestBody = {
   attachments?: { name: string; content: string }[];
   demoSessionId?: string;
   retry?: boolean;
+  /** Ask the server to stream the model's private reasoning (off by default). */
+  showReasoning?: boolean;
+  /** Guest demo only: recent turns so the demo keeps its memory. */
+  history?: { role: "user" | "assistant"; content: string }[];
 };
 
 export type StreamError = { code: string; message: string; retryable: boolean; status?: number };
@@ -24,6 +28,8 @@ export type StreamHandlers = {
   onMeta?: (data: Data<"meta">) => void;
   onStatus?: (data: Data<"status">) => void;
   onText: (text: string) => void;
+  /** Private "thinking" text. Only arrives when the user asked for it. */
+  onReasoning?: (text: string) => void;
   onDone: (data: Data<"done">) => void;
   onError: (error: StreamError) => void;
   /** The user pressed Stop. */
@@ -74,8 +80,11 @@ export async function streamChat(
         case "status":
           handlers.onStatus?.(event.data);
           break;
-        case "delta":
+        case "token":
           batcher.push(event.data.text);
+          break;
+        case "reasoning":
+          handlers.onReasoning?.(event.data.text);
           break;
         case "done":
           batcher.flush();

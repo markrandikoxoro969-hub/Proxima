@@ -20,6 +20,9 @@ export const CLEANED_ENV_KEYS = [
   "DIRECT_URL",
   "AI_PROVIDER",
   "AI_API_URL",
+  "NVIDIA_API_KEY",
+  "NVIDIA_MODEL",
+  "NVIDIA_BASE_URL",
 ] as const;
 
 export function cleanEnvValue(raw: string | undefined, key?: string): string | undefined {

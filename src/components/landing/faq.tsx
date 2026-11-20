@@ -6,7 +6,7 @@ import { SectionHeading } from "./magnetic";
 export const FAQS = [
   {
     q: "What is Proxima?",
-    a: `${site.shortName} is a premium AI assistant for coding, learning, writing and brainstorming. You chat with it like a friend who knows a lot — and it answers in real time.`,
+    a: `${site.shortName} is a private AI assistant for code, files and long questions. You type; it answers in plain language, live.`,
   },
   {
     q: "Do I need an account?",
@@ -26,7 +26,7 @@ export const FAQS = [
   },
   {
     q: "Why is the first reply sometimes slow?",
-    a: "When nobody has used Proxima for a while, its engine goes to sleep to save resources. Waking it can take up to a minute — you’ll see a “Waking up the engine” notice. After that, replies are quick.",
+    a: "When nobody has used Proxima for a while, its engine sleeps to save resources. Waking it can take up to a minute; after that, replies are quick. NVIDIA answers first, and a second engine takes over automatically if it fails.",
   },
   {
     q: "Who built Proxima?",

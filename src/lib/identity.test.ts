@@ -7,7 +7,7 @@ const kind = (msg: string) => {
   if (answer.includes("developed and created by")) return "developer";
   if (answer.includes("since my latest")) return "age";
   if (answer.includes("identify as a **female**")) return "gender";
-  if (answer.includes("Premium Female AI Assistant")) return "who";
+  if (answer.includes("the assistant running on")) return "who";
   return "other";
 };
 

@@ -46,8 +46,8 @@ export function createSujanCoreProvider(options: Options = {}): AiProvider {
   }
 
   return {
-    id: "sujan-core",
-    label: "PROXIMA Core API",
+    id: "render",
+    label: "PROXIMA Core API (Render)",
 
     async complete(request) {
       let response = await callOnce(request);

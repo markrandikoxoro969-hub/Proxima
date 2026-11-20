@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle, Info, WarningCircle, X } from "@phosphor-icons/react";
-import { AnimatePresence, m } from "framer-motion";
+import { AnimatePresence, m } from "motion/react";
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 

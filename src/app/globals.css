@@ -28,6 +28,9 @@
   --inverse-bg: #0f172a;
   --inverse-fg: #ffffff;
   --scrollbar: rgb(0 0 0 / 0.15);
+  /* The only hue in the product: the "thinking" light. */
+  --accent: #6d28d9;
+  --accent-soft: rgb(109 40 217 / 0.18);
   color-scheme: light;
 }
 
@@ -45,6 +48,8 @@ html.dark {
   --inverse-bg: #ffffff;
   --inverse-fg: #050505;
   --scrollbar: rgb(255 255 255 / 0.15);
+  --accent: #a78bfa;
+  --accent-soft: rgb(167 139 250 / 0.22);
   color-scheme: dark;
 }
 
@@ -61,6 +66,7 @@ html.dark {
   --color-surface-hover: var(--surface-hover);
   --color-inverse: var(--inverse-bg);
   --color-on-inverse: var(--inverse-fg);
+  --color-accent: var(--accent);
 
   --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, monospace;
@@ -245,6 +251,12 @@ html.dark {
   &[aria-invalid="true"] {
     border-color: rgb(239 68 68 / 0.7);
   }
+}
+
+/* While a reply streams, its growing edge fades in instead of snapping in. */
+.markdown.is-streaming {
+  mask-image: linear-gradient(to bottom, black calc(100% - 1.4em), rgb(0 0 0 / 0.7));
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 1.4em), rgb(0 0 0 / 0.7));
 }
 
 /* Blinking block caret at the end of a streaming reply. */
@@ -780,4 +792,87 @@ html.has-cursor :is(input, textarea, [contenteditable="true"]) {
 }
 .legal a:hover {
   text-decoration-color: currentColor;
+}
+
+/* ---------- Premium surfaces (Phase 6) ---------- */
+
+/*
+ * Gradient-mesh "spotlight" behind the empty chat state. Pure radial gradients
+ * (no blur filter, no animation) so it costs nothing to paint, even on a phone.
+ */
+.ai-mesh {
+  position: absolute;
+  inset: -20% -10% auto -10%;
+  height: 90%;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 46% at 50% 30%, var(--accent-soft) 0%, transparent 72%),
+    radial-gradient(34% 38% at 74% 42%, rgb(255 255 255 / 0.05) 0%, transparent 70%),
+    radial-gradient(38% 42% at 24% 38%, rgb(255 255 255 / 0.04) 0%, transparent 70%);
+  mask-image: radial-gradient(70% 70% at 50% 35%, black 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(70% 70% at 50% 35%, black 30%, transparent 100%);
+}
+
+/* 3% film grain. An inline SVG (≈300 bytes) — no image request. */
+.noise-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* The "thinking" shimmer. Transform-only. */
+.shimmer-line {
+  position: relative;
+  display: inline-block;
+  width: 5.5rem;
+  height: 1px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--line);
+}
+.shimmer-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--fg), transparent);
+  opacity: 0.5;
+  transform: translateX(-100%);
+  animation: shimmer 1.6s var(--ease-premium) infinite;
+}
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Skeleton loaders: one moving highlight, no layout thrash. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-hover);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.07), transparent);
+  animation: skeleton 1.8s var(--ease-premium) infinite;
+}
+@keyframes skeleton {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-line::after,
+  .skeleton::after {
+    animation: none;
+    opacity: 0.25;
+    transform: none;
+  }
 }

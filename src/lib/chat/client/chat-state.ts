@@ -19,6 +19,8 @@ export type UiMessage = ChatMessageDTO & {
   clientKey?: string;
   /** Added during this visit → plays the blur-in animation once. */
   fresh?: boolean;
+  /** The model's private reasoning (only when Settings → Show reasoning is on). */
+  reasoning?: string;
   /** Attached file contents kept in memory so "Try again" can resend them. */
   outgoing?: { name: string; content: string }[];
 };
@@ -69,7 +71,8 @@ export type ChatAction =
     }
   | { type: "phase"; key: string; id: string; phase: StreamPhase; message?: string }
   | { type: "append"; key: string; id: string; text: string }
-  | { type: "done"; key: string; id: string; newId: string | null; latencyMs: number }
+  | { type: "reasoning"; key: string; id: string; text: string }
+  | { type: "done"; key: string; id: string; newId: string | null; latencyMs: number; text?: string }
   | { type: "failed"; key: string; id: string; error: { code: string; message: string; retryable: boolean } }
   | { type: "stopped"; key: string; id: string }
   | { type: "renamed"; id: string; title: string }
@@ -245,9 +248,17 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         statusMessage: undefined,
       }));
 
+    case "reasoning":
+      return updateMessage(state, action.key, action.id, (m) => ({
+        ...m,
+        reasoning: (m.reasoning ?? "") + action.text,
+      }));
+
     case "done": {
       const next = updateMessage(state, action.key, action.id, (m) => ({
         ...m,
+        // The server removes trailing filler after streaming; swap in its final text.
+        content: action.text ?? m.content,
         id: action.newId ?? m.id,
         status: undefined,
         phase: undefined,

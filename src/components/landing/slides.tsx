@@ -2,6 +2,7 @@
 
 import { ArrowLeft, ArrowRight, Check, File, Microphone, Planet } from "@phosphor-icons/react";
 import useEmblaCarousel from "embla-carousel-react";
+import { m } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 
@@ -16,15 +17,15 @@ type Slide = { kicker: string; title: string; text: string; visual: React.ReactN
 
 const SLIDES: Slide[] = [
   {
-    kicker: "Coding",
-    title: "Code that just works.",
-    text: "Ask for a script, paste an error, or request a review. Code comes back coloured and ready to copy with one tap.",
+    kicker: "Code",
+    title: "Code that holds up.",
+    text: "Ask for a script, paste an error, or request a review. Code arrives highlighted and ready to copy.",
     visual: <CodeVisual />,
   },
   {
-    kicker: "Learning",
-    title: "Hard ideas, made simple.",
-    text: "Proxima explains at your level and never gets tired of follow-up questions.",
+    kicker: "Answers",
+    title: "Hard ideas, made plain.",
+    text: "Ask for the short version, then go deeper one question at a time.",
     visual: <ChatVisual />,
   },
   {
@@ -41,8 +42,8 @@ const SLIDES: Slide[] = [
   },
   {
     kicker: "Everywhere",
-    title: "Your chats, on every device.",
-    text: "Sign in once. Conversations sync to your account — rename, export or delete them any time.",
+    title: "Your chats, everywhere.",
+    text: "Sign in once. Conversations sync to your account; rename, export or delete them any time.",
     visual: <DevicesVisual />,
   },
 ];
@@ -171,12 +172,21 @@ export function Slides() {
               aria-current={i === selected ? "true" : undefined}
               className="group flex size-11 items-center justify-center"
             >
-              <span
-                className={cn(
-                  "size-2 rounded-full bg-fg transition-[transform,opacity] duration-500 ease-premium",
-                  i === selected ? "scale-125 opacity-100" : "scale-75 opacity-25 group-hover:opacity-60",
+              <span className="relative flex size-2 items-center justify-center">
+                {i === selected && (
+                  <m.span
+                    layoutId="slide-dot"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    className="absolute inset-0 rounded-full bg-fg"
+                  />
                 )}
-              />
+                <span
+                  className={cn(
+                    "size-2 rounded-full bg-fg transition-opacity duration-300",
+                    i === selected ? "opacity-0" : "opacity-25 group-hover:opacity-60",
+                  )}
+                />
+              </span>
             </button>
           ))}
         </div>

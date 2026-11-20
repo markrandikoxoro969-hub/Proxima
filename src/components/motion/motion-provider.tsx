@@ -1,21 +1,19 @@
 "use client";
 
-import { domAnimation, LazyMotion, MotionConfig } from "framer-motion";
+import { domAnimation, LazyMotion, MotionConfig } from "motion/react";
+import { EASE } from "@/lib/motion/tokens";
 
 /**
- * Framer Motion setup:
- *  - LazyMotion + `m` components ship only the animation features we use
- *    (much smaller than the full `motion` bundle). `strict` stops anyone
- *    accidentally importing the heavy version.
+ * Motion setup for every page that animates.
+ *  - LazyMotion + the `m` component ship only the features we use (a third of
+ *    the full bundle). `strict` throws if anyone imports the heavy `motion.*`.
  *  - reducedMotion="user": if the phone/computer asks for less motion,
- *    movement animations are switched off automatically.
+ *    movement is switched off automatically (opacity still fades).
  */
-export const EASE_PREMIUM = [0.16, 1, 0.3, 1] as const;
-
 export function MotionProvider({ children }: { children: React.ReactNode }) {
   return (
     <LazyMotion features={domAnimation} strict>
-      <MotionConfig reducedMotion="user" transition={{ duration: 0.5, ease: EASE_PREMIUM }}>
+      <MotionConfig reducedMotion="user" transition={{ duration: 0.5, ease: EASE }}>
         {children}
       </MotionConfig>
     </LazyMotion>

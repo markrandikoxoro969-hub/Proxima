@@ -1,7 +1,19 @@
 "use client";
 
+import {
+  ArrowDown,
+  Brain,
+  ChatCircleText,
+  Copy,
+  GearSix,
+  Moon,
+  Plus,
+  SlidersHorizontal,
+} from "@phosphor-icons/react";
+import { AnimatePresence, m } from "motion/react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MotionProvider } from "@/components/motion/motion-provider";
 import { useTheme } from "@/components/theme/theme-provider";
 import { ConfirmDialog } from "@/components/ui/dialog";
@@ -9,10 +21,13 @@ import { ToastProvider, useToast } from "@/components/ui/toast";
 import { api } from "@/lib/chat/client/api";
 import { DRAFT } from "@/lib/chat/client/chat-state";
 import { useChat } from "@/lib/chat/client/use-chat";
+import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
+import { EASE } from "@/lib/motion/tokens";
 import type { EngineStatus, MessagesPage, Profile, SessionSummary } from "@/lib/chat/types";
 import type { ThemePreference } from "@/lib/theme";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { ChatHeader } from "./chat-header";
+import { CommandPalette, type Command } from "./command-palette";
 import { Composer } from "./composer";
 import { EmptyState } from "./empty-state";
 import { MessageList } from "./message-list";
@@ -49,7 +64,9 @@ function ChatScreen({
   initialActivePage,
 }: ChatAppProps) {
   const notify = useToast();
-  const { preference, setPreference } = useTheme();
+  const router = useRouter();
+  const { preference, resolved, setPreference } = useTheme();
+  const [showReasoning, setShowReasoning] = useShowReasoning();
   const isDesktop = useMediaQuery("(min-width: 1024px)", true);
   const [profile, setProfile] = useState(initialProfile);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -62,6 +79,7 @@ function ChatScreen({
   const [pinSignal, setPinSignal] = useState(0);
   const [focusSignal, setFocusSignal] = useState(0);
   const [hasSent, setHasSent] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const chat = useChat({ initialSessions, initialNextCursor, initialActiveId, initialActivePage, notify });
   const { state, active, newChat: startNewChat, send: sendMessage, select: selectChat } = chat;
@@ -112,15 +130,19 @@ function ChatScreen({
     setFocusSignal((n) => n + 1);
   }, [startNewChat]);
 
-  // Keyboard shortcuts: "/" focuses the input · Ctrl/Cmd+Shift+O starts a new chat.
+  // Keyboard shortcuts: ⌘K palette · "/" focus · ⌘⇧O new chat.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const typing = target?.closest("input, textarea, select, [contenteditable='true']");
-      if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+      } else if (e.key === "/" && !typing && !mod && !e.altKey) {
         e.preventDefault();
         setFocusSignal((n) => n + 1);
-      } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "o") {
+      } else if (mod && e.shiftKey && e.key.toLowerCase() === "o") {
         e.preventDefault();
         newChat();
       }
@@ -128,6 +150,18 @@ function ChatScreen({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [newChat]);
+
+  const copyLastReply = useCallback(() => {
+    const messages = state.conversations[state.activeKey]?.messages ?? [];
+    const last = [...messages].reverse().find((m) => m.role === "assistant" && m.content);
+    if (!last) return notify("No reply to copy yet.", "info");
+    void navigator.clipboard.writeText(last.content).then(
+      () => notify("Reply copied.", "success"),
+      () => notify("Could not copy. Select the text instead.", "error"),
+    );
+  }, [notify, state.activeKey, state.conversations]);
+
+  const openSettingsPage = useCallback(() => router.push("/settings"), [router]);
 
   const send = useCallback(
     (text: string, attachments: { name: string; content: string }[] = []) => {
@@ -160,6 +194,60 @@ function ChatScreen({
     setSettingsOpen(true);
     setSidebarOpen(false);
   }, []);
+
+  const commands = useMemo<Command[]>(
+    () => [
+      { id: "new", label: "New chat", hint: "⌘⇧O", icon: <Plus weight="bold" className="size-4" />, run: newChat },
+      {
+        id: "focus",
+        label: "Focus the message box",
+        hint: "/",
+        icon: <ChatCircleText weight="bold" className="size-4" />,
+        run: () => setFocusSignal((n) => n + 1),
+      },
+      {
+        id: "theme",
+        label: `Switch to ${resolved === "dark" ? "light" : "dark"} theme`,
+        icon: <Moon weight="bold" className="size-4" />,
+        keywords: "theme dark light appearance",
+        run: () => setPreference(resolved === "dark" ? "light" : "dark"),
+      },
+      {
+        id: "reasoning",
+        label: showReasoning ? "Hide the model's reasoning" : "Show the model's reasoning",
+        icon: <Brain weight="bold" className="size-4" />,
+        keywords: "thinking thoughts debug",
+        run: () => setShowReasoning(!showReasoning),
+      },
+      {
+        id: "copy",
+        label: "Copy the last reply",
+        icon: <Copy weight="bold" className="size-4" />,
+        keywords: "clipboard",
+        run: copyLastReply,
+      },
+      {
+        id: "latest",
+        label: "Jump to the latest message",
+        icon: <ArrowDown weight="bold" className="size-4" />,
+        run: () => setPinSignal((n) => n + 1),
+      },
+      {
+        id: "settings",
+        label: "Open settings",
+        icon: <GearSix weight="bold" className="size-4" />,
+        run: openSettings,
+      },
+      {
+        id: "account",
+        label: "All settings and your data",
+        icon: <SlidersHorizontal weight="bold" className="size-4" />,
+        keywords: "export delete account",
+        run: openSettingsPage,
+      },
+    ],
+    [copyLastReply, newChat, openSettings, openSettingsPage, resolved, setPreference, showReasoning, setShowReasoning],
+  );
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
@@ -215,6 +303,15 @@ function ChatScreen({
             onNewChat={newChat}
           />
 
+          <AnimatePresence mode="wait" initial={false}>
+            <m.div
+              key={`${state.activeKey}:${active?.status ?? "none"}:${isEmpty ? "empty" : "chat"}`}
+              initial={{ opacity: 0, filter: "blur(6px)" }}
+              animate={{ opacity: 1, filter: "blur(0px)" }}
+              exit={{ opacity: 0, filter: "blur(4px)" }}
+              transition={{ duration: 0.22, ease: EASE }}
+              className="flex min-h-0 flex-1 flex-col"
+            >
           {active?.status === "loading" ? (
             <ConversationSkeleton />
           ) : active?.status === "error" ? (
@@ -229,7 +326,7 @@ function ChatScreen({
               </button>
             </div>
           ) : isEmpty ? (
-            <EmptyState name={shownName} onPick={(prompt) => void send(prompt)} disabled={chat.isStreaming} />
+            <EmptyState name={shownName} />
           ) : (
             <MessageList
               key={state.activeKey === DRAFT ? DRAFT : activeId}
@@ -240,6 +337,8 @@ function ChatScreen({
               pinSignal={pinSignal}
             />
           )}
+            </m.div>
+          </AnimatePresence>
 
           <Composer
             onSend={send}
@@ -254,6 +353,8 @@ function ChatScreen({
       <p className="sr-only" role="status" aria-live="polite">
         {announcement}
       </p>
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
 
       {settingsLoaded && (
         <SettingsDialog
@@ -288,19 +389,36 @@ function ChatScreen({
   );
 }
 
+/** Placeholder while a saved chat loads. A moving shimmer, not a spinner. */
 function ConversationSkeleton() {
+  const rows = [
+    { user: 70, lines: [86, 64, 48] },
+    { user: 54, lines: [78, 58] },
+    { user: 64, lines: [82, 70, 40] },
+  ];
   return (
-    <div className="flex-1 overflow-hidden px-4 py-6 sm:px-6" aria-busy="true" aria-label="Loading chat">
-      <div className="mx-auto flex max-w-3xl flex-col gap-6">
-        {[0, 1, 2].map((i) => (
+    <div
+      className="flex-1 overflow-hidden px-4 py-6 sm:px-6"
+      aria-busy="true"
+      aria-label="Loading chat"
+    >
+      <div className="mx-auto flex max-w-3xl flex-col gap-8">
+        {rows.map((row, i) => (
           <div key={i} className="flex flex-col gap-6">
-            <div className="ml-auto h-12 w-2/3 animate-pulse rounded-3xl bg-surface-hover sm:w-1/2" />
+            <div
+              className="skeleton ml-auto h-11 rounded-3xl"
+              style={{ width: `${row.user}%`, animationDelay: `${i * 90}ms` }}
+            />
             <div className="flex gap-3">
-              <div className="size-9 animate-pulse rounded-xl bg-surface-hover" />
-              <div className="flex flex-1 flex-col gap-2">
-                <div className="h-4 w-5/6 animate-pulse rounded bg-surface-hover" />
-                <div className="h-4 w-4/6 animate-pulse rounded bg-surface-hover" />
-                <div className="h-4 w-3/6 animate-pulse rounded bg-surface-hover" />
+              <div className="skeleton size-9 shrink-0 rounded-xl" />
+              <div className="flex flex-1 flex-col gap-2.5 pt-1">
+                {row.lines.map((width, j) => (
+                  <div
+                    key={j}
+                    className="skeleton h-3.5 rounded-full"
+                    style={{ width: `${width}%`, animationDelay: `${i * 90 + j * 60}ms` }}
+                  />
+                ))}
               </div>
             </div>
           </div>

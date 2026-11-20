@@ -14,8 +14,13 @@ export type ChatStreamEvent =
       };
     }
   | { event: "status"; data: { state: "thinking" | "waking"; message?: string } }
-  | { event: "delta"; data: { text: string } }
-  | { event: "done"; data: { messageId: string | null; latencyMs: number; source: string } }
+  | { event: "token"; data: { text: string } }
+  /** Only sent when the user turned on Settings → Show reasoning. */
+  | { event: "reasoning"; data: { text: string } }
+  | {
+      event: "done";
+      data: { messageId: string | null; latencyMs: number; source: string; text?: string };
+    }
   | { event: "error"; data: { code: string; message: string; retryable: boolean } };
 
 /** Splits raw SSE text into events. Keeps the unfinished tail for the next chunk. */

@@ -5,6 +5,7 @@ import type { MessagesPage, SessionSummary } from "../types";
 import { api, ClientApiError } from "./api";
 import { chatReducer, DRAFT, initialChatState, type UiMessage } from "./chat-state";
 import { streamChat } from "./stream-chat";
+import { useShowReasoning } from "./use-show-reasoning";
 
 type Notify = (message: string, kind?: "info" | "success" | "error") => void;
 
@@ -38,6 +39,7 @@ export function useChat({
     initialChatState,
   );
   const [lastLatency, setLastLatency] = useState<number | null>(null);
+  const [showReasoning] = useShowReasoning();
   const abortRef = useRef<AbortController | null>(null);
   const stateRef = useRef(state);
   useEffect(() => {
@@ -97,6 +99,21 @@ export function useChat({
       retryOf?: string;
     }) => {
       const now = new Date().toISOString();
+      // Context for the AI: the most recent turns of this chat (max 20).
+      // Signed-in requests ignore this on the server and read the saved history.
+      const priorMessages = stateRef.current.conversations[key]?.messages ?? [];
+      let pool = priorMessages.filter(
+        (m) => m.content.trim() && m.status !== "error" && m.status !== "stopped",
+      );
+      if (retryOf) {
+        const index = priorMessages.findIndex((m) => m.id === retryOf);
+        if (index >= 0) pool = priorMessages.slice(0, index);
+        while (pool.at(-1)?.role === "user") pool = pool.slice(0, -1);
+      }
+      const history = pool
+        .slice(-20)
+        .map((m) => ({ role: m.role, content: m.content }));
+
       const userTemp = tempId("tmp-user");
       const assistantId = tempId("tmp-ai");
       const assistant: UiMessage = {
@@ -143,6 +160,8 @@ export function useChat({
           conversationId: key === DRAFT ? undefined : key,
           attachments: attachments.length ? attachments : undefined,
           retry: retryOf ? true : undefined,
+          showReasoning,
+          history: history.length ? history : undefined,
         },
         {
           signal: controller.signal,
@@ -161,6 +180,8 @@ export function useChat({
           onStatus: (s) =>
             dispatch({ type: "phase", key: currentKey, id: assistantId, phase: s.state, message: s.message }),
           onText: (t) => dispatch({ type: "append", key: currentKey, id: assistantId, text: t }),
+          onReasoning: (t) =>
+            dispatch({ type: "reasoning", key: currentKey, id: assistantId, text: t }),
           onDone: (d) => {
             dispatch({
               type: "done",
@@ -168,6 +189,7 @@ export function useChat({
               id: assistantId,
               newId: d.messageId,
               latencyMs: d.latencyMs,
+              text: d.text,
             });
             setLastLatency(d.latencyMs);
           },
@@ -180,7 +202,7 @@ export function useChat({
       );
       if (abortRef.current === controller) abortRef.current = null;
     },
-    [notify],
+    [notify, showReasoning],
   );
 
   const send = useCallback(

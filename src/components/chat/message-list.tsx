@@ -2,9 +2,9 @@
 
 import { ArrowDown } from "@phosphor-icons/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { AnimatePresence, m } from "motion/react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ConversationState } from "@/lib/chat/client/chat-state";
-import { cn } from "@/lib/cn";
 import { MessageItem } from "./message-item";
 
 const BOTTOM_THRESHOLD = 96; // px from the bottom that still counts as "at the bottom"
@@ -148,23 +148,27 @@ export function MessageList({
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => {
-          atBottom.current = true;
-          scrollToBottom();
-          setShowJump(false);
-        }}
-        aria-label="Jump to latest message"
-        tabIndex={showJump ? 0 : -1}
-        className={cn(
-          "absolute bottom-4 left-1/2 inline-flex h-10 -translate-x-1/2 items-center gap-2 rounded-full glass-solid px-4 text-xs font-bold",
-          "transition-[opacity,transform] duration-300 ease-premium",
-          showJump ? "opacity-100" : "pointer-events-none translate-y-2 opacity-0",
+      <AnimatePresence>
+        {showJump && (
+          <m.button
+            type="button"
+            onClick={() => {
+              atBottom.current = true;
+              scrollToBottom();
+              setShowJump(false);
+            }}
+            aria-label="Jump to latest message"
+            initial={{ opacity: 0, y: 12, filter: "blur(6px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: 8, filter: "blur(6px)" }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            whileTap={{ scale: 0.95 }}
+            className="absolute bottom-4 left-1/2 inline-flex h-10 -translate-x-1/2 items-center gap-2 rounded-full glass-solid px-4 text-xs font-bold shadow-glow"
+          >
+            <ArrowDown weight="bold" className="size-4" aria-hidden /> Latest
+          </m.button>
         )}
-      >
-        <ArrowDown weight="bold" className="size-4" aria-hidden /> Latest
-      </button>
+      </AnimatePresence>
     </div>
   );
 }
