@@ -139,6 +139,24 @@ describe("<MessageItem />", () => {
     expect(screen.queryByText("Analyze")).toBeNull();
   });
 
+  it("reads a finished reply aloud and offers quick follow-ups", async () => {
+    const onRead = vi.fn();
+    const onQuickAction = vi.fn();
+    render(
+      <MessageItem
+        message={msg({ content: "A short answer." })}
+        onRetry={() => {}}
+        canRetry
+        onRead={onRead}
+        onQuickAction={onQuickAction}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Read this reply aloud" }));
+    expect(onRead).toHaveBeenCalledWith("m1", "A short answer.");
+    await userEvent.click(screen.getByRole("button", { name: "Explain this more simply" }));
+    expect(onQuickAction).toHaveBeenCalledWith(expect.stringContaining("more simply"));
+  });
+
   it("renders user text as plain text (no HTML)", () => {
     const { container } = render(
       <MessageItem message={msg({ role: "user", content: "<b>bold?</b>" })} onRetry={() => {}} canRetry />,
@@ -206,6 +224,23 @@ describe("<Composer />", () => {
     await userEvent.type(input, "keep me{Enter}");
     await act(async () => {});
     expect(input.value).toBe("keep me");
+  });
+
+  it("shows voice mode and stops a reply that is reading", async () => {
+    const onStopSpeaking = vi.fn();
+    setup({
+      voice: {
+        enabled: true,
+        handsFree: false,
+        label: "Girl voice",
+        speaking: true,
+        listenSignal: 0,
+        onStopSpeaking,
+      },
+    });
+    expect(screen.getByText("Speaking · Girl voice")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Stop reading" }));
+    expect(onStopSpeaking).toHaveBeenCalled();
   });
 
   it("attaches a text file and sends its contents", async () => {

@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowClockwise, ArrowUp, Planet, Stop, WarningCircle } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowUp, Planet, SpeakerHigh, Stop, WarningCircle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from "react";
 import { streamChat } from "@/lib/chat/client/stream-chat";
+import { useVoiceOutput } from "@/lib/chat/client/use-voice-output";
 import { cn } from "@/lib/cn";
 import { LIMITS } from "@/lib/limits";
 
@@ -46,6 +47,13 @@ export function LiveDemo() {
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [Markdown, setMarkdown] = useState<MarkdownComponent | null>(null);
+  const [speakingId, setSpeakingId] = useState<number | null>(null);
+  const {
+    supported: canRead,
+    speaking,
+    speak,
+    stop: stopSpeaking,
+  } = useVoiceOutput({ onEnd: () => setSpeakingId(null) });
 
   const sessionRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -81,6 +89,8 @@ export function LiveDemo() {
     async (raw: string) => {
       const text = raw.trim();
       if (!text || busy || text.length > LIMITS.demoMessageMax) return;
+      stopSpeaking();
+      setSpeakingId(null);
       loadMarkdown();
       sessionRef.current ??= uuid();
 
@@ -144,8 +154,19 @@ export function LiveDemo() {
       setBusy(false);
       setAnnouncement(finished);
     },
-    [busy, loadMarkdown],
+    [busy, loadMarkdown, stopSpeaking],
   );
+
+  const read = (id: number, text: string) => {
+    if (speakingId === id && speaking) {
+      stopSpeaking();
+      setSpeakingId(null);
+      return;
+    }
+    stopSpeaking();
+    setSpeakingId(id);
+    if (!speak(text, { voice: "girl", speed: 1 })) setSpeakingId(null);
+  };
 
   const retry = (message: DemoMessage) => {
     const text = message.error?.retryText;
@@ -226,7 +247,14 @@ export function LiveDemo() {
                       {m.content}
                     </p>
                   ) : (
-                    <DemoReply message={m} Markdown={Markdown} onRetry={() => retry(m)} />
+                    <DemoReply
+                      message={m}
+                      Markdown={Markdown}
+                      onRetry={() => retry(m)}
+                      onRead={read}
+                      speaking={speaking && speakingId === m.id}
+                      canRead={canRead}
+                    />
                   )}
                 </li>
               ))}
@@ -318,10 +346,16 @@ function DemoReply({
   message: m,
   Markdown,
   onRetry,
+  onRead,
+  speaking,
+  canRead,
 }: {
   message: DemoMessage;
   Markdown: MarkdownComponent | null;
   onRetry: () => void;
+  onRead: (id: number, text: string) => void;
+  speaking: boolean;
+  canRead: boolean;
 }) {
   const streaming = m.status === "streaming";
   return (
@@ -349,6 +383,26 @@ function DemoReply({
               : "Thinking…"}
           </p>
         ) : null}
+
+        {m.content && !streaming && !m.status && canRead && (
+          <button
+            type="button"
+            onClick={() => onRead(m.id, m.content)}
+            aria-label={speaking ? "Stop reading this reply" : "Read this reply aloud"}
+            aria-pressed={speaking}
+            className={cn(
+              "mt-1.5 inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-[11px] font-bold text-subtle transition-colors duration-200 hover:bg-surface-hover hover:text-fg",
+              speaking && "text-[var(--accent-text)]",
+            )}
+          >
+            <SpeakerHigh
+              weight={speaking ? "fill" : "bold"}
+              className={cn("size-3.5", speaking && "animate-pulse")}
+              aria-hidden
+            />
+            {speaking ? "Stop" : "Hear this"}
+          </button>
+        )}
 
         {m.status === "stopped" && <p className="mt-2 text-xs font-semibold text-subtle">Stopped.</p>}
 

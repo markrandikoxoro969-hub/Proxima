@@ -13,6 +13,7 @@ import {
   Moon,
   Plus,
   SlidersHorizontal,
+  SpeakerHigh,
 } from "@phosphor-icons/react";
 import { AnimatePresence, m } from "motion/react";
 import dynamic from "next/dynamic";
@@ -28,6 +29,9 @@ import { draftFromImage, type DraftImage } from "@/lib/chat/client/images";
 import { useChat } from "@/lib/chat/client/use-chat";
 import { useChatMode } from "@/lib/chat/client/use-mode";
 import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
+import { useVoiceMode } from "@/lib/chat/client/use-voice-mode";
+import { useVoiceOutput } from "@/lib/chat/client/use-voice-output";
+import type { VoiceChoice } from "@/lib/chat/client/voice";
 import { EASE } from "@/lib/motion/tokens";
 import type { EngineStatus, MessagesPage, Profile, SessionSummary } from "@/lib/chat/types";
 import type { ImageDTO } from "@/lib/image/types";
@@ -39,6 +43,7 @@ import { Composer } from "./composer";
 import { EmptyState } from "./empty-state";
 import { MessageList } from "./message-list";
 import { Sidebar } from "./sidebar";
+import { VoiceMenu } from "./voice-menu";
 
 // Loaded only when needed (keeps the first load small and fast).
 const SettingsDialog = dynamic(() => import("./settings-dialog").then((m) => m.SettingsDialog));
@@ -46,6 +51,8 @@ const CommandPalette = dynamic(() => import("./command-palette").then((m) => m.C
 const ImageStudio = dynamic(() => import("@/components/image/image-studio").then((m) => m.ImageStudio));
 const Onboarding = dynamic(() => import("./onboarding").then((m) => m.Onboarding));
 const Particles = dynamic(() => import("./particles"), { ssr: false });
+
+const VOICE_SAMPLE = "Hi, I'm Proxima. This is how I'll read your answers aloud.";
 
 export type ChatAppProps = {
   profile: Profile;
@@ -77,6 +84,7 @@ function ChatScreen({
   const { theme, paletteId, syncFromAccount, setPreference, resolved } = useTheme();
   const [showReasoning, setShowReasoning] = useShowReasoning();
   const [mode, setMode] = useChatMode();
+  const [voice, setVoice] = useVoiceMode();
   const isDesktop = useMediaQuery("(min-width: 1024px)", true);
   // Separate from `isDesktop` (which renders as true on the server for layout):
   // this one starts false, so a phone never even downloads the canvas chunk.
@@ -94,6 +102,8 @@ function ChatScreen({
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [studioOpen, setStudioOpen] = useState(false);
   const [images, setImages] = useState<DraftImage[]>([]);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [listenSignal, setListenSignal] = useState(0);
 
   const chat = useChat({
     initialSessions,
@@ -105,6 +115,96 @@ function ChatScreen({
   });
   const { state, active, newChat: startNewChat, send: sendMessage, select: selectChat } = chat;
   const shownName = profile.displayName ?? profile.name?.split(" ")[0] ?? "Explorer";
+
+  // Voice mode: speak finished replies, optionally open the mic for the next one.
+  const {
+    supported: voiceSupported,
+    speaking: voiceSpeaking,
+    speak: speakAloud,
+    stop: stopSpeech,
+  } = useVoiceOutput({
+    onEnd: () => {
+      setSpeakingId(null);
+      if (voice.enabled && voice.handsFree && voiceSupported) setListenSignal((n) => n + 1);
+    },
+    onError: (message) => {
+      setSpeakingId(null);
+      notify(message, "error");
+    },
+  });
+
+  const stopVoice = useCallback(() => {
+    stopSpeech();
+    setSpeakingId(null);
+  }, [stopSpeech]);
+
+  // The newest finished reply. Streaming, stopped and failed replies are never read.
+  const lastDone = useMemo(() => {
+    const messages = state.conversations[state.activeKey]?.messages ?? [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i];
+      if (message.role === "assistant" && !message.status && message.content.trim()) return message;
+    }
+    return null;
+  }, [state.activeKey, state.conversations]);
+
+  const speakReply = useCallback(
+    (id: string, text: string) => {
+      setSpeakingId(id);
+      if (!speakAloud(text, { voice: voice.voice, speed: voice.speed })) setSpeakingId(null);
+    },
+    [speakAloud, voice.voice, voice.speed],
+  );
+
+  // Speak each reply exactly once when it changes from "streaming" to "done".
+  // Opening an old chat never replays its history: the first render of a chat
+  // only records a baseline. The state update lives in speakReply so React's
+  // effect lint stays honest about this being an external sound action.
+  const spokenMarker = useRef<{ key: string; id: string } | null>(null);
+  useEffect(() => {
+    const key = state.activeKey;
+    if (!lastDone) {
+      if (!spokenMarker.current || spokenMarker.current.key !== key) {
+        spokenMarker.current = { key, id: "" };
+      }
+      return;
+    }
+    const previous = spokenMarker.current;
+    if (!previous || previous.key !== key) {
+      spokenMarker.current = { key, id: lastDone.id };
+      return;
+    }
+    if (previous.id === lastDone.id) return;
+    spokenMarker.current = { key, id: lastDone.id };
+    // Only replies created in this visit (`fresh`) are read. A saved chat's
+    // history can arrive after the first render; it must never be spoken.
+    if (!voice.enabled || !voiceSupported || !lastDone.fresh) return;
+    // Let the finished reply paint before the voice starts; the timer also
+    // keeps this a true external effect rather than a render cascade.
+    const timer = window.setTimeout(() => speakReply(lastDone.id, lastDone.content), 120);
+    return () => window.clearTimeout(timer);
+  }, [lastDone, state.activeKey, voice.enabled, voiceSupported, speakReply]);
+
+  const readMessage = useCallback(
+    (id: string, text: string) => {
+      if (speakingId === id && voiceSpeaking) {
+        stopVoice();
+        return;
+      }
+      stopVoice();
+      speakReply(id, text);
+    },
+    [speakingId, voiceSpeaking, stopVoice, speakReply],
+  );
+
+  const sampleVoice = useCallback(
+    (choice: VoiceChoice, speed: number) => {
+      stopVoice();
+      // A preview is not a reply: it must not trigger hands-free listening.
+      speakAloud(VOICE_SAMPLE, { voice: choice, speed, onDone: () => {} });
+    },
+    [speakAloud, stopVoice],
+  );
 
   // Use the theme saved in your account (mode + palette + your own themes).
   const appliedProfileTheme = useRef(false);
@@ -160,11 +260,12 @@ function ChatScreen({
   const announcement = state.streamingKey ? "Proxima is replying…" : hasSent ? "Reply finished." : "";
 
   const newChat = useCallback(() => {
+    stopVoice();
     startNewChat();
     setSidebarOpen(false);
     setImages([]);
     setFocusSignal((n) => n + 1);
-  }, [startNewChat]);
+  }, [startNewChat, stopVoice]);
 
   // Keyboard shortcuts: ⌘K palette · "/" focus · ⌘⇧O new chat.
   useEffect(() => {
@@ -205,11 +306,19 @@ function ChatScreen({
       attachments: { name: string; content: string }[] = [],
       sendableImages: { id: string; url: string; width: number; height: number; name: string }[] = [],
     ) => {
+      stopVoice();
       setPinSignal((n) => n + 1);
       setHasSent(true);
       return sendMessage(text, attachments, sendableImages);
     },
-    [sendMessage],
+    [sendMessage, stopVoice],
+  );
+
+  const quickAction = useCallback(
+    (instruction: string) => {
+      void send(instruction);
+    },
+    [send],
   );
 
   const openStudio = useCallback(() => {
@@ -229,10 +338,11 @@ function ChatScreen({
 
   const select = useCallback(
     (id: string) => {
+      stopVoice();
       selectChat(id);
       setSidebarOpen(false);
     },
-    [selectChat],
+    [selectChat, stopVoice],
   );
 
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
@@ -303,6 +413,17 @@ function ChatScreen({
         run: copyLastReply,
       },
       {
+        id: "voice",
+        label: voice.enabled ? "Turn off voice mode" : "Turn on voice mode",
+        hint: voice.enabled ? (voice.voice === "girl" ? "Girl voice" : "Boy voice") : undefined,
+        icon: <SpeakerHigh weight={voice.enabled ? "fill" : "bold"} className="size-4" />,
+        keywords: "speak read aloud voice girl boy hands free listen",
+        run: () => {
+          setVoice(voice.enabled ? { enabled: false, handsFree: false } : { enabled: true });
+          if (voice.enabled) stopVoice();
+        },
+      },
+      {
         id: "latest",
         label: "Jump to the latest message",
         icon: <ArrowDown weight="bold" className="size-4" />,
@@ -341,6 +462,10 @@ function ChatScreen({
       setMode,
       showReasoning,
       setShowReasoning,
+      voice.enabled,
+      voice.voice,
+      setVoice,
+      stopVoice,
     ],
   );
 
@@ -397,6 +522,16 @@ function ChatScreen({
             isDesktop={isDesktop}
             onOpenSidebar={openSidebar}
             onNewChat={newChat}
+            voiceMenu={
+              <VoiceMenu
+                supported={voiceSupported}
+                settings={voice}
+                speaking={voiceSpeaking}
+                onChange={setVoice}
+                onStop={stopVoice}
+                onSample={sampleVoice}
+              />
+            }
           />
 
           <AnimatePresence mode="wait" initial={false}>
@@ -431,6 +566,9 @@ function ChatScreen({
                   onLoadOlder={chat.loadOlder}
                   canRetry={!chat.isStreaming}
                   pinSignal={pinSignal}
+                  speakingId={speakingId}
+                  onRead={readMessage}
+                  onQuickAction={quickAction}
                 />
               )}
             </m.div>
@@ -445,9 +583,17 @@ function ChatScreen({
             images={images}
             setImages={setImages}
             onOpenStudio={openStudio}
-            onTemporaryChange={chat.newChat}
+            onTemporaryChange={newChat}
             mode={mode}
             onModeChange={setMode}
+            voice={{
+              enabled: voice.enabled,
+              handsFree: voice.handsFree,
+              label: voice.voice === "girl" ? "Girl voice" : "Boy voice",
+              speaking: voiceSpeaking,
+              listenSignal,
+              onStopSpeaking: stopVoice,
+            }}
           />
         </main>
       </div>
@@ -488,6 +634,7 @@ function ChatScreen({
         onCancel={() => setPendingDelete(null)}
         onConfirm={async () => {
           if (!pendingDelete) return;
+          if (pendingDelete.id === activeId) stopVoice();
           setDeleting(true);
           await chat.remove(pendingDelete.id);
           setDeleting(false);

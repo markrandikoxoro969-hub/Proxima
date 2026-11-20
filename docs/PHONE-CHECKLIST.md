@@ -35,6 +35,17 @@ Open your live address, e.g. `https://proxima.vercel.app`.
 - [ ] Ask for code (e.g. “Write a Python hello world”) → the code block is coloured → **Copy** → paste somewhere → it works.
 - [ ] **Microphone** button → allow microphone → speak → your words appear in the box.
       _(iPhone: Safari supports this on recent iOS versions. If the button is missing, that browser doesn't support voice input.)_
+- [ ] **Speaker** button (top-right) → Voice mode opens → pick **Girl voice** → **Hear this voice** →
+      it speaks. Pick **Boy voice** → the pitch and voice change. Try **Speed**.
+- [ ] Turn on **Read replies aloud** → ask a question → the answer is spoken after it finishes
+      streaming (not word-by-word). Press **Stop reading** → it stops immediately.
+- [ ] Tap the **speaker** under a finished reply → it replays. While it plays, tap the same button →
+      it stops. Send a new message → the old speech stops.
+- [ ] Turn on **Hands-free** → ask a question → after the answer, the mic opens by itself → speak the
+      next question → it sends. Proxima must **not** be talking while the mic is open.
+- [ ] Switch chats while a reply is being read → speech stops. Open an old chat → nothing replays.
+- [ ] On a browser without speech output, the Voice mode panel says so and typing still works.
+- [ ] **Simplify** and **checklist** buttons under a finished reply send a sensible follow-up.
 - [ ] **Attach** a small `.txt` or `.py` file → send → Proxima talks about its content.
 - [ ] Try a file over 100 KB or an image → a friendly message explains why it's refused.
 - [ ] **☰ menu** → the sidebar slides up from the bottom → drag its handle down to close → reopen and

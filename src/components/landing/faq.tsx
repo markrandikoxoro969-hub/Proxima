@@ -25,6 +25,10 @@ export const FAQS = [
     a: "Yes, in browsers that support speech recognition — Chrome and Edge on Android and computers, and Safari on iPhone. Tap the mic, speak, and your words appear in the message box.",
   },
   {
+    q: "Can Proxima talk back?",
+    a: "Yes. Open Voice mode from the speaker button in the chat header, choose a girl or boy voice, and turn on read-aloud. Each finished answer is spoken, or tap the speaker under any reply. Hands-free also opens the mic for your next question.",
+  },
+  {
     q: "Why is the first reply sometimes slow?",
     a: "When nobody has used Proxima for a while, its engine sleeps to save resources. Waking it can take up to a minute; after that, replies are quick. NVIDIA answers first, and a second engine takes over automatically if it fails.",
   },
