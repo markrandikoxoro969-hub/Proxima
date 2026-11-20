@@ -4,6 +4,7 @@ import { cache } from "react";
 import { auth } from "@/auth";
 import type { Profile } from "@/lib/chat/types";
 import { db } from "@/lib/db";
+import { normalizeCustomThemes } from "@/lib/theme/palettes";
 
 /**
  * "Data access layer" for the signed-in user.
@@ -27,6 +28,8 @@ export const getCurrentUser = cache(async () => {
       age: true,
       onboardedAt: true,
       theme: true,
+      themePalette: true,
+      customThemes: true,
       particles: true,
     },
   });
@@ -42,6 +45,11 @@ export async function requireUser(returnTo: string): Promise<CurrentUser> {
 }
 
 /** The safe, browser-ready version of the user (what client components receive). */
-export function toProfile({ onboardedAt, ...user }: CurrentUser): Profile {
-  return { ...user, onboarded: onboardedAt !== null };
+export function toProfile({ onboardedAt, customThemes, ...user }: CurrentUser): Profile {
+  return {
+    ...user,
+    // Re-validated so a hand-edited database row can't break the picker.
+    customThemes: normalizeCustomThemes(customThemes),
+    onboarded: onboardedAt !== null,
+  };
 }

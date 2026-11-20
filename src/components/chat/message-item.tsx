@@ -40,6 +40,10 @@ export const MessageItem = memo(function MessageItem({
 });
 
 function UserMessage({ message }: { message: UiMessage }) {
+  const attachments = message.attachments ?? [];
+  const pictures = attachments.filter((file) => file.kind === "image" && file.url);
+  const files = attachments.filter((file) => file.kind !== "image");
+
   return (
     <m.div
       className="flex justify-end"
@@ -48,9 +52,34 @@ function UserMessage({ message }: { message: UiMessage }) {
       transition={{ duration: 0.4, ease: EASE }}
     >
       <div className="flex max-w-[88%] flex-col items-end gap-2 sm:max-w-[80%]">
-        {message.attachments && message.attachments.length > 0 && (
+        {pictures.length > 0 && (
+          <ul className="flex flex-wrap justify-end gap-2" aria-label="Attached pictures">
+            {pictures.map((picture) => (
+              <li key={picture.imageId ?? picture.url}>
+                <a
+                  href={picture.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`Open ${picture.name ?? "picture"} in a new tab`}
+                  className="block overflow-hidden rounded-2xl border border-line bg-surface-hover"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={picture.url}
+                    alt={picture.name ?? "Attached picture"}
+                    width={picture.width ?? 512}
+                    height={picture.height ?? 512}
+                    loading="lazy"
+                    className="max-h-56 w-auto max-w-[min(18rem,70vw)] object-cover"
+                  />
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+        {files.length > 0 && (
           <ul className="flex flex-wrap justify-end gap-1.5" aria-label="Attached files">
-            {message.attachments.map((file) => (
+            {files.map((file) => (
               <li
                 key={file.name}
                 className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-hover px-3 py-1 text-xs font-semibold text-muted"
@@ -166,10 +195,7 @@ function AssistantMessage({
                 <ArrowClockwise weight="bold" className="size-4" aria-hidden />
               </button>
               {message.latencyMs != null && (
-                <span
-                  className="px-1 font-mono text-[11px]"
-                  title="Time the engine took to answer"
-                >
+                <span className="px-1 font-mono text-[11px]" title="Time the engine took to answer">
                   {(message.latencyMs / 1000).toFixed(message.latencyMs < 10_000 ? 2 : 1)}s
                 </span>
               )}

@@ -6,6 +6,7 @@ import {
   ChatCircleText,
   Copy,
   GearSix,
+  ImageSquare,
   Moon,
   Plus,
   SlidersHorizontal,
@@ -20,10 +21,12 @@ import { ConfirmDialog } from "@/components/ui/dialog";
 import { ToastProvider, useToast } from "@/components/ui/toast";
 import { api } from "@/lib/chat/client/api";
 import { DRAFT } from "@/lib/chat/client/chat-state";
+import { draftFromImage, type DraftImage } from "@/lib/chat/client/images";
 import { useChat } from "@/lib/chat/client/use-chat";
 import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
 import { EASE } from "@/lib/motion/tokens";
 import type { EngineStatus, MessagesPage, Profile, SessionSummary } from "@/lib/chat/types";
+import type { ImageDTO } from "@/lib/image/types";
 import type { ThemePreference } from "@/lib/theme";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { ChatHeader } from "./chat-header";
@@ -35,6 +38,7 @@ import { Sidebar } from "./sidebar";
 
 // Loaded only when needed (keeps the first load small and fast).
 const SettingsDialog = dynamic(() => import("./settings-dialog").then((m) => m.SettingsDialog));
+const ImageStudio = dynamic(() => import("@/components/image/image-studio").then((m) => m.ImageStudio));
 const Onboarding = dynamic(() => import("./onboarding").then((m) => m.Onboarding));
 const Particles = dynamic(() => import("./particles"), { ssr: false });
 
@@ -65,7 +69,7 @@ function ChatScreen({
 }: ChatAppProps) {
   const notify = useToast();
   const router = useRouter();
-  const { preference, resolved, setPreference } = useTheme();
+  const { theme, paletteId, syncFromAccount, setPreference, resolved } = useTheme();
   const [showReasoning, setShowReasoning] = useShowReasoning();
   const isDesktop = useMediaQuery("(min-width: 1024px)", true);
   const [profile, setProfile] = useState(initialProfile);
@@ -80,18 +84,35 @@ function ChatScreen({
   const [focusSignal, setFocusSignal] = useState(0);
   const [hasSent, setHasSent] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [images, setImages] = useState<DraftImage[]>([]);
 
   const chat = useChat({ initialSessions, initialNextCursor, initialActiveId, initialActivePage, notify });
   const { state, active, newChat: startNewChat, send: sendMessage, select: selectChat } = chat;
   const shownName = profile.displayName ?? profile.name?.split(" ")[0] ?? "Explorer";
 
-  // Use the theme saved in your account (so it follows you between devices).
+  // Use the theme saved in your account (mode + palette + your own themes).
   const appliedProfileTheme = useRef(false);
   useEffect(() => {
-    if (appliedProfileTheme.current) return;
+    if (appliedProfileTheme.current || !profile.onboarded) return;
     appliedProfileTheme.current = true;
-    if (profile.onboarded && profile.theme !== preference) setPreference(profile.theme);
-  }, [profile.onboarded, profile.theme, preference, setPreference]);
+    syncFromAccount({
+      preference: profile.theme,
+      paletteId: profile.themePalette,
+      customThemes: profile.customThemes,
+    });
+  }, [profile.onboarded, profile.theme, profile.themePalette, profile.customThemes, syncFromAccount]);
+
+  // Picking a theme anywhere in the chat saves it to the account (one call per change).
+  const savedPalette = useRef<string | null>(null);
+  useEffect(() => {
+    if (!profile.onboarded || savedPalette.current === paletteId) return;
+    savedPalette.current = paletteId;
+    if (profile.themePalette === paletteId) return;
+    api.updateProfile({ themePalette: paletteId, theme: theme.mode }).catch(() => {
+      /* the theme still applies on this device */
+    });
+  }, [paletteId, profile.onboarded, profile.themePalette, theme.mode]);
 
   // Real engine status (+ wakes the Render server early so your first reply is faster).
   useEffect(() => {
@@ -127,6 +148,7 @@ function ChatScreen({
   const newChat = useCallback(() => {
     startNewChat();
     setSidebarOpen(false);
+    setImages([]);
     setFocusSignal((n) => n + 1);
   }, [startNewChat]);
 
@@ -164,12 +186,31 @@ function ChatScreen({
   const openSettingsPage = useCallback(() => router.push("/settings"), [router]);
 
   const send = useCallback(
-    (text: string, attachments: { name: string; content: string }[] = []) => {
+    (
+      text: string,
+      attachments: { name: string; content: string }[] = [],
+      sendableImages: { id: string; url: string; width: number; height: number; name: string }[] = [],
+    ) => {
       setPinSignal((n) => n + 1);
       setHasSent(true);
-      return sendMessage(text, attachments);
+      return sendMessage(text, attachments, sendableImages);
     },
     [sendMessage],
+  );
+
+  const openStudio = useCallback(() => {
+    setSettingsOpen(false);
+    setSidebarOpen(false);
+    setStudioOpen(true);
+  }, []);
+
+  const useImageInChat = useCallback(
+    (image: ImageDTO) => {
+      setImages((current) => [...current.slice(0, 3), draftFromImage(image)]);
+      setFocusSignal((n) => n + 1);
+      notify("Picture attached — ask Proxima anything about it.", "info");
+    },
+    [notify],
   );
 
   const select = useCallback(
@@ -197,7 +238,13 @@ function ChatScreen({
 
   const commands = useMemo<Command[]>(
     () => [
-      { id: "new", label: "New chat", hint: "⌘⇧O", icon: <Plus weight="bold" className="size-4" />, run: newChat },
+      {
+        id: "new",
+        label: "New chat",
+        hint: "⌘⇧O",
+        icon: <Plus weight="bold" className="size-4" />,
+        run: newChat,
+      },
       {
         id: "focus",
         label: "Focus the message box",
@@ -233,6 +280,13 @@ function ChatScreen({
         run: () => setPinSignal((n) => n + 1),
       },
       {
+        id: "image",
+        label: "Create or edit a picture",
+        icon: <ImageSquare weight="bold" className="size-4" />,
+        keywords: "image picture art generate draw edit photo studio",
+        run: openStudio,
+      },
+      {
         id: "settings",
         label: "Open settings",
         icon: <GearSix weight="bold" className="size-4" />,
@@ -246,7 +300,17 @@ function ChatScreen({
         run: openSettingsPage,
       },
     ],
-    [copyLastReply, newChat, openSettings, openSettingsPage, resolved, setPreference, showReasoning, setShowReasoning],
+    [
+      copyLastReply,
+      newChat,
+      openSettings,
+      openSettingsPage,
+      openStudio,
+      resolved,
+      setPreference,
+      showReasoning,
+      setShowReasoning,
+    ],
   );
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
@@ -312,31 +376,31 @@ function ChatScreen({
               transition={{ duration: 0.22, ease: EASE }}
               className="flex min-h-0 flex-1 flex-col"
             >
-          {active?.status === "loading" ? (
-            <ConversationSkeleton />
-          ) : active?.status === "error" ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-              <p className="font-semibold">Couldn&apos;t load this chat.</p>
-              <button
-                type="button"
-                onClick={() => void chat.reloadActive()}
-                className="tap rounded-xl border border-line px-4 text-sm font-bold transition-colors duration-200 hover:bg-surface-hover"
-              >
-                Try again
-              </button>
-            </div>
-          ) : isEmpty ? (
-            <EmptyState name={shownName} />
-          ) : (
-            <MessageList
-              key={state.activeKey === DRAFT ? DRAFT : activeId}
-              conversation={active}
-              onRetry={chat.retry}
-              onLoadOlder={chat.loadOlder}
-              canRetry={!chat.isStreaming}
-              pinSignal={pinSignal}
-            />
-          )}
+              {active?.status === "loading" ? (
+                <ConversationSkeleton />
+              ) : active?.status === "error" ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+                  <p className="font-semibold">Couldn&apos;t load this chat.</p>
+                  <button
+                    type="button"
+                    onClick={() => void chat.reloadActive()}
+                    className="tap rounded-xl border border-line px-4 text-sm font-bold transition-colors duration-200 hover:bg-surface-hover"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : isEmpty ? (
+                <EmptyState name={shownName} />
+              ) : (
+                <MessageList
+                  key={state.activeKey === DRAFT ? DRAFT : activeId}
+                  conversation={active}
+                  onRetry={chat.retry}
+                  onLoadOlder={chat.loadOlder}
+                  canRetry={!chat.isStreaming}
+                  pinSignal={pinSignal}
+                />
+              )}
             </m.div>
           </AnimatePresence>
 
@@ -346,6 +410,9 @@ function ChatScreen({
             streaming={chat.isStreaming}
             notify={notify}
             focusSignal={focusSignal}
+            images={images}
+            setImages={setImages}
+            onOpenStudio={openStudio}
           />
         </main>
       </div>
@@ -355,6 +422,15 @@ function ChatScreen({
       </p>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
+
+      {studioOpen && (
+        <ImageStudio
+          open={studioOpen}
+          onClose={() => setStudioOpen(false)}
+          notify={notify}
+          onUseInChat={useImageInChat}
+        />
+      )}
 
       {settingsLoaded && (
         <SettingsDialog
@@ -397,11 +473,7 @@ function ConversationSkeleton() {
     { user: 64, lines: [82, 70, 40] },
   ];
   return (
-    <div
-      className="flex-1 overflow-hidden px-4 py-6 sm:px-6"
-      aria-busy="true"
-      aria-label="Loading chat"
-    >
+    <div className="flex-1 overflow-hidden px-4 py-6 sm:px-6" aria-busy="true" aria-label="Loading chat">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         {rows.map((row, i) => (
           <div key={i} className="flex flex-col gap-6">

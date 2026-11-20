@@ -14,6 +14,7 @@ export const RATE_LIMITS = {
   chatUser: { limit: 20, windowMs: 60_000 }, // signed-in: 20 messages / minute
   chatGuest: { limit: 5, windowMs: 60_000 }, // landing demo: 5 messages / minute
   api: { limit: 120, windowMs: 60_000 }, // other API calls per user
+  image: { limit: 6, windowMs: 60_000 }, // AI pictures per user (they cost money)
   status: { limit: 30, windowMs: 60_000 }, // engine status checks per visitor
 } as const;
 

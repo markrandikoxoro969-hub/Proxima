@@ -81,7 +81,7 @@ event: error      data: {"code":"timeout","message":"The engine took too long to
 - **Context**: signed-in requests send the system prompt, the last 20 stored messages and the new
   message. The browser cannot rewrite that history. Guests may send up to 20 of their own recent turns
   (nothing is stored on the server).
-- **Fallback**: when `AI_PROVIDER=nvidia`, a failure *before any text* is retried automatically on the
+- **Fallback**: when `AI_PROVIDER=nvidia`, a failure _before any text_ is retried automatically on the
   Render API. You only see an `error` event if both fail.
 - **`retry: true`** is what the **Try again** button sends. If the last saved message in that chat is
   your same question, the server reuses it instead of saving it twice (`meta.userMessageId` is the old
@@ -139,3 +139,89 @@ Put any API key in an environment variable (for example `MY_AI_KEY`) and read it
 It must not start with `NEXT_PUBLIC_`, so it never reaches the browser.
 
 For development without internet, set `AI_PROVIDER=mock` to use a fake AI that answers instantly with sample Markdown and code.
+
+---
+
+## Pictures: upload, create, edit
+
+Pictures are stored in the database (`ImageAsset`) and served by id, so a chat
+message only carries a reference — never megabytes of base64. Everything below
+is **signed in only** and rate limited to **6 AI pictures per minute**.
+
+| Method & path               | What it does                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| `GET /api/images`           | Your newest pictures (max 24): `{ images: [{ id, url, width, height, … }] }` |
+| `POST /api/images`          | Upload one: `{ "dataUrl": "data:image/png;base64,…", "name": "photo.png" }`  |
+| `GET /api/images/:id`       | The bytes. Owner only; other people get `404`. Long-lived private cache.     |
+| `DELETE /api/images/:id`    | Delete one of yours → `204`                                                  |
+| `POST /api/images/generate` | `{ "prompt": "…", "width"?, "height"?, "style"? }` → a new picture           |
+| `POST /api/images/:id/edit` | `{ "prompt": "make it snowy", "strength"?: 0.55 }` → an edited copy          |
+
+Uploads accept **PNG, JPEG and WebP** only (SVG can run scripts, so it's refused),
+are re-checked by their first bytes, and must decode to **4 MB or less**. The
+browser shrinks a photo to 1280 px / WebP before uploading, so real requests are
+usually 100–400 KB.
+
+`generate` and `:id/edit` answer:
+
+```json
+{
+  "image": {
+    "id": "cm…",
+    "url": "/api/images/cm…",
+    "width": 1024,
+    "height": 1024,
+    "source": "generated",
+    "prompt": "a red boat. photorealistic, …"
+  },
+  "engine": { "id": "pollinations", "label": "Pollinations (free)" },
+  "offline": false
+}
+```
+
+`offline: true` means the built-in preview drew a placeholder (no key configured):
+the studio says so instead of pretending it's real art. See
+[docs/IMAGES.md](IMAGES.md) for the engines and their keys.
+
+### Pictures in a chat message
+
+`POST /api/chat` accepts up to 4 picture ids:
+
+```json
+{
+  "message": "What is in this picture?",
+  "images": [{ "id": "cm…" }]
+}
+```
+
+The server looks the ids up (only your own), hands the bytes to the AI, and
+saves `{ kind: "image", imageId, url, width, height }` in the message's
+attachments. Guests get `sign_in_required` — attaching files or pictures needs
+an account. Vision models see the picture; text-only models (the default
+Nemotron) get a short note saying a picture was attached, so they ask you to
+describe it instead of inventing what it shows.
+
+### Theme settings
+
+`PATCH /api/me` also accepts the theme fields:
+
+```json
+{
+  "theme": "dark",
+  "themePalette": "midnight",
+  "customThemes": [
+    {
+      "id": "custom-1a2b3c4d5e",
+      "name": "Mine",
+      "mode": "dark",
+      "colors": { "bg": "#101418", "fg": "#e8f0ff", "accent": "#22d3ee" }
+    }
+  ]
+}
+```
+
+`themePalette` is a built-in id (`proxima`, `daylight`, `midnight`, `ocean`,
+`ember`, `paper`, `aurora`, `sakura`, `graphite`, `neon`) or one of your own.
+Only the three source colours are trusted: the server rebuilds every other
+colour (muted text, hairlines, glass) and refuses themes whose text would be
+unreadable. Up to 4 custom themes per account.

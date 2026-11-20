@@ -12,6 +12,8 @@ export type ChatRequestBody = {
   message: string;
   conversationId?: string;
   attachments?: { name: string; content: string }[];
+  /** Pictures attached to this message, by id (signed-in only). */
+  images?: { id: string }[];
   demoSessionId?: string;
   retry?: boolean;
   /** Ask the server to stream the model's private reasoning (off by default). */

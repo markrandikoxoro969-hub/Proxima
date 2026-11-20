@@ -37,10 +37,18 @@ signed in. You can also browse tables in the Neon dashboard → **Tables**.
 | `User`                                    | One row per person: Google name/email/photo + PROXIMA profile (display name, age, theme, particles) |
 | `Conversation`                            | Chat sessions shown in the sidebar (title, owner)                                                   |
 | `Message`                                 | Every message (user or assistant), attachments info, AI response time                               |
+| `ImageAsset`                              | Pictures you uploaded or made with AI (bytes, size, prompt, which picture it was edited from)       |
 | `RateLimit`                               | Request counters for rate limiting (cleaned automatically)                                          |
 | `Account`, `Session`, `VerificationToken` | Used by Auth.js for Google login and the future email login. Don't rename.                          |
 
-Deleting a user automatically deletes their conversations and messages.
+Deleting a user automatically deletes their conversations, messages and pictures.
+An account keeps its newest 120 pictures; older ones are removed automatically
+(see `docs/IMAGES.md`).
+
+Two migrations matter for themes + pictures: `20261120000000_themes_and_images`
+adds `User.themePalette` / `User.customThemes` and the `ImageAsset` table. Run
+`npm run db:migrate` locally and `npx prisma migrate deploy` in production (the
+Vercel build does it for you).
 
 ## Everyday commands
 
@@ -54,14 +62,14 @@ Deleting a user automatically deletes their conversations and messages.
 
 ## Troubleshooting
 
-| Problem                                          | Fix                                                                                                                        |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `P1001: Can't reach database server`             | Neon may be "sleeping" (free tier) — run the command again. Check `DIRECT_URL` has no `-pooler`.                           |
+| Problem                                                    | Fix                                                                                                                                                                                                                   |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `P1001: Can't reach database server`                       | Neon may be "sleeping" (free tier) — run the command again. Check `DIRECT_URL` has no `-pooler`.                                                                                                                      |
 | `P1001 … at "not-set:5432"` (or `database-url-is-not-set`) | The settings are missing, not the database. Vercel: add `DATABASE_URL` + `DIRECT_URL` to **all** environments, then redeploy. Locally: fill `.env.local`. See [DEPLOY.md](./DEPLOY.md#build-failed-p1001-at-not-set). |
-| `P1000: Authentication failed`                   | Password changed/wrong — copy both connection strings again from Neon → Connect.                                           |
-| `The table "public.User" does not exist`         | You skipped `npm run db:deploy`.                                                                                           |
-| `Cannot find module '@/generated/prisma/client'` | Run `npm run db:generate` (or `npm install`).                                                                              |
-| `prisma migrate dev` warns about "drift"         | Someone changed the database by hand. On a fresh project you can reset: `npx prisma migrate reset` (**deletes all data**). |
+| `P1000: Authentication failed`                             | Password changed/wrong — copy both connection strings again from Neon → Connect.                                                                                                                                      |
+| `The table "public.User" does not exist`                   | You skipped `npm run db:deploy`.                                                                                                                                                                                      |
+| `Cannot find module '@/generated/prisma/client'`           | Run `npm run db:generate` (or `npm install`).                                                                                                                                                                         |
+| `prisma migrate dev` warns about "drift"                   | Someone changed the database by hand. On a fresh project you can reset: `npx prisma migrate reset` (**deletes all data**).                                                                                            |
 
 ## Optional: a database on your own computer
 

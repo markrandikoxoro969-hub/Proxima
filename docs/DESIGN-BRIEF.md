@@ -13,17 +13,42 @@ Audience: one person, often on a phone, often at night.
 
 ## Colour (4 core values + 2 accents)
 
-| Token        | Dark (default)              | Light                       | Role                          |
-| ------------ | --------------------------- | --------------------------- | ----------------------------- |
-| `--bg`       | `#050505`                   | `#f8fafc`                   | page                          |
-| `--fg`       | `#f8fafc`                   | `#0f172a`                   | text, inverse buttons         |
-| `--muted`    | `rgb(248 250 252 / 0.68)`   | `#475569`                   | body copy                     |
-| `--line`     | `rgb(255 255 255 / 0.07)`   | `rgb(15 23 42 / 0.09)`      | hairlines                     |
-| `--glow`     | `rgb(255 255 255 / 0.10)`   | `rgb(15 23 42 / 0.08)`      | single soft light source      |
-| `--accent`   | `#a78bfa` (violet, 1 use)   | `#6d28d9`                   | "thinking" orb only           |
+| Token      | Dark (default)            | Light                  | Role                     |
+| ---------- | ------------------------- | ---------------------- | ------------------------ |
+| `--bg`     | `#050505`                 | `#f8fafc`              | page                     |
+| `--fg`     | `#f8fafc`                 | `#0f172a`              | text, inverse buttons    |
+| `--muted`  | `rgb(248 250 252 / 0.68)` | `#475569`              | body copy                |
+| `--line`   | `rgb(255 255 255 / 0.07)` | `rgb(15 23 42 / 0.09)` | hairlines                |
+| `--glow`   | `rgb(255 255 255 / 0.10)` | `rgb(15 23 42 / 0.08)` | single soft light source |
+| `--accent` | `#a78bfa` (violet, 1 use) | `#6d28d9`              | "thinking" orb only      |
 
 No third hue. The violet accent exists only for the thinking orb, so it reads as
 "the machine is working", not as decoration.
+
+### Themes (November 2026)
+
+Those six values are the **Proxima** theme's values, not the only ones. Ten built-in
+themes now ship (Proxima, Daylight, Midnight, Ocean, Ember, Paper, Aurora, Sakura,
+Graphite, Neon), and people can build their own from **three** colours
+(`bg`, `fg`, `accent`). Everything else is derived from those three:
+
+| Group    | Variables                                                                            |
+| -------- | ------------------------------------------------------------------------------------ |
+| Text     | `--fg`, `--muted`, `--subtle`                                                        |
+| Lines    | `--line`, `--line-strong`                                                            |
+| Surfaces | `--surface`, `--surface-solid`, `--surface-hover`                                    |
+| Light    | `--glow`, `--accent`, `--accent-soft`, `--inverse-bg`, `--inverse-fg`, `--scrollbar` |
+
+Rules that keep the look coherent:
+
+- `--muted` must stay ≥ 7:1 on `--bg` (body copy) and `--subtle` ≥ 4.6:1 (labels).
+  Derived values step toward `--fg` until they pass; a custom theme whose own
+  colours fail 4.5:1 text or 2.5:1 accent is refused with a plain-language reason.
+- One accent per theme, used for the thinking orb, focus ring and selection.
+- Themes come in pairs (Midnight ⇄ Ocean, Ember ⇄ Paper) so the sun/moon button
+  keeps the character of the theme instead of snapping to plain black/white.
+- Custom themes are stored as their three source colours and re-derived on every
+  load, so a stored row can't smuggle in unreadable tokens.
 
 ## Type
 

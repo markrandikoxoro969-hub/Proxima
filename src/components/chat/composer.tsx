@@ -1,20 +1,41 @@
 "use client";
 
-import { ArrowUp, FileText, Microphone, Paperclip, Stop, X } from "@phosphor-icons/react";
+import {
+  ArrowUp,
+  FileText,
+  ImageSquare,
+  Microphone,
+  Paperclip,
+  Sparkle,
+  Stop,
+  X,
+} from "@phosphor-icons/react";
 import { AnimatePresence, m } from "motion/react";
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ACCEPT_ATTRIBUTE, formatBytes, readAttachments, type ReadFile } from "@/lib/chat/client/files";
+import {
+  formatImageSize,
+  imageFileProblem,
+  uploadDraftImage,
+  type DraftImage,
+} from "@/lib/chat/client/images";
 import { useSpeech } from "@/lib/chat/client/use-speech";
 import { cn } from "@/lib/cn";
+import { IMAGE_LIMITS } from "@/lib/image/limits";
 import { LIMITS } from "@/lib/limits";
 import { SPRING } from "@/lib/motion/tokens";
 
 const MAX_HEIGHT = 200;
 const WARN_AT = 3900;
 
+/** What the chat needs to send a picture: its id (the bytes stay on the server). */
+export type SendableImage = { id: string; url: string; width: number; height: number; name: string };
+
 /**
  * The message box at the bottom.
- * Enter = send · Shift+Enter = new line · drop files onto it to attach.
+ * Enter = send · Shift+Enter = new line · drop files or pictures onto it.
+ * Pictures are uploaded (and shrunk) as soon as you pick them; the chip shows
+ * the real picture, not a filename.
  */
 export const Composer = memo(function Composer({
   onSend,
@@ -22,19 +43,32 @@ export const Composer = memo(function Composer({
   streaming,
   notify,
   focusSignal,
+  images,
+  setImages,
+  onOpenStudio,
 }: {
-  onSend: (text: string, attachments: { name: string; content: string }[]) => Promise<boolean>;
+  onSend: (
+    text: string,
+    attachments: { name: string; content: string }[],
+    images: SendableImage[],
+  ) => Promise<boolean>;
   onStop: () => void;
   streaming: boolean;
   notify: (message: string, kind?: "info" | "success" | "error") => void;
   /** Changes when the composer should take focus (new chat, "/" shortcut). */
   focusSignal: number;
+  /** Pictures being uploaded or ready to send (kept by the chat screen). */
+  images: DraftImage[];
+  setImages: React.Dispatch<React.SetStateAction<DraftImage[]>>;
+  /** Opens the AI image studio (create / edit pictures). */
+  onOpenStudio: () => void;
 }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<ReadFile[]>([]);
   const [dragging, setDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const counterId = useId();
   const hintId = useId();
 
@@ -58,33 +92,100 @@ export const Composer = memo(function Composer({
 
   const length = text.length;
   const tooLong = length > LIMITS.messageMax;
-  const canSend = !streaming && text.trim().length > 0 && !tooLong;
+  const uploading = images.some((image) => image.status === "uploading");
+  const readyImages = images.filter((image) => image.status === "ready" && image.imageId);
+  // A picture on its own is a complete question ("what is this?").
+  const canSend = !streaming && !uploading && (text.trim().length > 0 || readyImages.length > 0) && !tooLong;
 
   const submit = useCallback(async () => {
     if (!canSend) {
       if (tooLong) notify(`Your message is too long (max ${LIMITS.messageMax} characters).`, "error");
+      else if (uploading) notify("One moment — the picture is still uploading.", "info");
       return;
     }
     if (speech.listening) speech.stop();
-    const message = text;
+    const message = text.trim() ? text : "What's in this picture?";
     const attachments = files.map(({ name, content }) => ({ name, content }));
+    const sendable: SendableImage[] = readyImages.map((image) => ({
+      id: image.imageId!,
+      url: image.url,
+      width: image.width,
+      height: image.height,
+      name: image.name,
+    }));
     // Clear right away so it feels instant; restore if sending couldn't start.
     setText("");
     setFiles([]);
-    const started = await onSend(message, attachments);
+    setImages([]);
+    const started = await onSend(message, attachments, sendable);
     if (!started) {
       setText(message);
       setFiles(files);
+      setImages(images);
     }
-  }, [canSend, tooLong, notify, speech, text, files, onSend]);
+  }, [canSend, tooLong, uploading, notify, speech, text, files, images, readyImages, onSend, setImages]);
 
   const addFiles = useCallback(
     async (list: FileList | File[]) => {
-      const { accepted, problems } = await readAttachments(Array.from(list), files.length);
-      if (accepted.length) setFiles((current) => [...current, ...accepted]);
-      for (const p of problems) notify(`“${p.name}” ${p.reason}.`, "error");
+      const all = Array.from(list);
+      const pictures = all.filter(
+        (file) => file.type.startsWith("image/") || /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(file.name),
+      );
+      const others = all.filter((file) => !pictures.includes(file));
+
+      // ── Pictures: validate now, then shrink + upload in the background ──
+      const room = Math.max(0, IMAGE_LIMITS.perMessage - images.length);
+      const accepted = pictures.slice(0, room).filter((file) => {
+        const problem = imageFileProblem(file);
+        if (problem) notify(`“${file.name}” ${problem}.`, "error");
+        return !problem;
+      });
+      if (pictures.length > room) {
+        notify(`You can attach up to ${IMAGE_LIMITS.perMessage} pictures per message.`, "info");
+      }
+
+      if (accepted.length) {
+        const placeholders: DraftImage[] = accepted.map((file) => ({
+          key: `upload-${file.name}-${Math.random().toString(36).slice(2, 8)}`,
+          name: file.name.slice(0, 60),
+          size: file.size,
+          width: 0,
+          height: 0,
+          url: "",
+          status: "uploading",
+        }));
+        setImages((current) => [...current, ...placeholders]);
+        await Promise.all(
+          accepted.map(async (file, index) => {
+            const placeholder = placeholders[index];
+            try {
+              const uploaded = await uploadDraftImage(file);
+              setImages((current) =>
+                current.map((image) =>
+                  image.key === placeholder.key ? { ...uploaded, key: placeholder.key } : image,
+                ),
+              );
+            } catch (error) {
+              setImages((current) => current.filter((image) => image.key !== placeholder.key));
+              notify((error as Error).message, "error");
+            }
+          }),
+        );
+      }
+
+      // ── Text / code files (unchanged behaviour) ──
+      if (others.length) {
+        const { accepted: textFiles, problems } = await readAttachments(others, files.length);
+        if (textFiles.length) setFiles((current) => [...current, ...textFiles]);
+        for (const p of problems) notify(`“${p.name}” ${p.reason}.`, "error");
+      }
     },
-    [files.length, notify],
+    [files.length, images.length, notify, setImages],
+  );
+
+  const removeImage = useCallback(
+    (key: string) => setImages((current) => current.filter((image) => image.key !== key)),
+    [setImages],
   );
 
   return (
@@ -114,27 +215,68 @@ export const Composer = memo(function Composer({
           void addFiles(e.dataTransfer.files);
         }}
       >
-        {files.length > 0 && (
-          <ul className="flex flex-wrap gap-2 px-4 pt-3" aria-label="Files to send">
-            {files.map((file) => (
-              <li
-                key={file.id}
-                className="inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-line bg-surface-hover pr-1 pl-3 text-xs font-semibold"
-              >
-                <FileText weight="bold" className="size-4 shrink-0 text-muted" aria-hidden />
-                <span className="max-w-[12rem] truncate">{file.name}</span>
-                <span className="text-subtle">{formatBytes(file.size)}</span>
-                <button
-                  type="button"
-                  onClick={() => setFiles((current) => current.filter((f) => f.id !== file.id))}
-                  aria-label={`Remove ${file.name}`}
-                  className="inline-flex size-7 items-center justify-center rounded-full text-subtle transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
-                >
-                  <X weight="bold" className="size-3.5" aria-hidden />
-                </button>
-              </li>
-            ))}
-          </ul>
+        {(files.length > 0 || images.length > 0) && (
+          <div className="flex flex-col gap-2 px-4 pt-3">
+            {images.length > 0 && (
+              <ul className="flex flex-wrap gap-2" aria-label="Pictures to send">
+                {images.map((image) => (
+                  <li key={image.key} className="relative">
+                    <div className="size-20 overflow-hidden rounded-2xl border border-line bg-surface-hover">
+                      {image.status === "ready" && image.url ? (
+                        // Our own endpoint, so a plain <img> is right (and <Image> can't optimise API routes).
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={image.url}
+                          alt={image.name}
+                          width={image.width || 80}
+                          height={image.height || 80}
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        <div className="skeleton size-full" aria-label="Uploading picture" />
+                      )}
+                    </div>
+                    {image.status === "ready" && (
+                      <span className="mt-1 block max-w-20 truncate text-[10px] font-semibold text-subtle">
+                        {formatImageSize(image.size)}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeImage(image.key)}
+                      aria-label={`Remove ${image.name}`}
+                      className="absolute -top-1.5 -right-1.5 grid size-6 place-items-center rounded-full bg-inverse text-on-inverse shadow"
+                    >
+                      <X weight="bold" className="size-3" aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {files.length > 0 && (
+              <ul className="flex flex-wrap gap-2" aria-label="Files to send">
+                {files.map((file) => (
+                  <li
+                    key={file.id}
+                    className="inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-line bg-surface-hover pr-1 pl-3 text-xs font-semibold"
+                  >
+                    <FileText weight="bold" className="size-4 shrink-0 text-muted" aria-hidden />
+                    <span className="max-w-[12rem] truncate">{file.name}</span>
+                    <span className="text-subtle">{formatBytes(file.size)}</span>
+                    <button
+                      type="button"
+                      onClick={() => setFiles((current) => current.filter((f) => f.id !== file.id))}
+                      aria-label={`Remove ${file.name}`}
+                      className="inline-flex size-7 items-center justify-center rounded-full text-subtle transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+                    >
+                      <X weight="bold" className="size-3.5" aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         <label htmlFor="composer-input" className="sr-only">
@@ -152,7 +294,13 @@ export const Composer = memo(function Composer({
             }
           }}
           rows={1}
-          placeholder={speech.listening ? "Listening…" : "Message Proxima…"}
+          placeholder={
+            speech.listening
+              ? "Listening…"
+              : readyImages.length
+                ? "Ask about the picture…"
+                : "Message Proxima…"
+          }
           enterKeyHint="send"
           autoComplete="off"
           spellCheck
@@ -180,12 +328,35 @@ export const Composer = memo(function Composer({
               e.target.value = ""; // allow picking the same file again
             }}
           />
+          <input
+            ref={imageInputRef}
+            type="file"
+            multiple
+            accept="image/png,image/jpeg,image/webp"
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden
+            onChange={(e) => {
+              if (e.target.files) void addFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <IconButton
+            label={`Attach a picture (up to ${IMAGE_LIMITS.perMessage}, 12 MB each)`}
+            onClick={() => imageInputRef.current?.click()}
+            disabled={images.length >= IMAGE_LIMITS.perMessage}
+          >
+            <ImageSquare weight="bold" className="size-5" aria-hidden />
+          </IconButton>
           <IconButton
             label={`Attach text or code files (up to ${LIMITS.attachmentsMax}, 100 KB each)`}
             onClick={() => fileInputRef.current?.click()}
             disabled={files.length >= LIMITS.attachmentsMax}
           >
             <Paperclip weight="bold" className="size-5" aria-hidden />
+          </IconButton>
+          <IconButton label="Create or edit a picture with AI" onClick={onOpenStudio}>
+            <Sparkle weight="fill" className="size-5" aria-hidden />
           </IconButton>
           <IconButton
             label={speech.listening ? "Stop voice input" : "Voice input"}
@@ -252,10 +423,7 @@ export const Composer = memo(function Composer({
           </span>
         </div>
       </form>
-      <p
-        id={hintId}
-        className="mt-2 text-center text-[11px] font-medium text-subtle"
-      >
+      <p id={hintId} className="mt-2 text-center text-[11px] font-medium text-subtle">
         Enter sends · Shift + Enter adds a line
         <span className="sr-only">. Your messages are sent over an encrypted connection.</span>
       </p>
