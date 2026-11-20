@@ -107,6 +107,8 @@ event: error    data: {"code":"timeout","message":"The PROXIMA engine took too l
 
 `GET /api/status` → `{ "ai": { "status": "online" | "waking" | "offline", "latencyMs": 312 }, "version": "V2.81 CORE" }`
 
+`GET /api/status?setup=1` → `{ setup: { ok, checks: [{ name, ok, detail }] } }`: a sign-in doctor. It checks the login keys, asks Google whether the Client ID + secret match, tests the database, and shows the exact Google redirect URI to register. It never shows a key.
+
 This replaces the fake "ENGINE ONLINE / 42ms" label with a real one. Calling it also **wakes the Render
 server**, so `/app` will call it as soon as it opens (Phase 4), and your first message is answered faster.
 

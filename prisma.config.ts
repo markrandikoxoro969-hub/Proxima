@@ -4,10 +4,12 @@
  */
 import { config as loadEnv } from "dotenv";
 import { defineConfig } from "prisma/config";
+import { cleanEnv } from "./src/lib/env-clean";
 
 // Next.js keeps local secrets in .env.local, so load that first, then .env.
 loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ quiet: true });
+cleanEnv();
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

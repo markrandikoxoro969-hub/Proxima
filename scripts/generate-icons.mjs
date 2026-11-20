@@ -31,7 +31,10 @@ const out = [
 
 mkdirSync("public/icons", { recursive: true });
 for (const [file, svg, size] of out) {
-  const png = await sharp(Buffer.from(svg), { density: 600 }).resize(size, size).png({ compressionLevel: 9 }).toBuffer();
+  const png = await sharp(Buffer.from(svg), { density: 600 })
+    .resize(size, size)
+    .png({ compressionLevel: 9 })
+    .toBuffer();
   writeFileSync(file, png);
   console.log(`✓ ${file} (${size}×${size}, ${(png.length / 1024).toFixed(1)} KB)`);
 }

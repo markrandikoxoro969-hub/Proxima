@@ -2,6 +2,9 @@ import "server-only";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { cleanEnv } from "@/lib/env-clean";
+
+cleanEnv();
 
 /**
  * The ONE database client for the whole app (server only).
