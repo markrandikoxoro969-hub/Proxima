@@ -27,6 +27,9 @@ export function MessageList({
   onLoadOlder,
   canRetry,
   pinSignal,
+  speakingId,
+  onRead,
+  onQuickAction,
 }: {
   conversation: ConversationState;
   onRetry: (id: string) => void;
@@ -34,6 +37,12 @@ export function MessageList({
   canRetry: boolean;
   /** Changes when the user sends a message → jump to the bottom. */
   pinSignal: number;
+  /** The reply currently being read aloud, if any. */
+  speakingId?: string | null;
+  /** Replay a finished reply with the browser voice. */
+  onRead?: (id: string, text: string) => void;
+  /** Ask Proxima to explain or check-list its last answer. */
+  onQuickAction?: (instruction: string) => void;
 }) {
   const { messages } = conversation;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -134,7 +143,14 @@ export function MessageList({
                 style={{ transform: `translateY(${item.start}px)` }}
               >
                 <div className="mx-auto w-full max-w-3xl">
-                  <MessageItem message={message} onRetry={onRetry} canRetry={canRetry} />
+                  <MessageItem
+                    message={message}
+                    onRetry={onRetry}
+                    canRetry={canRetry}
+                    speaking={speakingId === message.id}
+                    onRead={onRead}
+                    onQuickAction={onQuickAction}
+                  />
                 </div>
               </div>
             );

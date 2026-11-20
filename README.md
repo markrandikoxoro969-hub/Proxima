@@ -8,8 +8,9 @@ Google login (Auth.js), Framer Motion, and server-side streaming from the PROXIM
 > then test on your phone → **[docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md)**.
 
 **What's inside:** cinematic landing page with a live demo · `/app` chat (streaming replies,
-four answer modes — Thinking, Fast, Coding, Analyze — markdown + code copy, voice input,
-file + picture attach, export) · selectable themes, including
+four answer modes — Thinking, Fast, Coding, Analyze — markdown + code copy, voice input and
+spoken replies in a girl or boy voice, hands-free voice mode, file + picture attach, export) ·
+selectable themes, including
 themes you build yourself · an image studio (AI create + AI edit) · `/settings` (profile,
 appearance, download/delete data, delete account) · Privacy & Terms · 404 · installable phone app
 with an offline page · Google login · Postgres storage · rate limits · security headers · SEO +
@@ -197,8 +198,9 @@ Proxima/
 │  │  │  ├─ message-item.tsx    ← one message: thinking dots, errors + Try again, copy
 │  │  │  ├─ markdown.tsx        ← safe markdown (no HTML runs), tables, links
 │  │  │  ├─ code-block.tsx      ← code colours (Prism) + Copy button
-│  │  │  ├─ composer.tsx        ← message box: Enter to send, files, voice, 4000 counter
+│  │  │  ├─ composer.tsx        ← message box: Enter to send, files, voice, hands-free status
 │  │  │  ├─ mode-menu.tsx       ← Thinking / Fast / Coding / Analyze picker + Show thinking
+│  │  │  ├─ voice-menu.tsx      ← girl/boy voice, speed, preview, read-aloud + hands-free
 │  │  │  ├─ empty-state.tsx     ← greeting + one line of guidance (no cards)
 │  │  │  ├─ settings-dialog.tsx ← name, age, theme, particles, clear logs, sign out
 │  │  │  ├─ onboarding.tsx      ← typing logo → name → age → loading
@@ -208,7 +210,7 @@ Proxima/
 │  │  │  ├─ hero.tsx            ← blur → sharp headline, stars, orbit rings
 │  │  │  ├─ skills.tsx          ← the six skills grid
 │  │  │  ├─ how-it-works.tsx    ← 3 steps
-│  │  │  ├─ live-demo.tsx       ← real chat without login (not saved, 5 msgs/min)
+│  │  │  ├─ live-demo.tsx       ← real chat without login (not saved, 5 msgs/min, Hear this)
 │  │  │  ├─ faq.tsx             ← questions (works without JavaScript) + Google FAQ data
 │  │  │  ├─ site-footer.tsx     ← final call-to-action + links
 │  │  │  ├─ landing-effects.tsx ← ONE script for all motion: reveals, parallax, smooth
@@ -228,7 +230,8 @@ Proxima/
 │  │  ├─ auth/             ← safe redirects + "who is signed in" helpers
 │  │  ├─ chat/             ← attachments → prompt, titles, export, database queries
 │  │  │  └─ client/        ← browser side: reading the stream, chat state (useChat),
-│  │  │                       answer mode (use-mode), files, voice input, code highlighting
+│  │  │                       answer mode (use-mode), files, voice input, code highlighting,
+│  │  │                       voice output (use-voice-output, use-voice-mode, voice.ts)
 │  │  ├─ identity.ts       ← detects identity questions, cleans leaks in AI replies
 │  │  ├─ rate-limit.ts     ← limits stored in Postgres (20/min signed in, 5/min demo)
 │  │  ├─ validation.ts     ← all input rules (zod): 4000 chars, 100 KB files, …
@@ -304,8 +307,20 @@ The landing page is plain, fast HTML. Sections just carry **labels**, and one sm
   it in a collapsed block for that browser only, for debugging.
 - **The reply is cleaned, then streamed.** The server removes openers like "Great question" before
   the first sentence is shown, so what you read is exactly what gets saved.
-- **⌘K / Ctrl+K** opens the command palette in the chat (new chat, theme, copy last reply, settings).
-  `?` isn't used; `/` jumps to the message box.
+- **Voice mode talks back.** The speaker button in the chat header opens **Voice mode**: choose a
+  **girl** or **boy** voice, a speed, and hear a preview before turning it on. With _Read replies
+  aloud_ on, each new answer is spoken once it finishes (never while it is still streaming).
+  **Hands-free** opens the mic after the answer finishes, and closes it again while Proxima talks.
+  Every finished reply also has a speaker button for a one-off replay, and **Stop reading** is always
+  one tap away. Speech comes from the browser, not from a Proxima key; Markdown, links and code
+  fences are cleaned before speaking, and long answers are split into sentence-sized chunks for
+  Chrome and Android. The preference is remembered on that device. The landing-page demo has a
+  small **Hear this** button under each answer, so voice works before signing in.
+- **Quick follow-ups on a reply.** _Simplify_ asks for the same answer in plainer words with an
+  example; _Make a checklist_ turns it into a short, practical list. Both send a normal follow-up,
+  so they work with the same history and answer mode.
+- **⌘K / Ctrl+K** opens the command palette in the chat (new chat, voice mode, theme, copy last reply,
+  settings). `?` isn't used; `/` jumps to the message box.
 - Mobile sidebar is a **bottom sheet**: drag the handle down, tap outside or press Escape to close.
 
 ## Security notes
@@ -375,6 +390,17 @@ This was a prior simulated-device snapshot, not a repeatable local Chrome measur
       parallax, velocity blur, mobile sheet drag, send → stop morph.
 - [x] **Chat UX:** gradient-mesh empty state with film grain, shimmer skeletons, ⌘K palette,
       copy/regenerate, jump-to-latest, per-chunk token fade.
+
+### Voice mode (November 2026)
+
+- [x] **Proxima talks back:** browser speech synthesis with a **girl** and **boy** voice, three
+      speeds, a preview, read-each-reply and a per-message replay button.
+- [x] **Hands-free loop:** when the answer finishes speaking, the mic opens for the next question;
+      it never listens while Proxima is talking, and it sends the transcript straight away.
+- [x] **Safe by default:** speech never starts mid-stream, stops on send, chat switch or stop, and
+      the choice is stored per device — no account field and no server round-trip.
+- [x] **Clean pronunciation:** Markdown emphasis, links, tables and code fences are stripped, and
+      long replies are chunked so browsers don't cut them off.
 
 ### Themes + pictures (November 2026)
 

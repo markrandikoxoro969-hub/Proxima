@@ -7,7 +7,10 @@ import {
   Check,
   Copy,
   FileText,
+  Lightbulb,
+  ListChecks,
   Planet,
+  SpeakerHigh,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
@@ -30,15 +33,29 @@ export const MessageItem = memo(function MessageItem({
   message,
   onRetry,
   canRetry,
+  speaking,
+  onRead,
+  onQuickAction,
 }: {
   message: UiMessage;
   onRetry: (id: string) => void;
   canRetry: boolean;
+  /** This reply is being read aloud right now. */
+  speaking?: boolean;
+  onRead?: (id: string, text: string) => void;
+  onQuickAction?: (instruction: string) => void;
 }) {
   return message.role === "user" ? (
     <UserMessage message={message} />
   ) : (
-    <AssistantMessage message={message} onRetry={onRetry} canRetry={canRetry} />
+    <AssistantMessage
+      message={message}
+      onRetry={onRetry}
+      canRetry={canRetry}
+      speaking={speaking}
+      onRead={onRead}
+      onQuickAction={onQuickAction}
+    />
   );
 });
 
@@ -107,10 +124,16 @@ function AssistantMessage({
   message,
   onRetry,
   canRetry,
+  speaking,
+  onRead,
+  onQuickAction,
 }: {
   message: UiMessage;
   onRetry: (id: string) => void;
   canRetry: boolean;
+  speaking?: boolean;
+  onRead?: (id: string, text: string) => void;
+  onQuickAction?: (instruction: string) => void;
 }) {
   const streaming = message.status === "streaming";
   const waiting = streaming && !message.content;
@@ -185,8 +208,26 @@ function AssistantMessage({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="mt-1.5 flex items-center gap-0.5 text-subtle"
+              className="mt-1.5 flex flex-wrap items-center gap-0.5 text-subtle"
             >
+              {onRead && (
+                <button
+                  type="button"
+                  onClick={() => onRead(message.id, message.content)}
+                  aria-label={speaking ? "Stop reading this reply" : "Read this reply aloud"}
+                  title={speaking ? "Stop reading" : "Read aloud"}
+                  className={cn(
+                    "inline-flex size-11 items-center justify-center rounded-lg transition-[color,background-color] duration-200 hover:bg-surface-hover hover:text-fg pointer-fine:size-9",
+                    speaking && "text-[var(--accent-text)]",
+                  )}
+                >
+                  <SpeakerHigh
+                    weight={speaking ? "fill" : "bold"}
+                    className={cn("size-4", speaking && "animate-pulse")}
+                    aria-hidden
+                  />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => copy(message.content)}
@@ -210,8 +251,35 @@ function AssistantMessage({
               >
                 <ArrowClockwise weight="bold" className="size-4" aria-hidden />
               </button>
+              {onQuickAction && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onQuickAction("Explain your last answer more simply, with a short example.")
+                    }
+                    aria-label="Explain this more simply"
+                    title="Simplify"
+                    className="inline-flex size-11 items-center justify-center rounded-lg transition-[color,background-color] duration-200 hover:bg-surface-hover hover:text-fg pointer-fine:size-9"
+                  >
+                    <Lightbulb weight="bold" className="size-4" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onQuickAction("Turn your last answer into a short, practical checklist.")}
+                    aria-label="Turn this answer into a checklist"
+                    title="Make a checklist"
+                    className="inline-flex size-11 items-center justify-center rounded-lg transition-[color,background-color] duration-200 hover:bg-surface-hover hover:text-fg pointer-fine:size-9"
+                  >
+                    <ListChecks weight="bold" className="size-4" aria-hidden />
+                  </button>
+                </>
+              )}
               {message.latencyMs != null && (
-                <span className="px-1 font-mono text-[11px]" title="Time the engine took to answer">
+                <span
+                  className="hidden px-1 font-mono text-[11px] min-[360px]:inline"
+                  title="Time the engine took to answer"
+                >
                   {(message.latencyMs / 1000).toFixed(message.latencyMs < 10_000 ? 2 : 1)}s
                 </span>
               )}

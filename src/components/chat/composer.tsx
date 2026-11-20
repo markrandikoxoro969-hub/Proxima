@@ -9,7 +9,9 @@ import {
   Microphone,
   Paperclip,
   Sparkle,
+  SpeakerHigh,
   Stop,
+  Waveform,
   X,
 } from "@phosphor-icons/react";
 import { AnimatePresence, m } from "motion/react";
@@ -54,6 +56,7 @@ export const Composer = memo(function Composer({
   onTemporaryChange,
   mode,
   onModeChange,
+  voice,
 }: {
   onSend: (
     text: string,
@@ -75,6 +78,16 @@ export const Composer = memo(function Composer({
   /** Answer style (fast / thinking / coding / analyze). */
   mode: ChatMode;
   onModeChange: (mode: ChatMode) => void;
+  /** Voice mode status/controls. Absent when voice mode is off. */
+  voice?: {
+    enabled: boolean;
+    handsFree: boolean;
+    label: string;
+    speaking: boolean;
+    /** Increments after each spoken reply; opens the mic in hands-free mode. */
+    listenSignal: number;
+    onStopSpeaking: () => void;
+  };
 }) {
   const [text, setText] = useState("");
   const [temporary, setTemporary] = useTemporaryChat();
@@ -86,11 +99,85 @@ export const Composer = memo(function Composer({
   const counterId = useId();
   const hintId = useId();
 
+  const length = text.length;
+  const tooLong = length > LIMITS.messageMax;
+  const uploading = images.some((image) => image.status === "uploading");
+  const readyImages = images.filter((image) => image.status === "ready" && image.imageId);
+  // A picture on its own is a complete question ("what is this?").
+  const canSend = !streaming && !uploading && (text.trim().length > 0 || readyImages.length > 0) && !tooLong;
+
+  const sendPayload = useCallback(
+    async (message: string, attachments: { name: string; content: string }[], sendable: SendableImage[]) => {
+      // Clear right away so it feels instant; restore if sending couldn't start.
+      setText("");
+      setFiles([]);
+      setImages([]);
+      const started = await onSend(message, attachments, sendable);
+      if (!started) {
+        setText(message);
+        setFiles(files);
+        setImages(images);
+      }
+      return started;
+    },
+    [onSend, files, images, setImages],
+  );
+
+  const sendSpoken = useCallback(
+    async (spoken: string) => {
+      const clean = spoken.trim();
+      if (!clean) return;
+      if (clean.length > LIMITS.messageMax) {
+        setText(clean);
+        notify(`Your message is too long (max ${LIMITS.messageMax} characters).`, "error");
+        return;
+      }
+      if (uploading) {
+        setText(clean);
+        notify("One moment — the picture is still uploading.", "info");
+        return;
+      }
+      const attachments = files.map(({ name, content }) => ({ name, content }));
+      const sendable: SendableImage[] = readyImages.map((image) => ({
+        id: image.imageId!,
+        url: image.url,
+        width: image.width,
+        height: image.height,
+        name: image.name,
+      }));
+      await sendPayload(clean, attachments, sendable);
+    },
+    [files, readyImages, uploading, notify, sendPayload],
+  );
+
   const speech = useSpeech({
-    onText: (spoken) =>
-      setText((current) => (current.trim() ? `${current.replace(/\s*$/, " ")}${spoken}` : spoken)),
-    onError: (message) => notify(message, "error"),
+    onText: (spoken) => {
+      // Hands-free sends the transcript straight away, but never while a reply
+      // is streaming and never on top of a typed draft or attachments.
+      const handsFree =
+        voice?.enabled &&
+        voice.handsFree &&
+        !streaming &&
+        !text.trim() &&
+        files.length === 0 &&
+        images.length === 0;
+      if (handsFree) void sendSpoken(spoken);
+      else setText((current) => (current.trim() ? `${current.replace(/\s*$/, " ")}${spoken}` : spoken));
+    },
+    onError: (message) => {
+      // Hands-free opens the mic on its own; silence in the room is not an error.
+      if (voice?.enabled && voice.handsFree && message.startsWith("I didn't hear anything")) return;
+      notify(message, "error");
+    },
   });
+  const {
+    listening,
+    interim,
+    supported: speechSupported,
+    start: startListening,
+    stop: stopListening,
+    toggle: toggleListening,
+  } = speech;
 
   // Grow with the text, up to MAX_HEIGHT, then scroll inside.
   useLayoutEffect(() => {
@@ -104,12 +191,43 @@ export const Composer = memo(function Composer({
     if (focusSignal > 0) textareaRef.current?.focus({ preventScroll: true });
   }, [focusSignal]);
 
-  const length = text.length;
-  const tooLong = length > LIMITS.messageMax;
-  const uploading = images.some((image) => image.status === "uploading");
-  const readyImages = images.filter((image) => image.status === "ready" && image.imageId);
-  // A picture on its own is a complete question ("what is this?").
-  const canSend = !streaming && !uploading && (text.trim().length > 0 || readyImages.length > 0) && !tooLong;
+  // Hands-free: one open-mic attempt per spoken reply. The signal is consumed
+  // once, so the mic doesn't reopen when recognition ends after a send.
+  const handledListen = useRef(0);
+  useEffect(() => {
+    if (!voice?.enabled || !voice.handsFree) {
+      handledListen.current = voice?.listenSignal ?? 0;
+      return;
+    }
+    if (!voice.listenSignal || voice.listenSignal === handledListen.current) return;
+    handledListen.current = voice.listenSignal;
+    const timer = window.setTimeout(() => {
+      const clear = !streaming && !listening && !text.trim() && files.length === 0 && images.length === 0;
+      if (clear && speechSupported) startListening();
+    }, 550);
+    return () => window.clearTimeout(timer);
+  }, [
+    voice?.enabled,
+    voice?.handsFree,
+    voice?.listenSignal,
+    streaming,
+    listening,
+    text,
+    files.length,
+    images.length,
+    speechSupported,
+    startListening,
+  ]);
+
+  // Never listen while Proxima is speaking (the mic would hear the speakers),
+  // and close the mic only when voice mode is switched OFF (manual mic use is
+  // independent of voice mode).
+  const voiceWasEnabled = useRef(voice?.enabled ?? false);
+  useEffect(() => {
+    const turnedOff = voiceWasEnabled.current && !voice?.enabled;
+    voiceWasEnabled.current = voice?.enabled ?? false;
+    if ((voice?.speaking || turnedOff) && listening) stopListening();
+  }, [voice?.speaking, voice?.enabled, listening, stopListening]);
 
   const submit = useCallback(async () => {
     if (!canSend) {
@@ -117,7 +235,7 @@ export const Composer = memo(function Composer({
       else if (uploading) notify("One moment — the picture is still uploading.", "info");
       return;
     }
-    if (speech.listening) speech.stop();
+    if (listening) stopListening();
     const message = text.trim() ? text : "What's in this picture?";
     const attachments = files.map(({ name, content }) => ({ name, content }));
     const sendable: SendableImage[] = readyImages.map((image) => ({
@@ -127,17 +245,8 @@ export const Composer = memo(function Composer({
       height: image.height,
       name: image.name,
     }));
-    // Clear right away so it feels instant; restore if sending couldn't start.
-    setText("");
-    setFiles([]);
-    setImages([]);
-    const started = await onSend(message, attachments, sendable);
-    if (!started) {
-      setText(message);
-      setFiles(files);
-      setImages(images);
-    }
-  }, [canSend, tooLong, uploading, notify, speech, text, files, images, readyImages, onSend, setImages]);
+    await sendPayload(message, attachments, sendable);
+  }, [canSend, tooLong, uploading, notify, listening, stopListening, text, files, readyImages, sendPayload]);
 
   const addFiles = useCallback(
     async (list: FileList | File[]) => {
@@ -204,6 +313,63 @@ export const Composer = memo(function Composer({
 
   return (
     <div className="px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
+      {voice?.enabled && (
+        <div className="mx-auto mb-2 flex w-full max-w-3xl flex-wrap items-center gap-2 px-1 text-xs">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bold",
+              voice.speaking
+                ? "border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--accent-text)]"
+                : listening
+                  ? "border-red-500/30 bg-red-500/10 text-red-500"
+                  : "border-line bg-surface-hover text-muted",
+            )}
+            aria-live="polite"
+          >
+            {voice.speaking ? (
+              <SpeakerHigh weight="fill" className="size-3.5 animate-pulse" aria-hidden />
+            ) : listening ? (
+              <Microphone weight="fill" className="size-3.5 animate-pulse" aria-hidden />
+            ) : (
+              <Waveform weight="bold" className="size-3.5" aria-hidden />
+            )}
+            {voice.speaking
+              ? `Speaking · ${voice.label}`
+              : listening
+                ? "Listening…"
+                : `Voice mode · ${voice.label}`}
+          </span>
+          {voice.speaking ? (
+            <button
+              type="button"
+              onClick={voice.onStopSpeaking}
+              className="inline-flex min-h-8 items-center rounded-full border border-line px-2.5 font-bold text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+            >
+              Stop reading
+            </button>
+          ) : listening ? (
+            <button
+              type="button"
+              onClick={stopListening}
+              className="inline-flex min-h-8 items-center rounded-full border border-line px-2.5 font-bold text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+            >
+              Stop listening
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={startListening}
+              disabled={!speechSupported}
+              title={speechSupported ? "Ask with your voice" : "Voice input isn't supported in this browser"}
+              className="inline-flex min-h-8 items-center rounded-full border border-line px-2.5 font-bold text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg disabled:opacity-40"
+            >
+              Talk now
+            </button>
+          )}
+          {voice.handsFree && <span className="font-medium text-subtle">Hands-free</span>}
+        </div>
+      )}
+
       <form
         className={cn(
           "relative mx-auto w-full max-w-3xl rounded-[1.75rem] glass transition-[box-shadow,border-color] duration-300",
@@ -309,11 +475,7 @@ export const Composer = memo(function Composer({
           }}
           rows={1}
           placeholder={
-            speech.listening
-              ? "Listening…"
-              : readyImages.length
-                ? "Ask about the picture…"
-                : "Message Proxima…"
+            listening ? "Listening…" : readyImages.length ? "Ask about the picture…" : "Message Proxima…"
           }
           enterKeyHint="send"
           autoComplete="off"
@@ -322,9 +484,9 @@ export const Composer = memo(function Composer({
           aria-invalid={tooLong || undefined}
           className="block max-h-[200px] w-full resize-none bg-transparent px-5 pt-4 pb-2 text-base leading-relaxed placeholder:text-subtle focus:outline-none focus-visible:outline-none"
         />
-        {speech.interim && (
+        {interim && (
           <p className="px-5 pb-1 text-sm text-subtle italic" aria-live="polite">
-            {speech.interim}
+            {interim}
           </p>
         )}
         {tooLong && (
@@ -395,16 +557,14 @@ export const Composer = memo(function Composer({
             fileLimit={LIMITS.attachmentsMax}
           />
           <IconButton
-            label={speech.listening ? "Stop voice input" : "Voice input"}
-            onClick={speech.toggle}
-            pressed={speech.listening}
-            className={cn(
-              speech.listening && "bg-red-500/15 text-red-500 hover:bg-red-500/20 hover:text-red-500",
-            )}
+            label={listening ? "Stop voice input" : "Voice input"}
+            onClick={toggleListening}
+            pressed={listening}
+            className={cn(listening && "bg-red-500/15 text-red-500 hover:bg-red-500/20 hover:text-red-500")}
           >
             <Microphone
-              weight={speech.listening ? "fill" : "bold"}
-              className={cn("size-5", speech.listening && "animate-pulse")}
+              weight={listening ? "fill" : "bold"}
+              className={cn("size-5", listening && "animate-pulse")}
               aria-hidden
             />
           </IconButton>

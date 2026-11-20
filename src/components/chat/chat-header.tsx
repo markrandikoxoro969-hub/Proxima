@@ -1,7 +1,7 @@
 "use client";
 
 import { DownloadSimple, List, NotePencil } from "@phosphor-icons/react";
-import { memo, useEffect, useId, useRef, useState } from "react";
+import { memo, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { exportUrl } from "@/lib/chat/client/api";
 import { cn } from "@/lib/cn";
 import { ThemeMenu } from "@/components/theme/theme-menu";
@@ -14,6 +14,7 @@ export const ChatHeader = memo(function ChatHeader({
   isDesktop,
   onOpenSidebar,
   onNewChat,
+  voiceMenu,
 }: {
   title: string | null;
   activeId: string | null;
@@ -21,6 +22,8 @@ export const ChatHeader = memo(function ChatHeader({
   isDesktop: boolean;
   onOpenSidebar: () => void;
   onNewChat: () => void;
+  /** Voice-mode trigger, rendered at the right edge of the toolbar. */
+  voiceMenu?: ReactNode;
 }) {
   return (
     <header className="flex items-center gap-2 border-b border-line px-3 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 sm:px-5">
@@ -58,12 +61,17 @@ export const ChatHeader = memo(function ChatHeader({
         type="button"
         onClick={onNewChat}
         aria-label="New chat"
-        className="inline-flex tap items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg lg:hidden"
+        className="hidden tap items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg min-[380px]:inline-flex lg:hidden"
       >
         <NotePencil weight="bold" className="size-5" aria-hidden />
       </button>
       <ThemeMenu />
-      <ExportMenu activeId={activeId} />
+      {/* On the narrowest phones the Export button (rarely needed there) yields
+          its place to Voice mode; New chat stays reachable from the sidebar. */}
+      <div className="hidden min-[370px]:block">
+        <ExportMenu activeId={activeId} />
+      </div>
+      {voiceMenu}
     </header>
   );
 });
