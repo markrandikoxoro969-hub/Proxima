@@ -79,7 +79,6 @@ function ChatScreen({
   const [pendingDelete, setPendingDelete] = useState<SessionSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [engine, setEngine] = useState<EngineStatus>("checking");
-  const [statusLatency, setStatusLatency] = useState<number | null>(null);
   const [pinSignal, setPinSignal] = useState(0);
   const [focusSignal, setFocusSignal] = useState(0);
   const [hasSent, setHasSent] = useState(false);
@@ -125,7 +124,6 @@ function ChatScreen({
         const { ai } = await api.status();
         if (cancelled) return;
         setEngine(ai.status);
-        if (ai.latencyMs != null) setStatusLatency(ai.latencyMs);
         if (ai.status !== "online" && tries < 12)
           timer = setTimeout(check, ai.status === "waking" ? 5000 : 15000);
       } catch {
@@ -360,7 +358,6 @@ function ChatScreen({
           <ChatHeader
             title={chat.activeSession?.title ?? null}
             activeId={activeId}
-            latencyMs={chat.lastLatency ?? statusLatency}
             sidebarOpen={sidebarOpen}
             isDesktop={isDesktop}
             onOpenSidebar={openSidebar}

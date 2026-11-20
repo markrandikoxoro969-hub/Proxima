@@ -6,6 +6,8 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb, type TestDb } from "@/test/test-db";
+import { resetImageProviderCache } from "@/lib/image";
+import { signImageId } from "@/lib/image/public-url";
 import { ctx, readSse, req } from "./helpers";
 
 const state = vi.hoisted(() => ({
@@ -39,6 +41,7 @@ const imagesRoute = await import("@/app/api/images/route");
 const imageRoute = await import("@/app/api/images/[id]/route");
 const generateRoute = await import("@/app/api/images/generate/route");
 const editRoute = await import("@/app/api/images/[id]/edit/route");
+const sourceRoute = await import("@/app/api/images/[id]/source/route");
 const chatRoute = await import("@/app/api/chat/route");
 
 // Route handlers take (request, context); these routes don't use the context.
@@ -53,6 +56,8 @@ const generate = (request: Request) => generateRoute.POST(request, {} as Empty);
 const edit = (request: Request, context: { params: Promise<{ id: string }> }) =>
   editRoute.POST(request, context);
 const chat = (request: Request) => chatRoute.POST(request, {} as Empty);
+const source = (request: Request, context: { params: Promise<{ id: string }> }) =>
+  sourceRoute.GET(request, context);
 
 const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
@@ -71,6 +76,8 @@ beforeAll(async () => {
   ).id;
   // Offline engine: deterministic, no network, no keys.
   process.env.IMAGE_PROVIDER = "mock";
+  // Image engines fetch the source through a signed link, so signing must work.
+  process.env.AUTH_SECRET = "test-secret-for-signed-image-links";
 });
 
 afterAll(async () => {
@@ -148,6 +155,49 @@ describe("POST /api/images (upload)", () => {
     const deleted = await remove(req(`/api/images/${image.id}`, { method: "DELETE" }), ctx(image.id));
     expect(deleted.status).toBe(204);
     expect((await serve(req(`/api/images/${image.id}`), ctx(image.id))).status).toBe(404);
+  });
+});
+
+describe("GET /api/images/:id/source (signed link for AI engines)", () => {
+  const signedPath = (id: string, expires = Date.now() + 60_000) =>
+    `/api/images/${id}/source?exp=${expires}&sig=${signImageId(id, expires)}`;
+
+  it("serves the picture to anyone holding a valid, unexpired signature", async () => {
+    const { image } = await (
+      await upload(req("/api/images", { method: "POST", body: { dataUrl: pngDataUrl } }))
+    ).json();
+
+    state.userId = otherUserId;
+    const signed = await source(req(signedPath(image.id)), ctx(image.id));
+    expect(signed.status).toBe(200);
+    expect(signed.headers.get("content-type")).toBe("image/png");
+    expect(signed.headers.get("cache-control")).toContain("private");
+    expect(signed.headers.get("x-robots-tag")).toContain("noindex");
+    expect(new Uint8Array(await signed.arrayBuffer()).length).toBeGreaterThan(50);
+  });
+
+  it("refuses a missing, wrong or expired signature", async () => {
+    const { image } = await (
+      await upload(req("/api/images", { method: "POST", body: { dataUrl: pngDataUrl } }))
+    ).json();
+
+    expect((await source(req(`/api/images/${image.id}/source`), ctx(image.id))).status).toBe(404);
+    expect(
+      (await source(req(`/api/images/${image.id}/source?exp=9999999999999&sig=nope`), ctx(image.id))).status,
+    ).toBe(404);
+    expect((await source(req(signedPath(image.id, Date.now() - 1000)), ctx(image.id))).status).toBe(404);
+  });
+
+  it("can't be used to read a different picture", async () => {
+    const first = await (
+      await upload(req("/api/images", { method: "POST", body: { dataUrl: pngDataUrl } }))
+    ).json();
+    const second = await (
+      await upload(req("/api/images", { method: "POST", body: { dataUrl: pngDataUrl } }))
+    ).json();
+    // Signature made for the first picture, pointed at the second one.
+    const stolen = signedPath(first.image.id).replace(first.image.id, second.image.id);
+    expect((await source(req(stolen), ctx(second.image.id))).status).toBe(404);
   });
 });
 
@@ -231,6 +281,58 @@ describe("POST /api/images/:id/edit", () => {
       ctx(image.id),
     );
     expect(response.status).toBe(404);
+  });
+});
+
+describe("editing through the free Pollinations engine", () => {
+  // Stands in for image.pollinations.ai: captures the request, answers a PNG.
+  const realFetch = globalThis.fetch;
+  let calls: URL[] = [];
+
+  beforeEach(() => {
+    calls = [];
+    process.env.IMAGE_PROVIDER = "pollinations";
+    process.env.NEXT_PUBLIC_SITE_URL = "https://proxima.test";
+    resetImageProviderCache();
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calls.push(new URL(String(input)));
+      const bytes = Uint8Array.from(Buffer.from(PNG_BASE64, "base64"));
+      return new Response(bytes, { headers: { "content-type": "image/png" } });
+    }) as typeof fetch;
+  });
+
+  afterAll(() => {
+    globalThis.fetch = realFetch;
+    process.env.IMAGE_PROVIDER = "mock";
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    resetImageProviderCache();
+  });
+
+  it("hands the engine a signed link to the picture, not the private route", async () => {
+    const { image } = await (
+      await upload(req("/api/images", { method: "POST", body: { dataUrl: pngDataUrl } }))
+    ).json();
+
+    const response = await edit(
+      req(`/api/images/${image.id}/edit`, { method: "POST", body: { prompt: "make it snowy" } }),
+      ctx(image.id),
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    // The chain reports every engine it could fall back to, in order.
+    expect(body.engine.id.startsWith("pollinations")).toBe(true);
+    expect(body.original).toBe(image.id);
+
+    expect(calls).toHaveLength(1);
+    const url = calls[0];
+    expect(url.searchParams.get("model")).toBe("kontext");
+    const source = new URL(url.searchParams.get("image")!);
+    expect(source.origin).toBe("https://proxima.test");
+    expect(source.pathname).toBe(`/api/images/${image.id}/source`);
+    // The link is signed and expires, so the engine can read it without a login.
+    expect(source.searchParams.get("sig")).toBeTruthy();
+    expect(Number(source.searchParams.get("exp"))).toBeGreaterThan(Date.now());
+    expect(url.searchParams.get("nologo")).toBe("true");
   });
 });
 

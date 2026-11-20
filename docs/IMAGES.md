@@ -22,17 +22,46 @@ account keeps its newest 120 pictures.
 
 Set `IMAGE_PROVIDER` on the server (or in `.env.local`):
 
-| Value            | Engine                          | Create | Edit | Key needed       |
-| ---------------- | ------------------------------- | :----: | :--: | ---------------- |
-| `auto` (default) | best available, with fallbacks  |   ✅   |  ✅  | —                |
-| `openai`         | OpenAI Images (`gpt-image-1`)   |   ✅   |  ✅  | `OPENAI_API_KEY` |
-| `nvidia`         | NVIDIA NIM / Stability SDXL     |   ✅   |  —   | `NVIDIA_API_KEY` |
-| `pollinations`   | Pollinations (free, no account) |   ✅   | ✅*  | —                |
-| `mock`           | Offline preview (SVG card)      |   ✅   |  ✅  | —                |
+| Value            | Engine                         | Create | Edit | Key needed       |
+| ---------------- | ------------------------------ | :----: | :--: | ---------------- |
+| `auto` (default) | best available, with fallbacks |   ✅   |  ✅  | —                |
+| `openai`         | OpenAI Images (`gpt-image-1`)  |   ✅   |  ✅  | `OPENAI_API_KEY` |
+| `nvidia`         | NVIDIA NIM / Stability SDXL    |   ✅   |  —   | `NVIDIA_API_KEY` |
+| `pollinations`   | Pollinations                   |   ✅   |  ✅  | free key (below) |
+| `mock`           | Offline preview (SVG card)     |   ✅   |  ✅  | —                |
 
-\* The free editor fetches the source picture from the internet, so it needs a
-public address: set `NEXT_PUBLIC_SITE_URL=https://your-site` (it doesn't work on
-`localhost`). OpenAI editing works anywhere.
+Pollinations needs no account at all, so the studio works on the first deploy.
+Two things only become true once you add a **free key** (no card,
+[enter.pollinations.ai](https://enter.pollinations.ai) → API key):
+
+|                     | No key (anonymous)               | With `POLLINATIONS_API_KEY`      |
+| ------------------- | -------------------------------- | -------------------------------- |
+| Watermark           | a small logo is always added     | gone (`nologo=true` is honoured) |
+| Editing (`kontext`) | throttled, often refused         | reliable                         |
+| Speed               | about 1 picture every 15 seconds | normal limits                    |
+
+The studio always says which engine answered, and repeats the watermark note
+under the picture, so nobody is surprised by a branded image.
+
+### How editing reaches your picture
+
+Image-to-image services fetch the source picture themselves, but
+`/api/images/:id` is owner-only — an engine can't log in. So before calling the
+engine the server signs a **temporary link**:
+
+```
+https://your-site/api/images/<id>/source?exp=<time>&sig=<hmac>
+```
+
+- signed with `AUTH_SECRET` (or `IMAGE_SIGNING_SECRET`), so it can't be pointed
+  at a different picture;
+- expires after **10 minutes**, then answers 404;
+- reveals nothing about the owner, and is marked `noindex, nofollow`.
+
+The address comes from `NEXT_PUBLIC_SITE_URL`, or from the request itself
+(`x-forwarded-host`) when that is unset, so a preview deployment works too. A
+`localhost` address can't be reached from the internet — editing then says so
+plainly instead of hanging.
 
 With `auto` the order is: **OpenAI → NVIDIA → Pollinations → offline preview**.
 If a key is wrong or a service is down, the next engine gets a turn, and the
@@ -50,9 +79,15 @@ OPENAI_IMAGE_MODEL="gpt-image-1"
 NVIDIA_API_KEY="nvapi-…"
 NVIDIA_IMAGE_MODEL="stabilityai/stable-diffusion-xl"
 
+# Pollinations: watermark-free + reliable editing (free, no card)
+POLLINATIONS_API_KEY="sk_…"
+POLLINATIONS_IMAGE_MODEL="flux"      # default
+POLLINATIONS_EDIT_MODEL="kontext"    # default
+
 # Optional
 IMAGE_PROVIDER="auto"
 IMAGE_TIMEOUT_MS="90000"
+IMAGE_SIGNING_SECRET=""              # defaults to AUTH_SECRET
 ```
 
 Keys are read on the server only, never logged, and never sent to the browser.

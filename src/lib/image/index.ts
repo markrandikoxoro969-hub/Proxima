@@ -5,8 +5,12 @@ import { createNvidiaImageProvider } from "./providers/nvidia";
 import { createOpenAiImageProvider } from "./providers/openai";
 import { createPollinationsImageProvider } from "./providers/pollinations";
 import {
+  imageWatermarkNote,
   nvidiaImageConfigured,
   openaiImageConfigured,
+  pollinationsApiKey,
+  pollinationsEditModel,
+  pollinationsImageModel,
   resolveImageSettings,
   type ConcreteImageProviderId,
 } from "./settings";
@@ -45,6 +49,10 @@ function cacheKey(): string {
     (process.env.OPENAI_IMAGE_MODEL ?? "").trim(),
     (process.env.NVIDIA_IMAGE_MODEL ?? "").trim(),
     (process.env.POLLINATIONS_IMAGE_URL ?? "").trim(),
+    pollinationsImageModel(),
+    pollinationsEditModel(),
+    // Only whether a key exists goes into the cache key — never the key itself.
+    pollinationsApiKey() ? "pollinations:key" : "pollinations:anon",
   ].join("|");
 }
 
@@ -95,5 +103,10 @@ export function resetImageProviderCache(): void {
 
 export { IMAGE_LIMITS, IMAGE_SIZES, IMAGE_STYLES, buildImagePrompt } from "./limits";
 export { ImageProviderError } from "./types";
-export { imageTimeoutMs, resolveImageSettings } from "./settings";
+export { imageTimeoutMs, imageWatermarkNote, resolveImageSettings } from "./settings";
+
+/** What the studio shows about the engine that answered (never a key). */
+export function imageEngineInfo(provider: ImageProvider) {
+  return { id: provider.id, label: provider.label, note: imageWatermarkNote() };
+}
 export type { GeneratedImage, ImageProvider } from "./types";

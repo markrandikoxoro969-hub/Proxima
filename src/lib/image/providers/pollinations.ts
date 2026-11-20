@@ -1,6 +1,11 @@
 import "server-only";
 import { sniffImageMime } from "../data-url";
-import { pollinationsUrl } from "../settings";
+import {
+  pollinationsApiKey,
+  pollinationsEditModel,
+  pollinationsImageModel,
+  pollinationsUrl,
+} from "../settings";
 import { readImageSize } from "../size";
 import {
   ImageProviderError,
@@ -11,23 +16,38 @@ import {
 } from "../types";
 
 /**
- * Pollinations — a free, keyless image service. It is the default so the
- * studio works the moment you deploy, without buying anything.
+ * Pollinations — the free image service that makes the studio work out of the
+ * box, with no account and no card.
  *
- *   GET https://image.pollinations.ai/prompt/<prompt>?width=…&height=…&nologo=true
- *   + &image=<public url> makes it an image-to-image edit.
+ *   keyless   GET https://image.pollinations.ai/prompt/<prompt>?width=…&nologo=true
+ *   keyed     GET https://gen.pollinations.ai/image/<prompt>?…   (+ Bearer key)
  *
- * Editing needs the source picture to be reachable from the internet, so the
- * route passes our own image URL (NEXT_PUBLIC_SITE_URL + /api/images/<id>).
- * On localhost that isn't possible — the studio then uses another engine.
+ * Why two endpoints:
+ *
+ *   `nologo=true` (no watermark) and image-to-image editing are only honoured
+ *   on the keyed endpoint. The anonymous legacy endpoint always brands the
+ *   picture and throttles to roughly one request every 15 seconds, so it is the
+ *   "works right now" tier, not the "production" tier. Drop a free key from
+ *   enter.pollinations.ai into POLLINATIONS_API_KEY and both improve with no
+ *   other change.
+ *
+ * Editing ("kontext") takes the source picture as a URL, not as bytes, so the
+ * caller passes an expiring signed link (see public-url.ts). That is why
+ * editing also works for pictures that are otherwise owner-only.
  */
 export type PollinationsOptions = {
   baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+  editModel?: string;
   fetchImpl?: typeof fetch;
 };
 
 export function createPollinationsImageProvider(options: PollinationsOptions = {}): ImageProvider {
-  const baseUrl = options.baseUrl ?? pollinationsUrl();
+  const baseUrl = (options.baseUrl ?? pollinationsUrl()).replace(/\/+$/, "");
+  const apiKey = (options.apiKey ?? pollinationsApiKey()).trim();
+  const model = (options.model ?? pollinationsImageModel()).trim();
+  const editModel = (options.editModel ?? pollinationsEditModel()).trim();
   const doFetch = options.fetchImpl ?? fetch;
 
   const request = async (url: string, requestSignal: AbortSignal): Promise<GeneratedImage> => {
@@ -36,14 +56,18 @@ export function createPollinationsImageProvider(options: PollinationsOptions = {
       response = await doFetch(url, {
         signal: requestSignal,
         cache: "no-store",
-        headers: { Accept: "image/*" },
+        headers: {
+          Accept: "image/*",
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        },
       });
     } catch (error) {
       if (requestSignal.aborted) {
         const reason = requestSignal.reason as { name?: string } | undefined;
-        throw reason?.name === "TimeoutError"
-          ? new ImageProviderError("Image service timed out", "timeout")
-          : new ImageProviderError("Request was cancelled", "aborted");
+        throw new ImageProviderError(
+          "Image service timed out",
+          reason?.name === "TimeoutError" ? "timeout" : "aborted",
+        );
       }
       throw new ImageProviderError(
         `Image service unreachable: ${(error as Error)?.message ?? "unknown error"}`,
@@ -52,9 +76,13 @@ export function createPollinationsImageProvider(options: PollinationsOptions = {
     }
 
     if (!response.ok) {
+      // 401/402 mean "this needs a key or credits", not "the service broke".
+      const needsKey = response.status === 401 || response.status === 402 || response.status === 403;
       throw new ImageProviderError(
-        `Image service responded with HTTP ${response.status}`,
-        "upstream",
+        needsKey
+          ? "The image service refused the request (key or credits needed)"
+          : `Image service responded with HTTP ${response.status}`,
+        needsKey ? "unsupported" : "upstream",
         response.status,
       );
     }
@@ -74,42 +102,39 @@ export function createPollinationsImageProvider(options: PollinationsOptions = {
     return { bytes, mime, ...size };
   };
 
-  const params = (width: number, height: number) =>
+  const common = (width: number, height: number) =>
     new URLSearchParams({
       width: String(Math.round(width)),
       height: String(Math.round(height)),
+      // Ask for a clean picture every time; the keyed endpoint honours it.
       nologo: "true",
+      // Keep it out of the public feed.
       private: "true",
       seed: String(Math.floor(Math.random() * 1_000_000)),
-      model: "flux",
     });
 
   return {
     id: "pollinations",
-    label: "Pollinations (free)",
+    label: apiKey ? "Pollinations" : "Pollinations (free)",
     supportsEdit: true,
 
     async generate({ prompt, width, height, signal }: ImageGenerationRequest) {
-      return request(`${baseUrl}/${encodeURIComponent(prompt)}?${params(width, height)}`, signal);
+      const params = common(width, height);
+      params.set("model", model);
+      return request(`${baseUrl}/${encodeURIComponent(prompt)}?${params}`, signal);
     },
 
     async edit({ prompt, width, height, sourceUrl, signal }: ImageEditRequest) {
       if (!sourceUrl) {
         throw new ImageProviderError(
-          "Editing a picture needs a public image address (set NEXT_PUBLIC_SITE_URL).",
+          "Editing needs a public address for the picture. Set NEXT_PUBLIC_SITE_URL to your live site address (docs/IMAGES.md).",
           "unsupported",
         );
       }
-      const search = new URLSearchParams({
-        width: String(Math.round(width)),
-        height: String(Math.round(height)),
-        nologo: "true",
-        private: "true",
-        seed: String(Math.floor(Math.random() * 1_000_000)),
-        model: "kontext",
-        image: sourceUrl,
-      });
-      return request(`${baseUrl}/${encodeURIComponent(prompt)}?${search}`, signal);
+      const params = common(width, height);
+      params.set("model", editModel);
+      params.set("image", sourceUrl);
+      return request(`${baseUrl}/${encodeURIComponent(prompt)}?${params}`, signal);
     },
   };
 }

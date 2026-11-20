@@ -21,6 +21,10 @@ export const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-1";
 export const DEFAULT_NVIDIA_IMAGE_MODEL = "stabilityai/stable-diffusion-xl";
 export const DEFAULT_NVIDIA_IMAGE_URL = "https://ai.api.nvidia.com/v1/genai";
 export const DEFAULT_POLLINATIONS_URL = "https://image.pollinations.ai/prompt";
+/** The modern, keyed endpoint: honours `nologo` (no watermark) and can edit. */
+export const DEFAULT_POLLINATIONS_KEYED_URL = "https://gen.pollinations.ai/image";
+export const DEFAULT_POLLINATIONS_MODEL = "flux";
+export const DEFAULT_POLLINATIONS_EDIT_MODEL = "kontext";
 
 export type ImageSettings = {
   /** What IMAGE_PROVIDER said, after forgiving common mistakes. */
@@ -71,5 +75,41 @@ export const nvidiaImageModel = (env: Record<string, string | undefined> = proce
 export const nvidiaImageBaseUrl = (env: Record<string, string | undefined> = process.env) =>
   ((env.NVIDIA_IMAGE_URL ?? "").trim() || DEFAULT_NVIDIA_IMAGE_URL).replace(/\/$/, "");
 
-export const pollinationsUrl = (env: Record<string, string | undefined> = process.env) =>
-  ((env.POLLINATIONS_IMAGE_URL ?? "").trim() || DEFAULT_POLLINATIONS_URL).replace(/\/$/, "");
+/**
+ * Optional Pollinations key (free account at enter.pollinations.ai).
+ *
+ * With a key the request goes to gen.pollinations.ai, which respects
+ * `nologo=true` (no watermark) and lets the "kontext" model edit pictures.
+ * Without one we use the keyless legacy endpoint, which works immediately but
+ * brands the result with a small watermark and throttles anonymous requests.
+ */
+export const pollinationsApiKey = (env: Record<string, string | undefined> = process.env) =>
+  ((env.POLLINATIONS_API_KEY ?? env.POLLINATIONS_TOKEN ?? "") as string).trim();
+
+export const pollinationsConfigured = (env: Record<string, string | undefined> = process.env) =>
+  Boolean(pollinationsApiKey(env));
+
+export const pollinationsUrl = (env: Record<string, string | undefined> = process.env) => {
+  const explicit = (env.POLLINATIONS_IMAGE_URL ?? "").trim().replace(/\/$/, "");
+  if (explicit) return explicit;
+  return pollinationsConfigured(env) ? DEFAULT_POLLINATIONS_KEYED_URL : DEFAULT_POLLINATIONS_URL;
+};
+
+export const pollinationsImageModel = (env: Record<string, string | undefined> = process.env) =>
+  (env.POLLINATIONS_IMAGE_MODEL ?? "").trim() || DEFAULT_POLLINATIONS_MODEL;
+
+export const pollinationsEditModel = (env: Record<string, string | undefined> = process.env) =>
+  (env.POLLINATIONS_EDIT_MODEL ?? "").trim() || DEFAULT_POLLINATIONS_EDIT_MODEL;
+
+/**
+ * A note the studio shows under a picture, when there is something honest to
+ * say about it. Right now: the free keyless tier brands images with a small
+ * watermark, which a free key removes.
+ */
+export function imageWatermarkNote(env: Record<string, string | undefined> = process.env): string | null {
+  const engine = resolveImageSettings(env).id;
+  if (engine === "mock") return null;
+  if (openaiImageConfigured(env) || nvidiaImageConfigured(env)) return null;
+  if (pollinationsConfigured(env)) return null;
+  return "The free image service adds a small watermark and is limited to a few edits a minute. Add a free Pollinations key (POLLINATIONS_API_KEY) to remove the watermark and make editing reliable.";
+}

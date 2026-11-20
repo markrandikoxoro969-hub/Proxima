@@ -9,7 +9,6 @@ import { site } from "@/lib/site";
 export const ChatHeader = memo(function ChatHeader({
   title,
   activeId,
-  latencyMs,
   sidebarOpen,
   isDesktop,
   onOpenSidebar,
@@ -17,7 +16,6 @@ export const ChatHeader = memo(function ChatHeader({
 }: {
   title: string | null;
   activeId: string | null;
-  latencyMs: number | null;
   sidebarOpen: boolean;
   isDesktop: boolean;
   onOpenSidebar: () => void;
@@ -53,10 +51,6 @@ export const ChatHeader = memo(function ChatHeader({
             </span>
           )}
         </h1>
-        <p className="font-mono text-[10px] font-bold tracking-[0.15em] text-subtle uppercase">
-          {site.version} {"//"} {latencyMs == null ? "— ms" : `${latencyMs} ms`}
-          <span className="sr-only"> engine response time</span>
-        </p>
       </div>
 
       <button

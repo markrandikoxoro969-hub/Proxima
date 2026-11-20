@@ -148,14 +148,15 @@ Pictures are stored in the database (`ImageAsset`) and served by id, so a chat
 message only carries a reference — never megabytes of base64. Everything below
 is **signed in only** and rate limited to **6 AI pictures per minute**.
 
-| Method & path               | What it does                                                                 |
-| --------------------------- | ---------------------------------------------------------------------------- |
-| `GET /api/images`           | Your newest pictures (max 24): `{ images: [{ id, url, width, height, … }] }` |
-| `POST /api/images`          | Upload one: `{ "dataUrl": "data:image/png;base64,…", "name": "photo.png" }`  |
-| `GET /api/images/:id`       | The bytes. Owner only; other people get `404`. Long-lived private cache.     |
-| `DELETE /api/images/:id`    | Delete one of yours → `204`                                                  |
-| `POST /api/images/generate` | `{ "prompt": "…", "width"?, "height"?, "style"? }` → a new picture           |
-| `POST /api/images/:id/edit` | `{ "prompt": "make it snowy", "strength"?: 0.55 }` → an edited copy          |
+| Method & path                            | What it does                                                                 |
+| ---------------------------------------- | ---------------------------------------------------------------------------- |
+| `GET /api/images`                        | Your newest pictures (max 24): `{ images: [{ id, url, width, height, … }] }` |
+| `POST /api/images`                       | Upload one: `{ "dataUrl": "data:image/png;base64,…", "name": "photo.png" }`  |
+| `GET /api/images/:id`                    | The bytes. Owner only; other people get `404`. Long-lived private cache.     |
+| `DELETE /api/images/:id`                 | Delete one of yours → `204`                                                  |
+| `GET /api/images/:id/source?exp=…&sig=…` | Temporary signed link (10 min) so an AI engine can fetch the picture.        |
+| `POST /api/images/generate`              | `{ "prompt": "…", "width"?, "height"?, "style"? }` → a new picture           |
+| `POST /api/images/:id/edit`              | `{ "prompt": "make it snowy", "strength"?: 0.55 }` → an edited copy          |
 
 Uploads accept **PNG, JPEG and WebP** only (SVG can run scripts, so it's refused),
 are re-checked by their first bytes, and must decode to **4 MB or less**. The
@@ -174,10 +175,18 @@ usually 100–400 KB.
     "source": "generated",
     "prompt": "a red boat. photorealistic, …"
   },
-  "engine": { "id": "pollinations", "label": "Pollinations (free)" },
+  "engine": {
+    "id": "pollinations",
+    "label": "Pollinations (free)",
+    "note": "The free image service adds a small watermark … add POLLINATIONS_API_KEY …"
+  },
   "offline": false
 }
 ```
+
+`engine.note` is `null` when there is nothing worth saying; the studio prints it
+under the picture. `GET /api/images` returns the same `engine` object, so the
+note can be shown before the first picture is made.
 
 `offline: true` means the built-in preview drew a placeholder (no key configured):
 the studio says so instead of pretending it's real art. See
