@@ -13,8 +13,12 @@ const GOOD = {
   DATABASE_URL: "postgresql://u:p@ep-x-pooler.neon.tech/db",
 };
 
-function googleReplies(error: string) {
-  return vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ error }, { status: 400 }));
+/** Fake network: Google answers with `error`, the AI answers with `ai` (a reply or a status code). */
+function googleReplies(error: string, ai: string | number = "ok") {
+  return vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    if (String(input).includes("oauth2.googleapis.com")) return Response.json({ error }, { status: 400 });
+    return typeof ai === "number" ? new Response("down", { status: ai }) : Response.json({ reply: ai });
+  });
 }
 const byName = (checks: { name: string; ok: boolean; detail: string }[], name: string) =>
   checks.find((check) => check.name === name)!;
@@ -33,7 +37,8 @@ describe("runSetupCheck", () => {
     const fetchSpy = googleReplies("invalid_grant");
     const result = await runSetupCheck("https://proxima.vercel.app");
     expect(result.ok).toBe(true);
-    const body = new URLSearchParams(String(fetchSpy.mock.calls[0]![1]!.body));
+    const googleCall = fetchSpy.mock.calls.find(([url]) => String(url).includes("googleapis"))!;
+    const body = new URLSearchParams(String(googleCall[1]!.body));
     expect(body.get("redirect_uri")).toBe("https://proxima.vercel.app/api/auth/callback/google");
     expect(byName(result.checks, "Google redirect URI to add").detail).toContain(
       "https://proxima.vercel.app/api/auth/callback/google",
@@ -65,5 +70,29 @@ describe("runSetupCheck", () => {
     expect(byName(result.checks, "AUTH_SECRET").ok).toBe(false);
     expect(byName(result.checks, "AUTH_GOOGLE_SECRET").ok).toBe(false);
     expect(result.checks.some((check) => check.name === "Google accepts the ID + secret")).toBe(false);
+  });
+
+  it("tests the AI with a real message, even when AI_PROVIDER holds the web address", async () => {
+    vi.stubEnv("AI_PROVIDER", "https://sujancoreapi.onrender.com/chat");
+    const fetchSpy = googleReplies("invalid_grant", "ok");
+    const ai = byName((await runSetupCheck("https://a.b")).checks, "AI engine");
+    expect(ai.ok).toBe(true);
+    expect(ai.detail).toMatch(/Replied in .* Tip: AI_PROVIDER contains a web address/);
+    const aiCall = fetchSpy.mock.calls.find(
+      ([url]) => String(url) === "https://sujancoreapi.onrender.com/chat",
+    );
+    expect(aiCall).toBeDefined();
+  });
+
+  it("explains a broken AI server and the fake mock AI", async () => {
+    googleReplies("invalid_grant", 500);
+    const down = byName((await runSetupCheck("https://a.b")).checks, "AI engine");
+    expect(down.ok).toBe(false);
+    expect(down.detail).toContain("HTTP 500");
+
+    vi.stubEnv("AI_PROVIDER", "mock");
+    const mock = byName((await runSetupCheck("https://a.b")).checks, "AI engine");
+    expect(mock.ok).toBe(false);
+    expect(mock.detail).toContain("FAKE");
   });
 });

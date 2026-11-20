@@ -10,7 +10,9 @@ import { AiProviderError, type AiProvider, type AiRequest } from "../types";
  * Render's free plan sleeps when idle; the first request can take ~30–60s.
  * The chat route shows a "waking up" message during that time.
  */
-export const DEFAULT_SUJAN_CORE_URL = "https://sujancoreapi.onrender.com/chat";
+import { DEFAULT_SUJAN_CORE_URL } from "../settings";
+
+export { DEFAULT_SUJAN_CORE_URL };
 
 const replySchema = z.object({ reply: z.string() });
 const RETRYABLE_STATUS = new Set([502, 503, 504]);
@@ -24,7 +26,8 @@ type Options = {
 
 export function createSujanCoreProvider(options: Options = {}): AiProvider {
   const url = options.url ?? (process.env.AI_API_URL || DEFAULT_SUJAN_CORE_URL);
-  const fetchImpl = options.fetchImpl ?? fetch;
+  // Looked up on every call (not stored once), so tests and wrappers can swap fetch.
+  const fetchImpl: typeof fetch = (...args) => (options.fetchImpl ?? globalThis.fetch)(...args);
   const retryDelayMs = options.retryDelayMs ?? 1500;
 
   async function callOnce({ message, sessionId, signal }: AiRequest): Promise<Response> {

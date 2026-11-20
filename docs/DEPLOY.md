@@ -44,7 +44,7 @@ personal, non-commercial projects; switch to Pro if you start making money from 
    | `AUTH_SECRET`        | a **new** random string. Run the command below and paste the result. |
    | `AUTH_GOOGLE_ID`     | copy from `.env.local`                                               |
    | `AUTH_GOOGLE_SECRET` | copy from `.env.local`                                               |
-   | `AI_PROVIDER`        | `sujan-core`                                                         |
+   | `AI_PROVIDER`        | `sujan-core` (exactly this word, **not** the web address)            |
 
    New secret for production (run in your project folder):
 
@@ -158,5 +158,6 @@ Open your address and go through this list:
 | Login page: _“Access was denied…”_              | The app is still in Testing mode → Step 3 (**Publish app**), or add the Gmail as a test user.                                                                                                                                                                                                                                              |
 | `/app` shows _“Couldn't load PROXIMA”_          | Database problem: check `DATABASE_URL` on Vercel. In Neon, make sure the project isn't suspended.                                                                                                                                                                                                                                          |
 | Chat says the engine is waking up / timed out   | The free Render AI server was asleep. Wait a minute and press **Try again**.                                                                                                                                                                                                                                                               |
+| Chat never answers / AI errors                  | Open `https://YOUR-ADDRESS/api/status?setup=1` → **AI engine** sends one real test message and says what's wrong. `AI_PROVIDER` must be the **name** `sujan-core` (not a web address) or simply deleted. The web address, if you want to set it, goes in `AI_API_URL`. Then **Redeploy**.                                                  |
 | Build log: `P1001: Can't reach database server` | `DIRECT_URL` is wrong or missing on Vercel (copy it again from Neon → **Connect**, with pooling **off**).                                                                                                                                                                                                                                  |
 | Share preview shows an old picture              | Facebook caches previews: open https://developers.facebook.com/tools/debug → paste your address → **Scrape Again**.                                                                                                                                                                                                                        |
