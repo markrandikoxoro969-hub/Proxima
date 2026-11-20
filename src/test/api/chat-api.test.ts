@@ -433,3 +433,61 @@ describe("/api/me", () => {
     expect(bad.status).toBe(400);
   });
 });
+
+describe("DELETE /api/me (delete account)", () => {
+  it("needs login and the word DELETE", async () => {
+    const guest = await me.DELETE(
+      req("/api/me", { method: "DELETE", body: { confirm: "DELETE" } }),
+      undefined,
+    );
+    expect(guest.status).toBe(401);
+
+    state.userId = alice;
+    const noConfirm = await me.DELETE(
+      req("/api/me", { method: "DELETE", body: { confirm: "yes" } }),
+      undefined,
+    );
+    expect(noConfirm.status).toBe(400);
+    expect(await t.prisma.user.count({ where: { id: alice } })).toBe(1);
+  });
+
+  it("refuses requests from other websites", async () => {
+    state.userId = alice;
+    const res = await me.DELETE(
+      req("/api/me", {
+        method: "DELETE",
+        body: { confirm: "DELETE" },
+        headers: { origin: "https://evil.example" },
+      }),
+      undefined,
+    );
+    expect(res.status).toBe(403);
+    expect(await t.prisma.user.count({ where: { id: alice } })).toBe(1);
+  });
+
+  it("deletes the user with all their chats and messages, and nobody else's", async () => {
+    const carol = await t.prisma.user.create({
+      data: {
+        email: "carol@example.com",
+        accounts: { create: { type: "oidc", provider: "google", providerAccountId: "carol-google" } },
+        conversations: {
+          create: { title: "Carol's chat", messages: { create: { role: "user", content: "hi" } } },
+        },
+      },
+    });
+    const bobChatsBefore = await t.prisma.conversation.count({ where: { userId: bob } });
+
+    state.userId = carol.id;
+    const res = await me.DELETE(req("/api/me", { method: "DELETE", body: { confirm: "DELETE" } }), undefined);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ deleted: true });
+
+    expect(await t.prisma.user.count({ where: { id: carol.id } })).toBe(0);
+    expect(await t.prisma.account.count({ where: { providerAccountId: "carol-google" } })).toBe(0);
+    expect(await t.prisma.conversation.count({ where: { userId: carol.id } })).toBe(0);
+    expect(
+      await t.prisma.message.count({ where: { content: "hi", conversation: { userId: carol.id } } }),
+    ).toBe(0);
+    expect(await t.prisma.conversation.count({ where: { userId: bob } })).toBe(bobChatsBefore);
+  });
+});

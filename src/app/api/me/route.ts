@@ -3,12 +3,13 @@ import { assertSameOrigin } from "@/lib/api/security";
 import { requireApiUserId } from "@/lib/auth/api";
 import { db } from "@/lib/db";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
-import { profileUpdateSchema } from "@/lib/validation";
+import { accountDeleteSchema, profileUpdateSchema } from "@/lib/validation";
 
 /**
  * /api/me — your PROXIMA profile (replaces the old localStorage "user" object).
  *   GET    { displayName, age, theme, particles, onboarded, … }
  *   PATCH  { displayName?, age?, theme?, particles?, completeOnboarding? }
+ *   DELETE { confirm: "DELETE" }  → deletes your account and ALL your chats, forever
  */
 const profileSelect = {
   id: true,
@@ -43,4 +44,16 @@ export const PATCH = withApi(async (request: Request) => {
     select: profileSelect,
   });
   return json({ profile: toProfile(user) });
+});
+
+export const DELETE = withApi(async (request: Request) => {
+  assertSameOrigin(request);
+  const userId = await requireApiUserId();
+  await enforceRateLimit(`api:user:${userId}`, RATE_LIMITS.api);
+  accountDeleteSchema.parse(await readJson(request));
+
+  // The database removes everything that belongs to the user with it
+  // (Google link, chats, messages) — see "onDelete: Cascade" in prisma/schema.prisma.
+  await db.user.delete({ where: { id: userId } });
+  return json({ deleted: true });
 });

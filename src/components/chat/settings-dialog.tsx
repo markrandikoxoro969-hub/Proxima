@@ -1,6 +1,7 @@
 "use client";
 
 import { SignOut, Trash } from "@phosphor-icons/react";
+import Link from "next/link";
 import { useId, useState } from "react";
 import { signOutAction } from "@/app/app/actions";
 import { Button } from "@/components/ui/button";
@@ -8,10 +9,8 @@ import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { useTheme } from "@/components/theme/theme-provider";
 import { api } from "@/lib/chat/client/api";
 import type { Profile } from "@/lib/chat/types";
-import { cn } from "@/lib/cn";
+import { NameAgeFields, SwitchRow, ThemeChoice, validateProfile } from "@/components/settings/fields";
 import type { ThemePreference } from "@/lib/theme";
-
-export const NAME_MAX = 20;
 
 /**
  * Settings: name, age, theme, particles, clear history, sign out.
@@ -79,10 +78,7 @@ function SettingsForm({
 
   const save = async () => {
     const ageNumber = Number(age);
-    const nextErrors: typeof errors = {};
-    if (!name.trim()) nextErrors.name = "Please enter your name.";
-    if (!Number.isInteger(ageNumber) || ageNumber < 1 || ageNumber > 120)
-      nextErrors.age = "Enter an age from 1 to 120.";
+    const nextErrors = validateProfile(name, age);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
@@ -114,86 +110,23 @@ function SettingsForm({
       }}
       className="flex flex-col gap-5"
     >
-      <div className="grid grid-cols-[1fr_6rem] gap-3">
-        <Field id={ids.name} label="Your name" error={errors.name}>
-          <input
-            id={ids.name}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={NAME_MAX}
-            autoComplete="given-name"
-            aria-invalid={!!errors.name || undefined}
-            aria-describedby={errors.name ? `${ids.name}-error` : undefined}
-            className="input"
-          />
-        </Field>
-        <Field id={ids.age} label="Age" error={errors.age}>
-          <input
-            id={ids.age}
-            value={age}
-            onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
-            inputMode="numeric"
-            aria-invalid={!!errors.age || undefined}
-            aria-describedby={errors.age ? `${ids.age}-error` : undefined}
-            className="input"
-          />
-        </Field>
-      </div>
+      <NameAgeFields ids={ids} name={name} age={age} errors={errors} onName={setName} onAge={setAge} />
 
-      <fieldset>
-        <legend className="mb-2 text-xs font-extrabold tracking-[0.2em] text-muted uppercase">Theme</legend>
-        <div className="grid grid-cols-3 gap-1 rounded-2xl border border-line bg-surface-hover p-1">
-          {(["dark", "light", "system"] as const).map((option) => (
-            <label
-              key={option}
-              className={cn(
-                "flex min-h-11 cursor-pointer items-center justify-center rounded-xl text-sm font-bold capitalize transition-[background-color,color] duration-200",
-                "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-fg",
-                theme === option ? "bg-inverse text-on-inverse" : "text-muted hover:text-fg",
-              )}
-            >
-              <input
-                type="radio"
-                name="theme"
-                value={option}
-                checked={theme === option}
-                onChange={() => {
-                  setTheme(option);
-                  setPreference(option); // preview immediately
-                }}
-                className="sr-only"
-              />
-              {option}
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <ThemeChoice
+        value={theme}
+        onChange={(option) => {
+          setTheme(option);
+          setPreference(option); // preview immediately
+        }}
+      />
 
-      <div className="flex items-center justify-between gap-4 rounded-2xl border border-line px-4 py-3">
-        <label htmlFor={ids.particles} className="text-sm">
-          <span className="block font-bold">Background particles</span>
-          <span className="block text-xs text-muted">Turn off to save battery.</span>
-        </label>
-        <button
-          id={ids.particles}
-          type="button"
-          role="switch"
-          aria-checked={particles}
-          onClick={() => setParticles((v) => !v)}
-          className={cn(
-            "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border border-line transition-colors duration-300",
-            particles ? "bg-inverse" : "bg-surface-hover",
-          )}
-        >
-          <span
-            aria-hidden
-            className={cn(
-              "inline-block size-5 rounded-full shadow transition-transform duration-300 ease-premium",
-              particles ? "translate-x-6 bg-on-inverse" : "translate-x-1 bg-fg/60",
-            )}
-          />
-        </button>
-      </div>
+      <SwitchRow
+        id={ids.particles}
+        title="Background particles"
+        hint="Turn off to save battery."
+        checked={particles}
+        onChange={setParticles}
+      />
 
       <Button type="submit" size="lg" disabled={saving}>
         {saving ? "Saving…" : "Save config"}
@@ -209,8 +142,11 @@ function SettingsForm({
       </div>
 
       <p className="text-center text-[11px] text-subtle">
-        Signed in as {profile.email} · Shortcuts: <kbd className="font-mono">/</kbd> focus input ·{" "}
-        <kbd className="font-mono">Ctrl/Cmd Shift O</kbd> new chat
+        Signed in as {profile.email} ·{" "}
+        <Link href="/settings" className="font-bold text-muted underline underline-offset-2 hover:text-fg">
+          All settings
+        </Link>{" "}
+        (download your data, delete account)
       </p>
 
       <ConfirmDialog
@@ -229,31 +165,5 @@ function SettingsForm({
         }}
       />
     </form>
-  );
-}
-
-function Field({
-  id,
-  label,
-  error,
-  children,
-}: {
-  id: string;
-  label: string;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-xs font-extrabold tracking-[0.2em] text-muted uppercase">
-        {label}
-      </label>
-      {children}
-      {error && (
-        <p id={`${id}-error`} className="text-xs font-semibold text-red-500">
-          {error}
-        </p>
-      )}
-    </div>
   );
 }

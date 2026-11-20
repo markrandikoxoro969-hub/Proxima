@@ -57,6 +57,8 @@ export const api = {
     }),
   deleteSession: (id: string) =>
     request<void>(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  deleteAccount: () =>
+    request<{ deleted: true }>("/api/me", { method: "DELETE", body: JSON.stringify({ confirm: "DELETE" }) }),
   clearAll: () => request<{ deleted: number }>(`/api/sessions?confirm=all`, { method: "DELETE" }),
   updateProfile: (
     patch: Partial<Pick<Profile, "displayName" | "age" | "theme" | "particles">> & {

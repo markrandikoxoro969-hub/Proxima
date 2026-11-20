@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Faq } from "@/components/landing/faq";
 import { Hero } from "@/components/landing/hero";
 import { HowItWorks } from "@/components/landing/how-it-works";
@@ -8,6 +9,22 @@ import { SiteFooter } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { Skills } from "@/components/landing/skills";
 import { Slides } from "@/components/landing/slides";
+import { site } from "@/lib/site";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
+
+/** Tells Google what PROXIMA is (structured data). */
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: site.name,
+  alternateName: site.shortName,
+  description: site.description,
+  url: site.url,
+  applicationCategory: "ProductivityApplication",
+  operatingSystem: "Any (web browser)",
+  author: { "@type": "Person", name: site.developer, url: site.links.facebook },
+};
 
 /**
  * The PROXIMA landing page.
@@ -17,6 +34,11 @@ import { Slides } from "@/components/landing/slides";
 export default function Home() {
   return (
     <div className="relative overflow-x-clip pr-safe pl-safe">
+      <script
+        type="application/ld+json"
+        // Safe: our own constant data; "<" is escaped so it can't close the tag.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
+      />
       <SiteHeader />
       <main id="main">
         <Hero />

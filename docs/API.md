@@ -97,10 +97,11 @@ event: error    data: {"code":"timeout","message":"The PROXIMA engine took too l
 
 ## Profile and settings
 
-| Method & path   | What it does                                                                                                                     |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/me`   | `{ profile: { displayName, age, theme, particles, onboarded, email, image, … } }`                                                |
-| `PATCH /api/me` | Any of `{ displayName (1–40), age (1–120), theme: "dark"\|"light"\|"system", particles: true\|false, completeOnboarding: true }` |
+| Method & path    | What it does                                                                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/me`    | `{ profile: { displayName, age, theme, particles, onboarded, email, image, … } }`                                                                |
+| `PATCH /api/me`  | Any of `{ displayName (1–40), age (1–120), theme: "dark"\|"light"\|"system", particles: true\|false, completeOnboarding: true }`                 |
+| `DELETE /api/me` | Body `{ "confirm": "DELETE" }` → deletes the account **and all its chats** forever → `{ deleted: true }`. Used by **Settings → Delete account**. |
 
 ## Engine status
 

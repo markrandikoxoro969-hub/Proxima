@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { site } from "@/lib/site";
 import { THEME_COLORS, themeInitScript } from "@/lib/theme";
@@ -8,11 +9,28 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: {
-    default: `${site.name} — ${site.tagline}`,
+    default: `${site.name}: ${site.tagline}`,
     template: `%s · ${site.name}`,
   },
   description: site.description,
   applicationName: site.name,
+  keywords: ["AI assistant", "AI chat", "coding help", "learning", "writing", "brainstorming", site.name],
+  authors: [{ name: site.developer, url: site.links.facebook }],
+  creator: site.developer,
+  // The share picture comes from src/app/opengraph-image.tsx automatically.
+  openGraph: {
+    type: "website",
+    siteName: site.name,
+    title: `${site.name}: ${site.tagline}`,
+    description: site.description,
+    url: "/",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${site.name}: ${site.tagline}`,
+    description: site.description,
+  },
   appleWebApp: { capable: true, title: site.shortName, statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },
 };
@@ -51,6 +69,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           Skip to content
         </a>
         <ThemeProvider>{children}</ThemeProvider>
+        <RegisterServiceWorker />
       </body>
     </html>
   );

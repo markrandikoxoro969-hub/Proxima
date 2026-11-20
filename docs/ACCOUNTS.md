@@ -73,8 +73,8 @@ wrap values in double quotes `"…"` if they contain special characters like `&`
    - Tick **I agree…** → **Continue** → **Create**.
 4. **Allow yourself to log in while testing:** in the left menu click **Audience** →
    under **Test users** click **+ Add users** → type your Gmail → **Save**.
-   _(While the app is in "Testing" mode, only test users can sign in. In Phase 6 we'll click
-   **Publish app** so anyone can. Basic login (name, email, photo) needs no Google review.)_
+   _(While the app is in "Testing" mode, only test users can sign in. After deploying you'll click
+   **Publish app** so anyone can (docs/DEPLOY.md → Step 3). Basic login (name, email, photo) needs no Google review.)_
 5. **Create the login keys:** left menu → **Clients** → **+ Create client**:
    - **Application type:** **Web application**
    - **Name:** `Proxima Web`
@@ -129,14 +129,16 @@ you land on `/app` and see your name and photo. 🎉
 | Google page: **Error 400: redirect_uri_mismatch**                   | The redirect URI in Google Cloud must be exactly `http://localhost:3000/api/auth/callback/google`. Open the site at `http://localhost:3000` (not `127.0.0.1`). |
 | PROXIMA login page: _“Access was denied…”_                          | Add your Gmail under **Audience → Test users**.                                                                                                                |
 | PROXIMA login page: _“Sign-in isn't set up correctly…”_             | A value in `.env.local` is wrong/missing → run `npm run env:check`, then restart `npm run dev`.                                                                |
-| Google page: **Access blocked: app has not completed verification** | You're not a test user yet (see above), or publish the app (Phase 6).                                                                                          |
+| Google page: **Access blocked: app has not completed verification** | You're not a test user yet (see above), or publish the app (docs/DEPLOY.md → Step 3).                                                                          |
 
 ---
 
-## C. Vercel (hosting) — Phase 6
+## C. Vercel (hosting)
 
-Instructions arrive in Phase 6, together with the production Google redirect URL
-(`https://YOUR-SITE.vercel.app/api/auth/callback/google`).
+Click-by-click guide: **[docs/DEPLOY.md](./DEPLOY.md)**. It covers creating the project, the environment
+variables, the production Google redirect URL
+(`https://YOUR-SITE.vercel.app/api/auth/callback/google`), publishing the Google app so everyone can
+sign in, and your own domain.
 
 ---
 

@@ -57,6 +57,11 @@ const title = z
 export const createSessionSchema = z.object({ title: title.optional() });
 export const renameSessionSchema = z.object({ title });
 
+/** Deleting your account needs the word DELETE typed in, so it can't happen by accident. */
+export const accountDeleteSchema = z.object({
+  confirm: z.literal("DELETE", { error: "Type DELETE to confirm." }),
+});
+
 export const profileUpdateSchema = z
   .object({
     displayName: z

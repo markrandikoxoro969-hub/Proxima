@@ -1,12 +1,12 @@
 "use client";
 
-import { ArrowRight, Planet, WarningCircle } from "@phosphor-icons/react";
+import { ArrowRight, Check, Planet, WarningCircle } from "@phosphor-icons/react";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/chat/client/api";
 import type { Profile } from "@/lib/chat/types";
-import { NAME_MAX } from "./settings-dialog";
+import { NAME_MAX } from "@/components/settings/fields";
 
 const WORD = "Proxima";
 const TYPE_MS = 90;
@@ -245,7 +245,11 @@ function Boot({ name, age, onDone }: { name: string; age: number; onDone: (profi
             className={i <= line ? "animate-blur-in text-fg" : "opacity-0"}
             aria-hidden={i > line}
           >
-            {i < line ? "✓ " : i === line ? "› " : ""}
+            {i < line ? (
+              <Check weight="bold" className="mr-1.5 inline size-3.5 align-[-2px]" aria-hidden />
+            ) : i === line ? (
+              "› "
+            ) : null}
             {text}
           </li>
         ))}

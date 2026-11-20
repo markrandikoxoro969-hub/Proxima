@@ -4,7 +4,23 @@ A premium, full-stack AI assistant website: cinematic landing page + chat app.
 Built with **Next.js 16 (App Router) · TypeScript · Tailwind CSS v4**, with Postgres (Neon) + Prisma,
 Google login (Auth.js), Framer Motion, and server-side streaming from the PROXIMA Core API.
 
-> 🚧 **Status: Phase 5 of 6 complete (landing page + motion).** See [Build progress](#build-progress).
+> ✅ **Status: all 6 phases complete.** Next step: put it online → **[docs/DEPLOY.md](docs/DEPLOY.md)**,
+> then test on your phone → **[docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md)**.
+
+**What's inside:** cinematic landing page with a live demo · `/app` chat (streaming replies,
+markdown + code copy, voice input, file attach, export, dark/light) · `/settings` (profile,
+download/delete data, delete account) · Privacy & Terms · 404 · installable phone app with an
+offline page · Google login · Postgres storage · rate limits · security headers · SEO + share image.
+
+### Guides
+
+| Guide                                              | What it's for                                         |
+| -------------------------------------------------- | ----------------------------------------------------- |
+| [docs/ACCOUNTS.md](docs/ACCOUNTS.md)               | Neon database + Google login keys, click by click     |
+| [docs/DATABASE.md](docs/DATABASE.md)               | Database commands and troubleshooting                 |
+| [docs/API.md](docs/API.md)                         | Every API endpoint, the chat stream, switching the AI |
+| [docs/DEPLOY.md](docs/DEPLOY.md)                   | Put the site online with Vercel (+ your own domain)   |
+| [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) | Final test on a real phone                            |
 
 ---
 
@@ -85,8 +101,8 @@ npm run dev:phone
 The terminal prints a **Network** address. Find your computer's IP:
 macOS → _System Settings → Wi-Fi → Details → IP address_; Windows → run `ipconfig` → _IPv4 Address_.
 On your phone open `http://YOUR-IP:3000` (for example `http://192.168.1.5:3000`).
-Google login can't work on a Wi-Fi address (Google only allows `localhost` or `https://` sites) —
-test login on your phone after deploying to Vercel in Phase 6.
+Google login can't work on a Wi-Fi address (Google only allows `localhost` or `https://` sites),
+so test login on your phone after deploying (docs/DEPLOY.md).
 
 ## 5. Quality checks
 
@@ -103,19 +119,33 @@ test login on your phone after deploying to Vercel in Phase 6.
 
 ---
 
-## Folder structure (so far)
+## 6. Put it online
+
+Follow **[docs/DEPLOY.md](docs/DEPLOY.md)** (about 20 minutes): import the GitHub repo into Vercel,
+paste 6 environment variables, deploy, add the live address to Google, publish the Google app.
+After that, every merge into `main` goes live automatically. Then run through
+**[docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md)**.
+
+## Folder structure
 
 ```
 Proxima/
 ├─ docs/
-│  ├─ ACCOUNTS.md          ← click-by-click: Neon, Google login, Vercel, Resend
+│  ├─ ACCOUNTS.md          ← click-by-click: Neon, Google login, Resend
 │  ├─ API.md               ← every API endpoint, the chat stream format, how to switch AI
-│  └─ DATABASE.md          ← database setup, commands, troubleshooting
+│  ├─ DATABASE.md          ← database setup, commands, troubleshooting
+│  ├─ DEPLOY.md            ← put it online with Vercel, click by click
+│  └─ PHONE-CHECKLIST.md   ← final test on a real phone
 ├─ prisma/
 │  ├─ schema.prisma        ← database tables (User, Conversation, Message, …)
 │  └─ migrations/          ← SQL that creates/updates the tables (commit these)
+├─ public/
+│  ├─ icons/               ← app icons for phones (made by scripts/generate-icons.mjs)
+│  ├─ offline.html         ← "You're offline" page
+│  └─ sw.js                ← tiny service worker: shows offline.html when there's no internet
 ├─ scripts/
 │  ├─ check-bundle.mjs     ← bundle-size check
+│  ├─ generate-icons.mjs   ← re-creates the app icons if you change the logo
 │  └─ check-env.mjs        ← setup doctor (npm run env:check)
 ├─ src/
 │  ├─ auth.config.ts       ← login rules (which pages are protected) — light, used by proxy
@@ -132,6 +162,14 @@ Proxima/
 │  │  │  └─ status/        ← real "engine online" + latency (also wakes Render)
 │  │  ├─ app/              ← /app chat page (server loads your chats, then shows the chat UI)
 │  │  ├─ login/            ← /login page, Google button, email form (hidden until enabled)
+│  │  ├─ settings/         ← /settings page (signed in only)
+│  │  ├─ privacy/, terms/  ← legal pages (plain language; update the date in src/lib/legal.ts)
+│  │  ├─ not-found.tsx     ← 404 "Lost in space" page
+│  │  ├─ error.tsx         ← friendly "Something went wrong" + Try again (global-error.tsx = last resort)
+│  │  ├─ manifest.ts       ← makes PROXIMA installable on phones (name, icons, colours)
+│  │  ├─ sitemap.ts, robots.ts ← tell Google which pages to show (private pages are hidden)
+│  │  ├─ opengraph-image.tsx   ← the share picture for WhatsApp/Facebook/X (drawn at build time)
+│  │  ├─ apple-icon.png    ← iPhone home-screen icon
 │  │  ├─ fonts/            ← self-hosted Montserrat + JetBrains Mono (OFL licence)
 │  │  ├─ fonts.ts          ← font setup (next/font/local)
 │  │  ├─ globals.css       ← design system: colours, glass, easing, reduced motion
@@ -169,6 +207,9 @@ Proxima/
 │  │  │  │                        scroll (Lenis), magnetic buttons, glow, custom cursor
 │  │  │  └─ magnetic.tsx        ← magnetic button wrapper + section headings
 │  │  ├─ motion/           ← Framer Motion setup (small bundle, honours reduced motion)
+│  │  ├─ settings/         ← /settings screen + form pieces shared with the Settings pop-up
+│  │  ├─ legal/, layout/   ← legal page layout, simple header/footer for small pages
+│  │  ├─ pwa/              ← registers the service worker (production only)
 │  │  ├─ theme/            ← dark/light theme provider + toggle button
 │  │  └─ ui/               ← buttons (44px touch targets), spinner, toasts, dialogs
 │  ├─ generated/prisma/    ← auto-generated database client (not in git)
@@ -191,6 +232,7 @@ Proxima/
 ├─ .env.example            ← template of all settings (no secrets)
 ├─ bundle-budget.json      ← max JavaScript size per page
 ├─ next.config.ts          ← security headers, images, dev origins
+├─ vercel.json             ← Vercel settings: servers in Singapore (sin1)
 ├─ prisma.config.ts        ← Prisma CLI settings (reads DIRECT_URL)
 └─ vitest.config.mts       ← test runner config
 ```
@@ -242,6 +284,29 @@ The landing page is plain, fast HTML. Sections just carry **labels**, and one sm
   hashed IP (raw IPs are never stored).
 - Login uses encrypted cookies (JWT). Protected pages are checked twice: in `src/proxy.ts`
   and again on the server page itself. After-login redirects only go to pages on this site.
+- Deleting an account (Settings) needs the word `DELETE` typed in and a same-site request; the
+  database then removes the user's Google link, chats and messages together.
+- The service worker (`public/sw.js`) caches **only** the offline page, so chats, login and the API
+  are never served from an old copy.
+
+## Legal pages
+
+`/privacy` and `/terms` are written in plain language to match what the code really does (what's
+stored, what's sent to the AI, which services are used). They're a solid starting point, **not legal
+advice**. Read them before launch and adjust if your situation differs (for example, if you add
+analytics, payments or another AI provider). When you change them, update the date in `src/lib/legal.ts`.
+
+## Measured quality (production build, simulated mid-range phone)
+
+| Page                 | Accessibility | Best practices | SEO               | LCP       | Layout shift |
+| -------------------- | ------------- | -------------- | ----------------- | --------- | ------------ |
+| `/` (landing)        | 100           | 100            | 100               | 0.9 s     | 0            |
+| `/privacy`, `/terms` | 100           | 100            | 100               | 0.8–2.0 s | 0            |
+| `/login`             | 100           | 100            | hidden on purpose | 0.8 s     | 0            |
+| `/app`, `/settings`  | 100           | 100            | hidden on purpose | 0.6–0.8 s | 0            |
+
+Performance scores were 99–100 where the test browser could measure them. Re-check the live site at
+https://pagespeed.web.dev after deploying (docs/PHONE-CHECKLIST.md → 6).
 
 ## Build progress
 
@@ -256,4 +321,6 @@ The landing page is plain, fast HTML. Sections just carry **labels**, and one sm
 - [x] **Phase 5 — Landing + motion:** cinematic hero, skills, how it works, swipeable slides
       (touch + keyboard), live demo (guest, not saved), FAQ, footer; reveals, parallax, Lenis, magnetic
       buttons, glow, custom cursor, velocity blur, page transitions — all reduced-motion aware
-- [ ] **Phase 6 — Polish + ship:** settings/legal/404 pages, SEO/OG/sitemap/PWA, a11y + performance, Vercel deploy
+- [x] **Phase 6 — Polish + ship:** `/settings` (download/delete data, delete account), Privacy, Terms,
+      404 + error pages, SEO metadata, share image, sitemap, robots, installable app + offline page,
+      accessibility/performance pass, Vercel setup + deploy guide, phone checklist
