@@ -2,6 +2,7 @@
 
 import {
   ArrowClockwise,
+  Brain,
   CaretDown,
   Check,
   Copy,
@@ -11,11 +12,12 @@ import {
 } from "@phosphor-icons/react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import dynamic from "next/dynamic";
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import type { UiMessage } from "@/lib/chat/client/chat-state";
 import { formatBytes } from "@/lib/chat/client/files";
 import { cn } from "@/lib/cn";
 import { EASE } from "@/lib/motion/tokens";
+import { api } from "@/lib/chat/client/api";
 import { useCopy } from "./use-copy";
 
 // Markdown + its parser load the first time a reply is shown (not on page load).
@@ -91,7 +93,7 @@ function UserMessage({ message }: { message: UiMessage }) {
             ))}
           </ul>
         )}
-        <div className="rounded-3xl rounded-br-lg bg-inverse px-5 py-3 text-[15px] leading-relaxed font-medium break-words whitespace-pre-wrap text-on-inverse shadow-glow">
+        <div className="message-text rounded-3xl rounded-br-lg bg-inverse px-5 py-3 text-[15px] leading-relaxed font-medium break-words whitespace-pre-wrap text-on-inverse shadow-glow">
           <span className="sr-only">You said: </span>
           {message.content}
         </div>
@@ -135,10 +137,15 @@ function AssistantMessage({
         {waiting ? (
           <Thinking phase={message.phase} message={message.statusMessage} />
         ) : (
-          message.content && <Markdown content={message.content} streaming={streaming} />
+          <>
+            {message.thoughtMs ? <ThoughtFor ms={message.thoughtMs} /> : null}
+            {message.content && <Markdown content={message.content} streaming={streaming} />}
+          </>
         )}
 
         {streaming && message.content && <span className="stream-caret" aria-hidden />}
+
+        {message.usedMemory?.length ? <MemoryUsed memories={message.usedMemory} /> : null}
 
         {message.reasoning && <ReasoningBlock text={message.reasoning} streaming={streaming} />}
 
@@ -207,36 +214,82 @@ function AssistantMessage({
   );
 }
 
+
+/** Small provenance chip with a direct "Forget this" action for each note. */
+function MemoryUsed({ memories }: { memories: { id: string; text: string }[] }) {
+  const [forgotten, setForgotten] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const forget = async (id: string) => {
+    setError(null);
+    try {
+      await api.forgetMemory(id);
+      setForgotten((current) => [...current, id]);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't forget that note.");
+    }
+  };
+
+  const visible = memories.filter((memory) => !forgotten.includes(memory.id));
+  if (!visible.length) return null;
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Memory used in this reply">
+      {visible.map((memory) => (
+        <span
+          key={memory.id}
+          className="inline-flex max-w-full items-center gap-2 rounded-full border border-line bg-surface-hover px-3 py-1.5 text-xs text-muted"
+        >
+          <Brain weight="bold" className="size-3.5 shrink-0 text-[var(--accent-text)]" aria-hidden />
+          <span className="max-w-48 truncate">Memory used: {memory.text}</span>
+          <button
+            type="button"
+            onClick={() => void forget(memory.id)}
+            className="shrink-0 font-extrabold text-fg underline underline-offset-2 hover:text-[var(--accent-text)]"
+            aria-label={`Forget this: ${memory.text}`}
+          >
+            Forget this
+          </button>
+        </span>
+      ))}
+      {error && <span className="text-xs text-red-500" role="status">{error}</span>}
+    </div>
+  );
+}
+
 /**
- * Shown while the answer has no text yet. No words, by design: a soft violet
- * orb and a shimmer line. Screen readers still get one quiet sentence.
+ * The wait before the first word, in the Arena style: a theme-tinted orb, the
+ * word "Thinking" with a light sweeping through it, three softly pulsing dots
+ * and a live seconds counter. Screen readers hear one calm sentence instead of
+ * the decoration. Once the reply starts it collapses to "Thought for 4s".
  */
 function Thinking({ phase, message }: { phase?: UiMessage["phase"]; message?: string }) {
   const reduced = useReducedMotion();
   const waking = phase === "waking";
+  const [seconds, setSeconds] = useState(0);
+
+  // A live counter, so a slow cold start feels like progress instead of a hang.
+  useEffect(() => {
+    if (reduced) return;
+    const started = performance.now();
+    const timer = window.setInterval(() => {
+      setSeconds(Math.floor((performance.now() - started) / 1000));
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [reduced]);
 
   return (
-    <div className="flex flex-col gap-2 py-2" role="status" aria-live="polite">
+    <div className="flex flex-col gap-2 py-1.5" role="status" aria-live="polite">
       <span className="sr-only">{waking ? "Waking up the engine" : "Proxima is thinking"}</span>
-      <div className="flex items-center gap-3" aria-hidden>
-        <span className="relative grid size-9 place-items-center">
-          <m.span
-            className="absolute inset-0 rounded-full"
-            style={{
-              background: "radial-gradient(circle, var(--accent) 0%, transparent 68%)",
-              filter: "blur(10px)",
-            }}
-            animate={reduced ? { opacity: 0.55 } : { opacity: [0.35, 0.8, 0.35], scale: [0.85, 1.06, 0.85] }}
-            transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
-          />
-          <m.span
-            className="size-2.5 rounded-full bg-[var(--accent)]"
-            animate={reduced ? { opacity: 0.7 } : { opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-          />
+      <div className="flex items-center gap-2.5" aria-hidden>
+        <span className="thinking-orb" />
+        <span className="thinking-label text-sm">{waking ? "Waking up" : "Thinking"}</span>
+        <span className="thinking-dots">
+          <span />
+          <span />
+          <span />
         </span>
-        <span className="shimmer-line" aria-hidden />
-        {waking && <span className="text-xs font-semibold text-muted">Waking up the engine…</span>}
+        {seconds > 0 && <span className="font-mono text-[11px] tabular-nums text-subtle">{seconds}s</span>}
       </div>
       {waking && (
         <p className="max-w-md text-xs text-subtle">
@@ -244,6 +297,16 @@ function Thinking({ phase, message }: { phase?: UiMessage["phase"]; message?: st
         </p>
       )}
     </div>
+  );
+}
+
+/** "Thought for 4s" — the collapsed version of the block above. */
+function ThoughtFor({ ms }: { ms: number }) {
+  const seconds = Math.max(1, Math.round(ms / 1000));
+  return (
+    <p className="thought-line" title="Time spent thinking before the first word">
+      Thought for {seconds}s
+    </p>
   );
 }
 

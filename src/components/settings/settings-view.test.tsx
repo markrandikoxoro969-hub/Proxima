@@ -28,6 +28,8 @@ const profile: Profile = {
   themePalette: "proxima",
   customThemes: null,
   particles: true,
+  memoryEnabled: false,
+  memoryConsented: false,
   onboarded: true,
 };
 

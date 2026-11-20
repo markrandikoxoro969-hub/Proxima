@@ -231,3 +231,30 @@ Open your address and go through this list:
 | Chat never answers / AI errors                  | Open `https://YOUR-ADDRESS/api/status?setup=1` → **AI engine** sends one real test message and says what's wrong. `AI_PROVIDER` must be the **name** `sujan-core` (not a web address) or simply deleted. The web address, if you want to set it, goes in `AI_API_URL`. Then **Redeploy**.                                                  |
 | Build log: `P1001: Can't reach database server` | `DIRECT_URL` is wrong or missing on Vercel (copy it again from Neon → **Connect**, with pooling **off**).                                                                                                                                                                                                                                  |
 | Share preview shows an old picture              | Facebook caches previews: open https://developers.facebook.com/tools/debug → paste your address → **Scrape Again**.                                                                                                                                                                                                                        |
+
+---
+
+## Memory migration
+
+The memory tables are optional features, but the schema migration must be applied before the new app can serve `/settings/memory` or `/api/memory`.
+
+### What the migration changes
+
+`prisma/migrations/20261120160000_user_memory/migration.sql` is additive: it adds `User.memoryEnabled` with `DEFAULT false`, a nullable consent timestamp, and a `UserMemory` table with a unique `(userId, key)` index and a cascading foreign key. It does **not** rewrite or delete existing profiles, chats, or messages. Existing accounts start with memory off.
+
+### Apply locally to Neon
+
+1. In Neon, make a **branch** from the production database first if you want a safe rehearsal. Do not run migrations against the only production branch while testing.
+2. Put the branch's pooled URL in `DATABASE_URL` and its direct URL in `DIRECT_URL` in `.env.local` (keep those secrets private).
+3. Run:
+
+   ```bash
+   npm run db:status
+   npm run db:deploy
+   npm run db:status
+   ```
+
+4. Confirm the new migration is listed as applied. Then run `npm run build`.
+5. Point the deployment back at the intended Neon branch only after checking the rehearsal. The production Vercel build already applies committed migrations before `next build`; don't use `prisma migrate reset` on production.
+
+`npm run db:migrate` is for local development when creating a new migration. For an existing Neon database, use `npm run db:deploy` to apply the committed migration. If a deployment fails during migration, leave the old app live, inspect the migration log and database status, and fix the cause before redeploying. Back up/branch Neon before any manual production repair; do not hand-edit the Prisma migration history table.

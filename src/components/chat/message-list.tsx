@@ -113,6 +113,8 @@ export function MessageList({
     <div className="relative min-h-0 flex-1">
       <div
         ref={scrollRef}
+        // Never inside a smooth-scroll (Lenis) wrapper: the chat scrolls natively.
+        data-lenis-prevent
         onScroll={onScroll}
         className="h-full overflow-y-auto overscroll-contain [overflow-anchor:none]"
         aria-label="Conversation"

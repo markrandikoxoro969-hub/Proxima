@@ -31,6 +31,8 @@ export const getCurrentUser = cache(async () => {
       themePalette: true,
       customThemes: true,
       particles: true,
+      memoryEnabled: true,
+      memoryConsentAt: true,
     },
   });
 });
@@ -45,9 +47,11 @@ export async function requireUser(returnTo: string): Promise<CurrentUser> {
 }
 
 /** The safe, browser-ready version of the user (what client components receive). */
-export function toProfile({ onboardedAt, customThemes, ...user }: CurrentUser): Profile {
+export function toProfile({ onboardedAt, customThemes, memoryConsentAt, ...user }: CurrentUser): Profile {
   return {
     ...user,
+    // The browser only needs to know *whether* consent was given, not when.
+    memoryConsented: memoryConsentAt !== null,
     // Re-validated so a hand-edited database row can't break the picker.
     customThemes: normalizeCustomThemes(customThemes),
     onboarded: onboardedAt !== null,

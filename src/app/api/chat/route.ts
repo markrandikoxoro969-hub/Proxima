@@ -1,6 +1,6 @@
 import { AI_TIMEOUT_MS, AiProviderError, getAiProvider } from "@/lib/ai";
 import { LeadingCleanGate, stripFiller } from "@/lib/ai/clean-reply";
-import { HISTORY_LIMIT } from "@/lib/ai/prompt";
+import { HISTORY_LIMIT, SYSTEM_PROMPT } from "@/lib/ai/prompt";
 import { generateReply, typeOut } from "@/lib/ai/reply";
 import type { AiErrorCode, AiHistoryMessage } from "@/lib/ai/types";
 import { ApiError, apiErrors, readJson, withApi } from "@/lib/api/http";
@@ -11,6 +11,7 @@ import { attachmentMeta, composePrompt, DEFAULT_TITLE, makeTitle } from "@/lib/c
 import { db } from "@/lib/db";
 import { chatImageAttachment, loadChatImages } from "@/lib/image/store";
 import { cleanIdentityLeaks, getIdentityAnswer } from "@/lib/identity";
+import { memoryEnabled, memoryPrompt, relevantMemories, rememberMessage } from "@/lib/memory/store";
 import { enforceRateLimit, RATE_LIMITS, rateLimitHeaders } from "@/lib/rate-limit";
 import { chatRequestSchema, LIMITS } from "@/lib/validation";
 
@@ -51,6 +52,8 @@ export const POST = withApi(async (request: Request) => {
   const attachments = input.attachments ?? [];
   const imageIds = (input.images ?? []).map((image) => image.id);
   const showReasoning = input.showReasoning === true;
+  /** Temporary chats are never written to the database and never touch memory. */
+  const temporary = input.temporary === true;
 
   // ── Guest demo rules ──
   if (!userId) {
@@ -94,7 +97,7 @@ export const POST = withApi(async (request: Request) => {
   let title: string | null = null;
   let userMessageId: string | null = null;
 
-  if (userId) {
+  if (userId && !temporary) {
     const userMessage = {
       role: "user" as const,
       content: input.message,
@@ -148,7 +151,7 @@ export const POST = withApi(async (request: Request) => {
   // Signed in: read from the database (the browser can't rewrite its own history).
   // Guest: use the turns the demo sent (nothing is stored on the server).
   const history: AiHistoryMessage[] = [];
-  if (userId && conversationId) {
+  if (userId && conversationId && !temporary) {
     const recent = await db.message.findMany({
       where: { conversationId, ...(userMessageId ? { id: { not: userMessageId } } : {}) },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -156,9 +159,21 @@ export const POST = withApi(async (request: Request) => {
       select: { role: true, content: true },
     });
     for (const m of recent.reverse()) history.push({ role: m.role, content: m.content });
-  } else if (!userId && input.history) {
+  } else if (input.history) {
+    // Guests (and temporary chats) keep their context in the browser only.
     history.push(...input.history);
   }
+
+  // ── Memory (Settings → Memory; off unless the person turned it on) ──
+  // Reading is a single indexed query; learning is deterministic (no AI call),
+  // so neither one can delay the first token of the reply.
+  const identityAnswer = getIdentityAnswer(input.message);
+  const useMemory = Boolean(userId) && !temporary && (await memoryEnabled(userId!));
+  // Identity responses are fixed and don't use the prompt; don't attach memory
+  // provenance to a reply that did not actually receive the memory context.
+  const memories = useMemory && !identityAnswer ? await relevantMemories(userId!, input.message) : [];
+  const memorySection = memories.length ? memoryPrompt(memories) : "";
+  const system = memorySection ? `${SYSTEM_PROMPT}\n\n${memorySection}` : undefined;
 
   // ── Stream the reply ──
   const provider = getAiProvider();
@@ -206,7 +221,6 @@ export const POST = withApi(async (request: Request) => {
       const finalAnswer = () => stripFiller(cleanIdentityLeaks(raw));
 
       try {
-        const identityAnswer = getIdentityAnswer(input.message);
         const deltas = identityAnswer
           ? typeOut(identityAnswer, signal)
           : generateReply(provider, {
@@ -216,6 +230,7 @@ export const POST = withApi(async (request: Request) => {
               history,
               showReasoning,
               images: pictures,
+              ...(system ? { system } : {}),
             });
 
         for await (const delta of deltas) {
@@ -254,12 +269,19 @@ export const POST = withApi(async (request: Request) => {
 
         const latencyMs = Date.now() - started;
         const messageId = await saveAssistant(text || sentText, latencyMs);
+        // Learn after the reply completes: extraction is deterministic and
+        // best-effort, and the database consent check was made above.
+        if (useMemory && userId) await rememberMessage(userId, input.message, conversationId);
         sse.send("done", {
           messageId,
           latencyMs,
           source: identityAnswer ? "identity" : provider.id,
           // The clean final answer. The client swaps it in if trailing filler was removed.
           text: text || sentText,
+          // Shown as the small "Memory used" chip on the reply.
+          ...(memories.length
+            ? { usedMemory: memories.map((memory) => ({ id: memory.id, text: memory.text })) }
+            : {}),
         });
       } catch (error) {
         if (clientGone.signal.aborted) {

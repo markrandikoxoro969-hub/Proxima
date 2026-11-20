@@ -23,12 +23,15 @@ const profileSelect = {
   themePalette: true,
   customThemes: true,
   particles: true,
+  memoryEnabled: true,
+  memoryConsentAt: true,
   onboardedAt: true,
 } as const;
 
 type ProfileRow = { onboardedAt: Date | null; customThemes: unknown } & Record<string, unknown>;
-const toProfile = ({ onboardedAt, customThemes, ...rest }: ProfileRow) => ({
+const toProfile = ({ onboardedAt, customThemes, memoryConsentAt, ...rest }: ProfileRow) => ({
   ...rest,
+  memoryConsented: memoryConsentAt instanceof Date,
   customThemes: normalizeCustomThemes(customThemes),
   onboarded: onboardedAt !== null,
 });

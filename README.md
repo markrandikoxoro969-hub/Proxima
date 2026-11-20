@@ -24,6 +24,7 @@ share image.
 | [docs/IMAGES.md](docs/IMAGES.md)                   | Image upload, AI create/edit engines and their keys   |
 | [docs/DEPLOY.md](docs/DEPLOY.md)                   | Put the site online with Vercel (+ your own domain)   |
 | [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) | Final test on a real phone                            |
+| [docs/WEB-DESIGN-AUDIT.md](docs/WEB-DESIGN-AUDIT.md) | Accessibility, responsive and performance audit       |
 
 ---
 
@@ -317,7 +318,7 @@ stored, what's sent to the AI, which services are used). They're a solid startin
 advice**. Read them before launch and adjust if your situation differs (for example, if you add
 analytics, payments or another AI provider). When you change them, update the date in `src/lib/legal.ts`.
 
-## Measured quality (production build, simulated mid-range phone)
+## Previous quality snapshot (simulated mid-range phone; pre-upgrade)
 
 | Page                 | Accessibility | Best practices | SEO               | LCP       | Layout shift |
 | -------------------- | ------------- | -------------- | ----------------- | --------- | ------------ |
@@ -326,8 +327,7 @@ analytics, payments or another AI provider). When you change them, update the da
 | `/login`             | 100           | 100            | hidden on purpose | 0.8 s     | 0            |
 | `/app`, `/settings`  | 100           | 100            | hidden on purpose | 0.6–0.8 s | 0            |
 
-Performance scores were 99–100 where the test browser could measure them. Re-check the live site at
-https://pagespeed.web.dev after deploying (docs/PHONE-CHECKLIST.md → 6).
+This was a prior simulated-device snapshot, not a repeatable local Chrome measurement and not the result of this upgrade. Do not use it as the current before/after claim. Capture fresh reports after deployment; the current workspace has no browser runner, as noted in the performance audit below.
 
 ## Build progress
 
@@ -341,7 +341,7 @@ https://pagespeed.web.dev after deploying (docs/PHONE-CHECKLIST.md → 6).
       files, export, toasts, virtual scrolling, retry, keyboard shortcuts
 - [x] **Phase 5 — Landing + motion:** cinematic hero, skills, how it works, swipeable slides
       (touch + keyboard), live demo (guest, not saved), FAQ, footer; reveals, parallax, Lenis, magnetic
-      buttons, glow, custom cursor, velocity blur, page transitions — all reduced-motion aware
+      buttons, glow, custom cursor, page transitions — all reduced-motion aware
 - [x] **Phase 6 — Polish + ship:** `/settings` (download/delete data, delete account), Privacy, Terms,
       404 + error pages, SEO metadata, share image, sitemap, robots, installable app + offline page,
       accessibility/performance pass, Vercel setup + deploy guide, phone checklist
@@ -362,8 +362,8 @@ https://pagespeed.web.dev after deploying (docs/PHONE-CHECKLIST.md → 6).
 
 ### Themes + pictures (November 2026)
 
-- [x] **Themes:** 10 built-in themes (Proxima, Daylight, Midnight, Ocean, Ember, Paper, Aurora,
-      Sakura, Graphite, Neon) chosen in Settings, plus a builder for your own theme from three
+- [x] **Themes:** 12 built-in themes (Proxima, Daylight, Midnight, Ocean, Ember, Paper, Aurora,
+      Sakura, Graphite, Neon, Sky, Nature) chosen in Settings and the chat top bar, plus a builder for your own theme from three
       colours. Colours are derived (and contrast-checked) from those three, synced to the account,
       and painted before the first frame — no flash. The sun/moon button keeps a theme's character
       (Midnight ⇄ Ocean).
@@ -375,3 +375,63 @@ https://pagespeed.web.dev after deploying (docs/PHONE-CHECKLIST.md → 6).
       Results are watermark-free once any real key is present (a free Pollinations key is
       enough); without one the studio labels the free tier honestly. See
       [docs/IMAGES.md](docs/IMAGES.md).
+
+---
+
+## Performance, themes and memory upgrade
+
+These are incremental upgrades to the existing PROXIMA app; the default face stays **Montserrat + JetBrains Mono**. The other theme voices only apply while that scene is active. The backgrounds are procedural CSS (no downloaded image or font files).
+
+### Performance audit (what changed, and what was not measured)
+
+| Hot path | Before | After in code | What this number means |
+| --- | --- | --- | --- |
+| Landing cursor | 2 transform writes and up to 4 attribute toggles per `pointermove`; style invalidation could happen at raw pointer rate | pointer events only update refs; transform writes are coalesced in one `requestAnimationFrame`; hover/text attributes only change when their state changes; there is no React state update | Source-level work count, **not** an FPS measurement |
+| Scroll reveals | Hero/footer could re-rasterise `filter: blur(...)` on scroll | velocity blur removed; reveal animates opacity/transform, not filter | Removes a repeated full-layer blur pass |
+| Glass surfaces | blur radius was 20px; up to 4 surfaces could stack | 12px desktop, 8px phone; dialogs, toasts and cards use solid glass; active blurred surfaces are budgeted at 3 or fewer | CSS design limits, not a GPU trace |
+| Long/streaming chat | Each message can update independently | existing `MessageItem` memo + virtual list + `FrameBatcher` (at most one text callback/frame) retained; chat scroll has `data-lenis-prevent` | Protects older rows and prevents Lenis from taking chat scrolling |
+| Motion when not visible | background tabs could continue CSS animation | `PerfGuards` pauses CSS animations while hidden; reduced-motion/low-core devices get still theme scenes | Browser CSS behavior; verify on your device |
+
+**Honesty note:** this workspace has no Chrome/Lighthouse browser, so no real trace, INP, React Profiler, Lighthouse score or before/after FPS was captured. We won't invent those figures. To get device measurements, use Chrome DevTools → **Performance**: record 10 seconds of scrolling and 10 seconds of streaming; inspect long tasks (over 50ms), frame time (16.7ms budget), and event handlers. In **React DevTools → Profiler**, record a stream and check that earlier message rows do not commit. Run Lighthouse with **Mobile** selected and record Performance + INP. Target: 60fps, INP under 200ms, no typing/streaming task over 50ms.
+
+**Bundle check (production build, gzip):** `npm run check:bundle` still exits non-zero and the committed budgets were **not** raised. Current output: `/` 232.0/210 KB, `/app` 272.5/260 KB, `/login` 205.5/170 KB, `/privacy` 203.5/170 KB, `/settings` 233.2/200 KB, `/settings/memory` 221.5/170 KB, `/terms` 203.5/170 KB; `/login/verify` passes at 141.2/170 KB. Against the previously recorded same-page figures, `/` changed 231.9→232.0 KB, `/app` 270.8→272.5 KB, and `/settings` 232.8→233.2 KB. This is gzip JS size, not a frame-rate metric. The new memory page is over its existing limit; optimize/lazy-load or deliberately revise budgets only after a separate review—never just raise them to turn this check green.
+
+### Themes
+
+The top bar and `/settings` offer Default/Light plus Sky (geometric), Ocean (rounded system font), and Nature (PROXIMA's normal font). Sky, Ocean and Nature are light CSS gradients/layers, with a static low-power / reduced-motion fallback and fewer scene layers on phones. Ocean's font stack asks the OS for rounded faces and falls back to the already-loaded Montserrat; no new font/media download is needed. Theme scenes use no third-party media or font assets, so there is no new asset license/attribution to list. The theme tests check muted/subtle/`accentText` contrast against palette backgrounds; still verify actual contrast on scene surfaces, especially text over a translucent backdrop.
+
+### Optional memory and Temporary chat
+
+Memory starts **off**. After a person accepts the Settings consent card, completed replies can save a few short, keyword-matchable facts/preferences; memory reads and writes stop when the switch is off. `/settings/memory` lists, edits, exports and deletes notes. Replies that used notes show a **Memory used · Forget this** chip. **Temporary** in the composer starts a fresh local chat: nothing from it is saved and memory is not read or written. Notes are separate from chat history; deleting a chat does not delete a note. Deleting an account cascades to notes.
+
+### Production-build and responsive test (repeat after each upgrade)
+
+Use the production server, not `next dev`, for the acceptance check:
+
+```bash
+# Terminal 1: build, then run the production app
+npm run build
+npm start
+```
+
+Open `http://localhost:3000`. For local signed-in chat, use your configured Neon + Google settings; for a no-login visual test, the landing page works without signing in. If you want a local fake answer engine, set `AI_PROVIDER="mock"` in `.env.local`, run the commands above, and remove that setting before testing the real NVIDIA provider. Stop the production server with **Ctrl+C**.
+
+In Chrome DevTools → device toolbar, test each viewport below. Repeat the same checks in a real phone browser for touch/selection:
+
+| Width | Device-toolbar setup |
+| ---: | --- |
+| 360px | choose Responsive, set width to `360`, height `800` |
+| 390px | choose Responsive, set width to `390`, height `844` |
+| 768px | choose Responsive, set width to `768`, height `1024` |
+| 1280px | choose Responsive, set width to `1280`, height `800` |
+| Desktop | resize to `1440 × 900` or larger and test keyboard/mouse |
+
+Run this checklist at each width:
+
+1. **Lag:** drag the landing cursor / scroll the landing page; no cursor hiding after tab-switch; chat scrolls naturally without page-wide Lenis; rapidly send messages and confirm older bubbles don't visibly blink/re-render. Capture the Performance trace and Profiler figures described above.
+2. **Selection:** drag-select the logo/navigation/button labels (they should not select); select and copy a chat answer and code block; long-press a chat answer on phone; right-click still opens the normal browser menu; keyboard tab/Enter works.
+3. **Thinking/reply:** send a message with the mock engine; see orb, shimmer, three dots and live seconds, then “Thought for Ns”; observe the answer sharpen/slide in and the caret; scroll upward before a long answer and confirm auto-scroll doesn't pull you down. Enable OS reduced motion and repeat.
+4. **Themes:** in `/settings` and the top bar select Light, Sky, Ocean and Nature. Refresh and check the choice stays without a flash. Confirm Nature uses Montserrat, no new font request appears, and scene motion stops with reduced motion or low-power fallback.
+5. **Memory:** verify switch is off on a fresh account; accept consent; say “I'm training for a half marathon”; verify a note appears in `/settings/memory`; ask a related question and see the chip; use “Forget this”; test edit/export/delete-all. Turn memory off and verify it is neither retrieved nor updated. Turn on Temporary and verify the URL/history isn't added to the sidebar or database and no memory chip appears.
+
+Database migration and Neon notes: see **[docs/DEPLOY.md → Memory migration](docs/DEPLOY.md#memory-migration)**. The additive migration is safe for existing users: the new boolean defaults to false, and it does not alter chats.

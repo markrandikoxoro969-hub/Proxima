@@ -2,6 +2,7 @@
 
 import {
   ArrowUp,
+  EyeSlash,
   FileText,
   ImageSquare,
   Microphone,
@@ -20,6 +21,7 @@ import {
   type DraftImage,
 } from "@/lib/chat/client/images";
 import { useSpeech } from "@/lib/chat/client/use-speech";
+import { useTemporaryChat } from "@/lib/chat/client/use-temporary";
 import { cn } from "@/lib/cn";
 import { IMAGE_LIMITS } from "@/lib/image/limits";
 import { LIMITS } from "@/lib/limits";
@@ -46,6 +48,7 @@ export const Composer = memo(function Composer({
   images,
   setImages,
   onOpenStudio,
+  onTemporaryChange,
 }: {
   onSend: (
     text: string,
@@ -62,8 +65,11 @@ export const Composer = memo(function Composer({
   setImages: React.Dispatch<React.SetStateAction<DraftImage[]>>;
   /** Opens the AI image studio (create / edit pictures). */
   onOpenStudio: () => void;
+  /** Start a clean local conversation when temporary mode changes. */
+  onTemporaryChange?: () => void;
 }) {
   const [text, setText] = useState("");
+  const [temporary, setTemporary] = useTemporaryChat();
   const [files, setFiles] = useState<ReadFile[]>([]);
   const [dragging, setDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -315,6 +321,22 @@ export const Composer = memo(function Composer({
         )}
 
         <div className="flex items-center gap-1 px-2 pb-2">
+          <button
+            type="button"
+            aria-pressed={temporary}
+            onClick={() => {
+              setTemporary(!temporary);
+              onTemporaryChange?.();
+            }}
+            title={temporary ? "Temporary chat is on. Messages are not saved." : "Start a temporary chat"}
+            className={cn(
+              "inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2.5 text-xs font-bold transition-[color,background-color] duration-200",
+              temporary ? "bg-[var(--accent)]/12 text-[var(--accent-text)]" : "text-subtle hover:bg-surface-hover hover:text-fg",
+            )}
+          >
+            <EyeSlash weight={temporary ? "fill" : "bold"} className="size-4" aria-hidden />
+            <span>{temporary ? "Temporary on" : "Temporary"}</span>
+          </button>
           <input
             ref={fileInputRef}
             type="file"

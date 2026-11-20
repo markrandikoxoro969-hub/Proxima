@@ -19,7 +19,14 @@ export type ChatStreamEvent =
   | { event: "reasoning"; data: { text: string } }
   | {
       event: "done";
-      data: { messageId: string | null; latencyMs: number; source: string; text?: string };
+      data: {
+        messageId: string | null;
+        latencyMs: number;
+        source: string;
+        text?: string;
+        /** Memories this answer used (only when Memory is on). */
+        usedMemory?: { id: string; text: string }[];
+      };
     }
   | { event: "error"; data: { code: string; message: string; retryable: boolean } };
 

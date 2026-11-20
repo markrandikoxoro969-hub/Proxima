@@ -49,6 +49,11 @@ model User {
   customThemes Json?
   particles   Boolean         @default(true)
 
+  /// Memory is OFF until the person turns it on (Settings → Memory).
+  memoryEnabled   Boolean   @default(false)
+  /// When consent was given (null = never asked / never enabled).
+  memoryConsentAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -56,6 +61,38 @@ model User {
   sessions      Session[]
   conversations Conversation[]
   images        ImageAsset[]
+  memories      UserMemory[]
+}
+
+/// One durable fact about a person, only stored while memory is ON.
+///
+/// Deliberately tiny and human-readable ("going to the gym"): short sentences
+/// that can be listed, edited and deleted in Settings → Memory. Secrets, health
+/// diagnoses, addresses and details about other people are only written after an
+/// explicit "remember this" instruction (see src/lib/memory/extract.ts).
+model UserMemory {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The sentence shown to the person and sent to the model as background.
+  text String @db.VarChar(240)
+  /// "fitness" | "food" | "work" | "study" | "goal" | "preference" | "personal"
+  category String @db.VarChar(24)
+  /// Normalised form of `text`, used to merge duplicates (unique per person).
+  key String @db.VarChar(240)
+  /// The chat it came from (deleted chats leave the memory alone).
+  sourceSessionId String?
+  /// Time-bound facts stop being used after this date (null = lasting).
+  expiresAt DateTime?
+  /// Last time an answer used it, so fresh memories are preferred.
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+  @@index([userId, createdAt])
 }
 
 // ───────────── Chat ─────────────

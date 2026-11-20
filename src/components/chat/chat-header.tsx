@@ -4,6 +4,7 @@ import { DownloadSimple, List, NotePencil } from "@phosphor-icons/react";
 import { memo, useEffect, useId, useRef, useState } from "react";
 import { exportUrl } from "@/lib/chat/client/api";
 import { cn } from "@/lib/cn";
+import { ThemeMenu } from "@/components/theme/theme-menu";
 import { site } from "@/lib/site";
 
 export const ChatHeader = memo(function ChatHeader({
@@ -61,6 +62,7 @@ export const ChatHeader = memo(function ChatHeader({
       >
         <NotePencil weight="bold" className="size-5" aria-hidden />
       </button>
+      <ThemeMenu />
       <ExportMenu activeId={activeId} />
     </header>
   );

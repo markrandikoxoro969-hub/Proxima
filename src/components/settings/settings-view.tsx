@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  Brain,
   DownloadSimple,
   FileText,
   Info,
@@ -69,6 +70,7 @@ function SettingsScreen({
         </div>
 
         <ProfileSection profile={profile} onSaved={setProfile} />
+        <MemorySection profile={profile} onSaved={setProfile} />
         <DataSection chatCount={chatCount} onCleared={() => setChatCount(0)} />
         <AccountSection profile={profile} />
         <AboutSection />
@@ -183,6 +185,91 @@ function ProfileSection({ profile, onSaved }: { profile: Profile; onSaved: (p: P
           {saving ? "Saving…" : "Save changes"}
         </Button>
       </form>
+    </Section>
+  );
+}
+
+/* ── Memory ───────────────────────────────────────────────────────── */
+
+/**
+ * Settings → Memory.
+ *
+ * OFF by default, and the switch does two separate things the person can see:
+ * it shows a consent card the first time, and it is the only way memory is ever
+ * written. Everything stored is listed on /settings/memory, where it can be
+ * edited, deleted one by one, exported or wiped.
+ */
+function MemorySection({ profile, onSaved }: { profile: Profile; onSaved: (profile: Profile) => void }) {
+  const notify = useToast();
+  const [enabled, setEnabled] = useState(profile.memoryEnabled);
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const save = async (next: boolean) => {
+    setBusy(true);
+    try {
+      await api.setMemoryEnabled(next);
+      setEnabled(next);
+      onSaved({ ...profile, memoryEnabled: next, memoryConsented: profile.memoryConsented || next });
+      notify(next ? "Memory is on. You can review every note any time." : "Memory is off. New chats won't be remembered.", "success");
+    } catch (error) {
+      notify((error as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Section
+      id="settings-memory"
+      title="Memory"
+      description={
+        enabled
+          ? "PROXIMA remembers durable facts you mention (goals, routines, preferences) so later answers fit you."
+          : "Off. Nothing is saved or used between chats — each conversation starts fresh."
+      }
+      icon={<Brain weight="bold" className="size-5" />}
+    >
+      <SwitchRow
+        id="settings-memory-switch"
+        title="Remember things between chats"
+        hint="Only durable facts: goals, routines, preferences. Never passwords, keys, card numbers, addresses, health details or anything about other people."
+        checked={enabled}
+        onChange={(next) => {
+          if (next && !profile.memoryConsented) {
+            setConsentOpen(true);
+            return;
+          }
+          void save(next);
+        }}
+      />
+
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
+        <ButtonLink href="/settings/memory" variant="secondary">
+          Review what&apos;s remembered
+        </ButtonLink>
+        <ButtonLink href="/api/memory?format=md" variant="ghost">
+          <DownloadSimple weight="bold" className="size-4" aria-hidden /> Export
+        </ButtonLink>
+      </div>
+
+      <p className="mt-3 text-xs text-subtle">
+        Tip: the composer has a <strong>Temporary</strong> switch. With it on, that chat is not saved and
+        memory is ignored either way.
+      </p>
+
+      <ConfirmDialog
+        open={consentOpen}
+        title="Turn memory on?"
+        message="PROXIMA will keep short notes like “going to the gym” or “training for a half marathon”, and use them when they make an answer better. You can see, edit and delete every note in Settings → Memory, and turn this off at any time. Passwords, keys, card numbers, addresses, health details and details about other people are never stored."
+        confirmLabel="Turn on memory"
+        busy={busy}
+        onCancel={() => setConsentOpen(false)}
+        onConfirm={async () => {
+          setConsentOpen(false);
+          await save(true);
+        }}
+      />
     </Section>
   );
 }

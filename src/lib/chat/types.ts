@@ -59,6 +59,10 @@ export type Profile = {
   /** Themes this person created (already validated). */
   customThemes: ThemePalette[] | null;
   particles: boolean;
+  /** Settings → Memory. OFF by default, and never turned on by the server. */
+  memoryEnabled: boolean;
+  /** True once the person has seen and accepted the consent card. */
+  memoryConsented: boolean;
   onboarded: boolean;
 };
 

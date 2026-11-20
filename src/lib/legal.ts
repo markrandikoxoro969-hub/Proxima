@@ -3,7 +3,7 @@
  * src/app/privacy/page.tsx or src/app/terms/page.tsx.
  */
 export const LEGAL_UPDATED = {
-  privacy: "2026-11-19",
+  privacy: "2026-11-20",
   terms: "2026-11-19",
 } as const;
 

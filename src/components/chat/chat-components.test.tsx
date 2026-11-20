@@ -80,7 +80,19 @@ describe("<MessageItem />", () => {
     render(
       <MessageItem message={msg({ status: "streaming", phase: "waking" })} onRetry={() => {}} canRetry />,
     );
-    expect(screen.getByText("Waking up the engine…")).toBeInTheDocument();
+    expect(screen.getByText("Waking up", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("The engine was asleep. The first reply can take up to a minute.")).toBeInTheDocument();
+  });
+
+  it("collapses the live thinking state as soon as the first answer text arrives", () => {
+    render(
+      <MessageItem
+        message={msg({ status: "streaming", content: "Here is the first word.", thoughtMs: 4000 })}
+        onRetry={() => {}}
+        canRetry
+      />,
+    );
+    expect(screen.getByText("Thought for 4s")).toBeInTheDocument();
   });
 
   it("shows a friendly error with Try again", async () => {

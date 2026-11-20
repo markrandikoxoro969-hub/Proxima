@@ -21,6 +21,10 @@ export type UiMessage = ChatMessageDTO & {
   fresh?: boolean;
   /** The model's private reasoning (only when Settings → Show reasoning is on). */
   reasoning?: string;
+  /** How long the "Thinking" state was visible before the first word arrived. */
+  thoughtMs?: number;
+  /** Memories the answer used (only when Memory is on) — shown as a small chip. */
+  usedMemory?: { id: string; text: string }[];
   /** Attached file contents kept in memory so "Try again" can resend them. */
   outgoing?: { name: string; content: string }[];
   /** Pictures kept by id (the bytes stay on the server) so "Try again" can resend them. */
@@ -74,7 +78,16 @@ export type ChatAction =
   | { type: "phase"; key: string; id: string; phase: StreamPhase; message?: string }
   | { type: "append"; key: string; id: string; text: string }
   | { type: "reasoning"; key: string; id: string; text: string }
-  | { type: "done"; key: string; id: string; newId: string | null; latencyMs: number; text?: string }
+  | { type: "thought"; key: string; id: string; ms: number }
+  | {
+      type: "done";
+      key: string;
+      id: string;
+      newId: string | null;
+      latencyMs: number;
+      text?: string;
+      usedMemory?: { id: string; text: string }[];
+    }
   | { type: "failed"; key: string; id: string; error: { code: string; message: string; retryable: boolean } }
   | { type: "stopped"; key: string; id: string }
   | { type: "renamed"; id: string; title: string }
@@ -250,6 +263,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         statusMessage: undefined,
       }));
 
+    case "thought":
+      return updateMessage(state, action.key, action.id, (m) =>
+        m.thoughtMs === undefined ? { ...m, thoughtMs: action.ms } : m,
+      );
+
     case "reasoning":
       return updateMessage(state, action.key, action.id, (m) => ({
         ...m,
@@ -259,6 +277,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "done": {
       const next = updateMessage(state, action.key, action.id, (m) => ({
         ...m,
+        usedMemory: action.usedMemory?.length ? action.usedMemory : m.usedMemory,
         // The server removes trailing filler after streaming; swap in its final text.
         content: action.text ?? m.content,
         id: action.newId ?? m.id,
