@@ -48,6 +48,10 @@ model User {
   /// Extra themes created by this person: [{ id, name, mode, colors, tokens }] (max 4).
   customThemes Json?
   particles   Boolean         @default(true)
+  /// What PROXIMA remembers between chats: "- 2026-11-19: going to the gym" lines (max 24).
+  memoryNotes String?
+  /// Last time a memory was written or cleared.
+  memoryUpdatedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

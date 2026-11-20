@@ -18,6 +18,8 @@ export type ChatRequestBody = {
   retry?: boolean;
   /** Ask the server to stream the model's private reasoning (off by default). */
   showReasoning?: boolean;
+  /** Thinking | Fast | Pro | Coding (see src/lib/ai/modes.ts). */
+  mode?: "thinking" | "fast" | "pro" | "coding";
   /** Guest demo only: recent turns so the demo keeps its memory. */
   history?: { role: "user" | "assistant"; content: string }[];
 };

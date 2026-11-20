@@ -15,7 +15,6 @@ import { memo } from "react";
 import type { UiMessage } from "@/lib/chat/client/chat-state";
 import { formatBytes } from "@/lib/chat/client/files";
 import { cn } from "@/lib/cn";
-import { EASE } from "@/lib/motion/tokens";
 import { useCopy } from "./use-copy";
 
 // Markdown + its parser load the first time a reply is shown (not on page load).
@@ -47,9 +46,9 @@ function UserMessage({ message }: { message: UiMessage }) {
   return (
     <m.div
       className="flex justify-end"
-      initial={message.fresh ? { opacity: 0, y: 8, filter: "blur(6px)" } : false}
-      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      transition={{ duration: 0.4, ease: EASE }}
+      initial={message.fresh ? { opacity: 0, y: 10 } : false}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.7 }}
     >
       <div className="flex max-w-[88%] flex-col items-end gap-2 sm:max-w-[80%]">
         {pictures.length > 0 && (
@@ -91,7 +90,7 @@ function UserMessage({ message }: { message: UiMessage }) {
             ))}
           </ul>
         )}
-        <div className="rounded-3xl rounded-br-lg bg-inverse px-5 py-3 text-[15px] leading-relaxed font-medium break-words whitespace-pre-wrap text-on-inverse shadow-glow">
+        <div className="message-text rounded-3xl rounded-br-lg bg-inverse px-5 py-3 text-[15px] leading-relaxed font-medium break-words whitespace-pre-wrap text-on-inverse shadow-glow">
           <span className="sr-only">You said: </span>
           {message.content}
         </div>
@@ -117,9 +116,9 @@ function AssistantMessage({
   return (
     <m.div
       className="flex gap-3 sm:gap-4"
-      initial={message.fresh ? { opacity: 0, y: 8, filter: "blur(6px)" } : false}
-      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      transition={{ duration: 0.45, ease: EASE }}
+      initial={message.fresh ? { opacity: 0, y: 10 } : false}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.7 }}
     >
       <div
         aria-hidden
@@ -208,39 +207,42 @@ function AssistantMessage({
 }
 
 /**
- * Shown while the answer has no text yet. No words, by design: a soft violet
- * orb and a shimmer line. Screen readers still get one quiet sentence.
+ * Shown while the answer has no text yet: an orbiting spark, the word
+ * "Thinking" with a light sweeping through it, and three dots. Screen readers
+ * get one quiet sentence instead of the decoration.
  */
 function Thinking({ phase, message }: { phase?: UiMessage["phase"]; message?: string }) {
   const reduced = useReducedMotion();
   const waking = phase === "waking";
 
   return (
-    <div className="flex flex-col gap-2 py-2" role="status" aria-live="polite">
+    <div className="flex flex-col gap-2 py-1.5" role="status" aria-live="polite">
       <span className="sr-only">{waking ? "Waking up the engine" : "Proxima is thinking"}</span>
-      <div className="flex items-center gap-3" aria-hidden>
-        <span className="relative grid size-9 place-items-center">
-          <m.span
-            className="absolute inset-0 rounded-full"
-            style={{
-              background: "radial-gradient(circle, var(--accent) 0%, transparent 68%)",
-              filter: "blur(10px)",
-            }}
-            animate={reduced ? { opacity: 0.55 } : { opacity: [0.35, 0.8, 0.35], scale: [0.85, 1.06, 0.85] }}
-            transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
-          />
-          <m.span
-            className="size-2.5 rounded-full bg-[var(--accent)]"
-            animate={reduced ? { opacity: 0.7 } : { opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-          />
+      <div className="flex items-center gap-2.5" aria-hidden>
+        <span className="relative grid size-5 place-items-center">
+          {!reduced && (
+            <m.span
+              className="absolute inset-0 rounded-full border border-[var(--accent)]/40 border-t-[var(--accent)]"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }}
+            />
+          )}
+          <span className="size-1.5 rounded-full bg-[var(--accent)]" />
         </span>
-        <span className="shimmer-line" aria-hidden />
-        {waking && <span className="text-xs font-semibold text-muted">Waking up the engine…</span>}
+        <span className="thinking-label text-sm">{waking ? "Waking up" : "Thinking"}</span>
+        <span className="thinking-dots" aria-hidden>
+          <span />
+          <span />
+          <span />
+        </span>
+      </div>
+      <div className="mt-1 flex flex-col gap-1.5" aria-hidden>
+        <span className="thinking-skeleton w-[62%]" />
+        <span className="thinking-skeleton w-[38%]" />
       </div>
       {waking && (
         <p className="max-w-md text-xs text-subtle">
-          {message ?? "The engine was asleep. The first reply can take up to a minute."}
+          {message ?? "Waking up the engine… the first reply can take up to a minute."}
         </p>
       )}
     </div>

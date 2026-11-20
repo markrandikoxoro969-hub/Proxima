@@ -11,6 +11,7 @@
  */
 import {
   BUILT_IN_THEME_MODES,
+  BUILT_IN_THEME_SCENES,
   DEFAULT_THEME_FOR_MODE,
   THEME_PALETTES,
   THEME_TOKEN_KEYS,
@@ -110,6 +111,9 @@ export function applyThemeToDocument(theme: ThemePalette, resolved: ResolvedThem
   root.classList.toggle("dark", resolved === "dark");
   root.style.colorScheme = resolved;
   root.setAttribute("data-theme", theme.id);
+  // Scene themes paint a slow light behind everything; others clear it.
+  if (theme.scene) root.setAttribute("data-scene", theme.scene);
+  else root.removeAttribute("data-scene");
 
   for (const key of THEME_TOKEN_KEYS) root.style.removeProperty(THEME_TOKEN_VARS[key]);
   if (theme.custom) {
@@ -148,7 +152,7 @@ var m=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
 if(m!=="dark"&&m!=="light"&&m!=="system")m=${JSON.stringify(DEFAULT_THEME)};
 var dark=m==="dark"||(m==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);
 var mode=dark?"dark":"light";
-var modes=${JSON.stringify(BUILT_IN_THEME_MODES)},twins=${JSON.stringify(TWINS)},
+var modes=${JSON.stringify(BUILT_IN_THEME_MODES)},scenes=${JSON.stringify(BUILT_IN_THEME_SCENES)},twins=${JSON.stringify(TWINS)},
 defaults=${JSON.stringify(DEFAULT_THEME_FOR_MODE)},vars=${JSON.stringify(THEME_TOKEN_VARS)};
 var pid=localStorage.getItem(${JSON.stringify(PALETTE_STORAGE_KEY)})||"",custom=[];
 try{custom=JSON.parse(localStorage.getItem(${JSON.stringify(CUSTOM_THEMES_STORAGE_KEY)})||"[]")||[]}catch(e){custom=[]}
@@ -158,6 +162,7 @@ var t=find(pid);
 if(!t||t.mode!==mode){var twin=t&&twinCheck(t);t=twin&&twin.mode===mode?twin:{id:defaults[mode],mode:mode}}
 function twinCheck(x){return twins[x.id]?find(twins[x.id]):null}
 d.classList.toggle("dark",mode==="dark");d.style.colorScheme=mode;d.setAttribute("data-theme",t.id);
+if(scenes[t.id])d.setAttribute("data-scene",scenes[t.id]);else d.removeAttribute("data-scene");
 for(var k in vars)d.style.removeProperty(vars[k]);
 var color=null;
 if(t.tokens&&t.mode===mode){for(var k2 in vars){var v=t.tokens[k2];if(typeof v==="string")d.style.setProperty(vars[k2],v)}color=typeof t.tokens.bg==="string"?t.tokens.bg:null}
