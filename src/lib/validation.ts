@@ -67,10 +67,28 @@ export const chatRequestSchema = z.object({
    * when false, reasoning never leaves the server and is never stored.
    */
   showReasoning: z.boolean().optional(),
+  /**
+   * Temporary chat: nothing is written to the database and memory is neither
+   * read nor written for this message.
+   */
+  temporary: z.boolean().optional(),
   /** Guest demo only — signed-in chats use the messages saved in the database. */
   history: z.array(historyMessageSchema).max(20).optional(),
 });
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
+
+/* ── Memory ───────────────────────────────────────────────────────── */
+
+/** Settings → Memory switch. */
+export const memoryEnabledSchema = z.object({ enabled: z.boolean() });
+
+/** One memory, as edited by the person (short sentence, no control characters). */
+export const memoryTextSchema = z.object({
+  text: z
+    .string()
+    .transform(stripControl)
+    .pipe(z.string().trim().min(4, "Say a little more.").max(240, "Keep it under 240 characters.")),
+});
 
 const title = z
   .string()

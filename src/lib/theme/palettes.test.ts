@@ -36,8 +36,8 @@ describe("built-in themes", () => {
       expect(contrast(theme.tokens.subtle, theme.tokens.bg), `${theme.id} subtle`).toBeGreaterThanOrEqual(
         4.5,
       );
-      expect(contrast(theme.tokens.accent, theme.tokens.bg), `${theme.id} accent`).toBeGreaterThanOrEqual(
-        2.5,
+      expect(contrast(theme.tokens.accentText, theme.tokens.bg), `${theme.id} accent text`).toBeGreaterThanOrEqual(
+        4.5,
       );
     }
   });

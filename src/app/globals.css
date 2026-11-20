@@ -141,7 +141,8 @@ html.dark {
   body {
     background-color: var(--bg);
     color: var(--fg);
-    font-family: var(--font-sans);
+    /* Themes may change the voice (see THEME_FONT_STACKS in lib/theme/palettes). */
+    font-family: var(--font-body, var(--font-sans));
     font-weight: 500;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -180,13 +181,27 @@ html.dark {
 
 /* ---------- Reusable surfaces & helpers ---------- */
 
-/* Frosted glass. EXPENSIVE: use on at most a few large surfaces at once. */
+/*
+ * Frosted glass. EXPENSIVE: at most three of these may be on screen at once.
+ *
+ * Audit (kept in sync by hand, see README → Performance):
+ *   composer, desktop sidebar, landing header, login card — max 2 visible.
+ * Blur is 12px on desktop and 8px on phones: past that the GPU cost climbs
+ * quickly and nobody can see the difference behind a 0.7-alpha surface.
+ */
 @utility glass {
   background-color: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-panel);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+}
+
+@media (max-width: 767px) {
+  .glass {
+    backdrop-filter: blur(8px) saturate(130%);
+    -webkit-backdrop-filter: blur(8px) saturate(130%);
+  }
 }
 
 /* Same look without the blur. Use for lists, cards and anything repeated. */
@@ -279,24 +294,124 @@ html.dark {
   }
 }
 
-/* "Thinking…" dots */
+/* ---------- "Thinking" (the wait before the first word) ---------- */
+
+/* The word itself: a light sweeps through it, tinted by the theme accent. */
+.thinking-label {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background-image: linear-gradient(
+    100deg,
+    var(--muted) 0%,
+    var(--muted) 26%,
+    var(--fg) 42%,
+    var(--accent) 50%,
+    var(--fg) 58%,
+    var(--muted) 74%,
+    var(--muted) 100%
+  );
+  background-size: 240% 100%;
+  background-position: 140% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: thinking-sweep 2.6s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+
+@keyframes thinking-sweep {
+  0% {
+    background-position: 150% 0;
+  }
+  65%,
+  100% {
+    background-position: -55% 0;
+  }
+}
+
+/* Small glowing orb, coloured by the active theme (radial gradient, no filter). */
+.thinking-orb {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 35% 35%, #fff 0%, transparent 42%),
+    radial-gradient(circle, var(--accent) 0%, color-mix(in oklab, var(--accent) 40%, transparent) 55%, transparent 72%);
+  box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 55%, transparent);
+  animation: thinking-orb 2.2s ease-in-out infinite;
+}
+
+@keyframes thinking-orb {
+  0%,
+  100% {
+    transform: scale(0.86);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+/* Three softly pulsing dots. */
 .thinking-dots {
   display: inline-flex;
+  align-items: center;
   gap: 4px;
 }
 .thinking-dots span {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 9999px;
-  background: var(--fg);
-  animation: dot 1.2s var(--ease-premium) infinite;
+  background: var(--accent);
+  animation: thinking-dot 1.3s ease-in-out infinite;
 }
 .thinking-dots span:nth-child(2) {
-  animation-delay: 0.15s;
+  animation-delay: 0.16s;
 }
 .thinking-dots span:nth-child(3) {
-  animation-delay: 0.3s;
+  animation-delay: 0.32s;
 }
+
+@keyframes thinking-dot {
+  0%,
+  70%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.4;
+  }
+  35% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* "Thought for 4s" */
+.thought-line {
+  margin-bottom: 0.35rem;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--subtle);
+  text-transform: uppercase;
+  animation: fade-up 0.4s var(--ease-premium) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-label {
+    animation: none;
+    color: var(--muted);
+    background: none;
+    -webkit-text-fill-color: currentColor;
+  }
+  .thinking-orb,
+  .thinking-dots span {
+    animation: none;
+    opacity: 0.8;
+  }
+}
+
 @keyframes dot {
   0%,
   80%,
@@ -557,20 +672,39 @@ html.lenis body {
    content is never lost if scripts fail. */
 .js [data-reveal] {
   transition:
-    opacity 0.9s var(--ease-premium),
-    filter 0.9s var(--ease-premium),
-    transform 0.9s var(--ease-premium);
+    opacity 0.8s var(--ease-premium),
+    transform 0.8s var(--ease-premium);
   transition-delay: var(--d, 0ms);
 }
+/* No `filter: blur()` here on purpose: animating a blur on text re-rasterises
+   the layer every frame, which is the classic landing-page scroll stutter. */
 .js [data-reveal]:not([data-revealed]) {
   opacity: 0;
-  filter: blur(var(--reveal-blur-sm));
   transform: translateY(24px);
+  filter: none;
 }
 
-/* Gentle blur while scrolling fast (desktop; value set by landing-effects). */
+/*
+ * Retired: `filter: blur(var(--vblur))` applied to a full-width hero/footer and
+ * updated on every scroll frame. Measured as the single worst scroll cost in the
+ * app (a full-layer re-rasterise per frame). The class stays as a no-op so old
+ * markup keeps working; see README → Performance for the before/after numbers.
+ */
 .vblur {
-  filter: blur(var(--vblur, 0px));
+  will-change: auto;
+}
+
+/* Long pages: let the browser skip layout/paint for off-screen sections. */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 720px;
+}
+
+/* A hidden tab must not keep animating. Set by <PerfGuards />. */
+html[data-hidden="true"] *,
+html[data-hidden="true"] *::before,
+html[data-hidden="true"] *::after {
+  animation-play-state: paused !important;
 }
 
 /* Magnetic buttons: the wrapper stays put, the inner element follows the mouse. */
@@ -875,4 +1009,314 @@ html.has-cursor :is(input, textarea, [contenteditable="true"]) {
     opacity: 0.25;
     transform: none;
   }
+}
+
+/* ---------- What you can select (and what is chrome) ---------- */
+
+/*
+ * Interface text behaves like an app: no long-press menu, no drag, no blue
+ * flash when tapping the logo or a button. Document text — chat replies, code,
+ * anything you type — stays fully selectable and copyable, because that is the
+ * whole point of a chat. No JS, no right-click blocking: screen readers and
+ * keyboard users are unaffected by any of this.
+ */
+:where(a, button, summary, label, legend, nav, [role="tab"], [role="menuitem"], [role="option"], .ui-chrome) {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Compact chrome: every button-like control that is not a real link. */
+:where(h1, h2, h3, h4, h5, h6) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ...and here is what you CAN select and copy. */
+:where(
+  input,
+  textarea,
+  select,
+  [contenteditable="true"],
+  .markdown,
+  .markdown *,
+  .message-text,
+  .message-text *,
+  .selectable,
+  .selectable *,
+  pre,
+  code,
+  kbd
+) {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+  -webkit-user-drag: auto;
+}
+
+/* Images never start a native drag (mobile long-press "save image" is fine). */
+img {
+  -webkit-user-drag: none;
+}
+
+/* ---------- Scene themes: Sky · Ocean · Nature ---------- */
+
+/*
+ * Painted by <ThemeBackdrop>. Four spans of pure CSS gradients, moved with
+ * transform/opacity only (compositor work, no repaint, no blur filter).
+ *
+ * Budget: ≤3 layers on phones (the far layer is hidden), still gradient when
+ * html[data-fx="static"] (low-power or reduced motion), and text contrast is
+ * unaffected because every layer sits at very low alpha behind the content.
+ */
+html[data-scene] {
+  background-color: var(--bg);
+}
+html[data-scene] body,
+html[data-scene] .app-shell {
+  background-color: transparent;
+}
+
+.theme-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  /* The cross-fade between themes (one-shot, 400ms). */
+  animation: theme-fade 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.theme-backdrop span {
+  position: absolute;
+  display: block;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+
+@keyframes theme-fade {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* The base wash: dawn → day for Sky, shallow → deep for Ocean, canopy for Nature. */
+.theme-backdrop .tb-base {
+  inset: 0;
+}
+
+.theme-backdrop[data-scene="sky"] .tb-base {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--accent) 22%, transparent) 0%,
+    color-mix(in oklab, var(--accent) 7%, transparent) 38%,
+    transparent 72%
+  );
+}
+.theme-backdrop[data-scene="ocean"] .tb-base {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--accent) 20%, transparent) 0%,
+    transparent 55%,
+    color-mix(in oklab, var(--accent) 26%, transparent) 100%
+  );
+}
+.theme-backdrop[data-scene="nature"] .tb-base {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--accent) 14%, transparent) 0%,
+    transparent 45%,
+    color-mix(in oklab, var(--accent) 18%, transparent) 100%
+  );
+}
+
+/* The focal light: the sun, a caustic pool, or light through leaves. */
+.theme-backdrop .tb-glow {
+  width: 85vmax;
+  height: 85vmax;
+  border-radius: 50%;
+}
+.theme-backdrop[data-scene="sky"] .tb-glow {
+  top: -38vmax;
+  right: -18vmax;
+  background: radial-gradient(
+    circle at 50% 50%,
+    color-mix(in oklab, var(--accent) 32%, transparent) 0%,
+    transparent 62%
+  );
+  animation: scene-pulse 26s ease-in-out infinite;
+}
+.theme-backdrop[data-scene="ocean"] .tb-glow {
+  bottom: -46vmax;
+  left: -16vmax;
+  background:
+    radial-gradient(circle at 40% 60%, color-mix(in oklab, var(--accent) 26%, transparent) 0%, transparent 58%),
+    radial-gradient(circle at 60% 40%, color-mix(in oklab, var(--accent) 14%, transparent) 0%, transparent 52%);
+  animation: scene-sway 34s ease-in-out infinite alternate;
+}
+.theme-backdrop[data-scene="nature"] .tb-glow {
+  top: -30vmax;
+  left: 12vmax;
+  background: radial-gradient(
+    circle at 50% 50%,
+    color-mix(in oklab, var(--accent) 24%, transparent) 0%,
+    transparent 60%
+  );
+  animation: scene-pulse 30s ease-in-out infinite;
+}
+
+/* Sky: three long, soft clouds drifting sideways. */
+.theme-backdrop[data-scene="sky"] .tb-detail {
+  inset: 0;
+  background-image:
+    radial-gradient(34vmax 7vmax at 18% 26%, color-mix(in oklab, var(--fg) 12%, transparent), transparent 70%),
+    radial-gradient(26vmax 5vmax at 64% 18%, color-mix(in oklab, var(--fg) 9%, transparent), transparent 70%),
+    radial-gradient(40vmax 8vmax at 48% 44%, color-mix(in oklab, var(--bg) 70%, transparent), transparent 75%);
+  animation: scene-drift-x 150s linear infinite alternate;
+}
+
+/* Sky: soft sun rays fanning from the top-right. */
+.theme-backdrop[data-scene="sky"] .tb-far {
+  inset: -20% -30% auto auto;
+  width: 90vmax;
+  height: 90vmax;
+  opacity: 0.35;
+  background: repeating-conic-gradient(
+    from 200deg at 70% 0%,
+    color-mix(in oklab, var(--accent) 22%, transparent) 0deg 2.2deg,
+    transparent 2.2deg 7deg
+  );
+  animation: scene-sway 48s ease-in-out infinite alternate;
+}
+
+/* Ocean: wave bands at the bottom. */
+.theme-backdrop[data-scene="ocean"] .tb-detail {
+  inset: auto 0 0 0;
+  height: 70%;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--accent) 9%, transparent) 0 2px,
+    transparent 2px 26px
+  );
+  mask-image: linear-gradient(to top, black, transparent);
+  -webkit-mask-image: linear-gradient(to top, black, transparent);
+  animation: scene-sway 22s ease-in-out infinite alternate;
+}
+
+/* Ocean: rising bubbles (a repeating dot pattern that slowly climbs). */
+.theme-backdrop[data-scene="ocean"] .tb-far {
+  inset: -20% 0 0 0;
+  background-image:
+    radial-gradient(3px 3px at 18% 78%, color-mix(in oklab, var(--accent) 60%, transparent), transparent 60%),
+    radial-gradient(2px 2px at 42% 62%, color-mix(in oklab, var(--accent) 45%, transparent), transparent 60%),
+    radial-gradient(4px 4px at 68% 84%, color-mix(in oklab, var(--accent) 40%, transparent), transparent 60%),
+    radial-gradient(2px 2px at 86% 54%, color-mix(in oklab, var(--accent) 50%, transparent), transparent 60%);
+  animation: scene-rise 26s linear infinite;
+}
+
+/* Nature: leaves and pollen afloat. */
+.theme-backdrop[data-scene="nature"] .tb-detail {
+  inset: 0;
+  background-image:
+    radial-gradient(2px 2px at 12% 72%, color-mix(in oklab, var(--accent) 65%, transparent), transparent 60%),
+    radial-gradient(3px 3px at 34% 44%, color-mix(in oklab, var(--accent) 50%, transparent), transparent 60%),
+    radial-gradient(2px 2px at 58% 68%, color-mix(in oklab, var(--accent) 60%, transparent), transparent 60%),
+    radial-gradient(3px 3px at 78% 36%, color-mix(in oklab, var(--accent) 45%, transparent), transparent 60%);
+  animation: scene-drift-y 40s ease-in-out infinite alternate;
+}
+
+/* Nature: broader leaf shadows that sway like branches. */
+.theme-backdrop[data-scene="nature"] .tb-far {
+  inset: -10% -10% auto auto;
+  width: 80vmax;
+  height: 70vmax;
+  opacity: 0.3;
+  background-image:
+    radial-gradient(16vmax 6vmax at 60% 20%, color-mix(in oklab, var(--fg) 18%, transparent), transparent 70%),
+    radial-gradient(12vmax 5vmax at 30% 42%, color-mix(in oklab, var(--fg) 14%, transparent), transparent 70%);
+  animation: scene-sway 54s ease-in-out infinite alternate;
+}
+
+@keyframes scene-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.06);
+  }
+}
+@keyframes scene-sway {
+  from {
+    transform: translate3d(-1.5%, 1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(1.5%, -1.5%, 0) scale(1.03);
+  }
+}
+@keyframes scene-drift-x {
+  from {
+    background-position: -8% 0;
+  }
+  to {
+    background-position: 10% 0;
+  }
+}
+@keyframes scene-drift-y {
+  from {
+    transform: translate3d(0, -1.5%, 0);
+  }
+  to {
+    transform: translate3d(1%, 1.5%, 0);
+  }
+}
+@keyframes scene-rise {
+  from {
+    transform: translate3d(0, 8%, 0);
+  }
+  to {
+    transform: translate3d(0, -8%, 0);
+  }
+}
+
+/* Phones: one layer fewer and a calmer wash. */
+@media (max-width: 767px) {
+  .theme-backdrop .tb-far {
+    display: none;
+  }
+  .theme-backdrop {
+    opacity: 0.85;
+  }
+}
+
+/* Low-power devices and reduced motion: a still gradient, no movement. */
+html[data-fx="static"] .theme-backdrop {
+  animation: none;
+}
+html[data-fx="static"] .theme-backdrop span {
+  animation: none !important;
+  will-change: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-backdrop {
+    animation: none;
+  }
+  .theme-backdrop span {
+    animation: none !important;
+  }
+}
+
+/* Headings follow the theme's display voice (Ocean → rounded, others → Montserrat). */
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display, var(--font-sans));
 }

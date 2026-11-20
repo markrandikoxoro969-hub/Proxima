@@ -41,6 +41,8 @@ export type ThemeTokens = {
   inverseFg: string;
   scrollbar: string;
   accent: string;
+  /** Accent text/icon colour that passes AA on the base background. */
+  accentText: string;
   accentSoft: string;
 };
 
@@ -62,10 +64,17 @@ export const THEME_TOKEN_VARS: Record<ThemeTokenKey, string> = {
   inverseFg: "--inverse-fg",
   scrollbar: "--scrollbar",
   accent: "--accent",
+  accentText: "--accent-text",
   accentSoft: "--accent-soft",
 };
 
 export const THEME_TOKEN_KEYS = Object.keys(THEME_TOKEN_VARS) as ThemeTokenKey[];
+
+/** A painted, slowly moving backdrop that belongs to a theme. */
+export type ThemeScene = "sky" | "ocean" | "nature";
+
+/** Which voice a theme uses. `site` = PROXIMA's normal Montserrat. */
+export type ThemeDisplay = "geometric" | "rounded" | "site";
 
 export type ThemePalette = {
   /** Built-in id ("midnight") or "custom-…" for themes made by a person. */
@@ -75,6 +84,10 @@ export type ThemePalette = {
   mode: ThemeMode;
   /** The matching theme in the other mode; the sun/moon button swaps to it. */
   twin?: string;
+  /** Animated background painted by <ThemeBackdrop />. */
+  scene?: ThemeScene;
+  /** Body/heading voice for this theme. */
+  display?: ThemeDisplay;
   /** Three colours for the picker card: background, surface, accent. */
   swatch: [string, string, string];
   tokens: ThemeTokens;
@@ -130,6 +143,9 @@ export function deriveTokens(mode: ThemeMode, colors: ThemeColors): ThemeTokens 
     inverseFg: toHex(bgRgb),
     scrollbar: withAlpha(fgRgb, dark ? 0.15 : 0.15),
     accent: toHex(accentRgb),
+    // Keep the vivid accent for decoration, but use a separately derived
+    // AA-safe token wherever the accent is actual text or an informative icon.
+    accentText: toHex(ensureContrast(accentRgb, bgRgb, 4.6, fgRgb)),
     accentSoft: withAlpha(accentRgb, dark ? 0.22 : 0.16),
   };
 }
@@ -141,6 +157,7 @@ function theme(
   mode: ThemeMode,
   colors: ThemeColors,
   twin?: string,
+  extra: { scene?: ThemeScene; display?: ThemeDisplay } = {},
 ): ThemePalette {
   const tokens = deriveTokens(mode, colors);
   return {
@@ -149,10 +166,25 @@ function theme(
     description,
     mode,
     twin,
+    scene: extra.scene,
+    display: extra.display,
     swatch: [tokens.bg, tokens.surfaceSolid, tokens.accent],
     tokens,
   };
 }
+
+/**
+ * Font stacks per voice. Nothing is downloaded for these: Sky and Nature use the
+ * Montserrat that is already loaded, Ocean asks the OS for a rounded face and
+ * falls back to Montserrat where there isn't one. That keeps a theme switch at
+ * zero network cost (see README → Themes for why no webfont file ships).
+ */
+export const THEME_FONT_STACKS: Record<ThemeDisplay, string> = {
+  geometric: 'var(--font-montserrat), ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif',
+  rounded:
+    'ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", "Quicksand", var(--font-montserrat), ui-sans-serif, system-ui, sans-serif',
+  site: 'var(--font-montserrat), ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif',
+};
 
 /**
  * The themes that ship with PROXIMA.
@@ -210,6 +242,7 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       accent: "#0369a1",
     },
     "midnight",
+    { scene: "ocean", display: "rounded" },
   ),
   theme(
     "ember",
@@ -261,7 +294,44 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
     accent: "#a3e635",
     solid: "#0a120a",
   }),
+  // ── Scene themes ────────────────────────────────────────────────────────
+  // Each paints a slow background (components/theme/theme-backdrop.tsx) and
+  // picks a voice. Contrast is derived by the same rules as every other theme,
+  // so small print stays above 4.5:1.
+  theme(
+    "sky",
+    "Sky",
+    "Dawn light, drifting clouds and a soft sun.",
+    "light",
+    {
+      bg: "#e9f4ff",
+      fg: "#0a2540",
+      accent: "#0284c7",
+      solid: "#f8fcff",
+    },
+    "midnight",
+    { scene: "sky", display: "geometric" },
+  ),
+  theme(
+    "nature",
+    "Nature",
+    "Leaf light, floating pollen and a quiet, warm page.",
+    "light",
+    {
+      bg: "#f2f7ee",
+      fg: "#1b2a17",
+      accent: "#3f7d20",
+      solid: "#fbfdf8",
+    },
+    "aurora",
+    { scene: "nature", display: "site" },
+  ),
 ] as const;
+
+/** scene per built-in theme, for the pre-paint script and <html data-scene>. */
+export const BUILT_IN_THEME_SCENES: Record<string, ThemeScene> = Object.fromEntries(
+  THEME_PALETTES.filter((theme) => theme.scene).map((theme) => [theme.id, theme.scene!]),
+);
 
 const BUILT_IN_BY_ID = new Map(THEME_PALETTES.map((t) => [t.id, t]));
 
@@ -307,8 +377,17 @@ export function twinThemeId(theme: ThemePalette, mode: ThemeMode): string {
 
 /* ── The style sheet (built once per server start) ─────────────────── */
 
-const cssVariables = (tokens: ThemeTokens): string =>
-  THEME_TOKEN_KEYS.map((key) => `${THEME_TOKEN_VARS[key]}:${tokens[key]}`).join(";");
+/**
+ * Colours + the theme's voice. `--font-body` on <body> and `--font-display` on
+ * headings come from here, so a theme can change the typeface without any
+ * component knowing about it.
+ */
+const cssVariables = (palette: ThemePalette): string => {
+  const vars = THEME_TOKEN_KEYS.map((key) => `${THEME_TOKEN_VARS[key]}:${palette.tokens[key]}`);
+  const stack = THEME_FONT_STACKS[palette.display ?? "site"];
+  vars.push(`--font-body:${stack}`, `--font-display:${stack}`);
+  return vars.join(";");
+};
 
 /**
  * CSS for every built-in theme. Custom themes are applied as inline styles on
@@ -322,7 +401,7 @@ export function buildThemeCss(palettes: readonly ThemePalette[] = THEME_PALETTES
     palettes
       .map(
         (palette) =>
-          `:root[data-theme="${palette.id}"]{${cssVariables(palette.tokens)};color-scheme:${palette.mode}}`,
+          `:root[data-theme="${palette.id}"]{${cssVariables(palette)};color-scheme:${palette.mode}}`,
       )
       .join("\n") + "\n"
   );
@@ -336,6 +415,10 @@ export const themeStyleSheet = buildThemeCss();
 export function cssPropertiesFor(theme: ThemePalette): Record<string, string> {
   const style: Record<string, string> = {};
   for (const key of THEME_TOKEN_KEYS) style[THEME_TOKEN_VARS[key]] = theme.tokens[key];
+  // Custom themes only choose colours, so they keep the standard voice.
+  const stack = THEME_FONT_STACKS[theme.display ?? "site"];
+  style["--font-body"] = stack;
+  style["--font-display"] = stack;
   return style;
 }
 

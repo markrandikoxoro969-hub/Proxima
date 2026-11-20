@@ -6,6 +6,7 @@ import { api, ClientApiError } from "./api";
 import { chatReducer, DRAFT, initialChatState, type UiMessage } from "./chat-state";
 import { streamChat } from "./stream-chat";
 import { useShowReasoning } from "./use-show-reasoning";
+import { useTemporaryChat } from "./use-temporary";
 
 type Notify = (message: string, kind?: "info" | "success" | "error") => void;
 
@@ -40,6 +41,7 @@ export function useChat({
   );
   const [lastLatency, setLastLatency] = useState<number | null>(null);
   const [showReasoning] = useShowReasoning();
+  const [temporary] = useTemporaryChat();
   const abortRef = useRef<AbortController | null>(null);
   const stateRef = useRef(state);
   useEffect(() => {
@@ -167,15 +169,19 @@ export function useChat({
       const controller = new AbortController();
       abortRef.current = controller;
       let currentKey = key;
+      // Used for "Thought for 4s": time from send to the first visible word.
+      const startedAt = performance.now();
+      let firstWord = false;
 
       await streamChat(
         {
           message: text,
-          conversationId: key === DRAFT ? undefined : key,
+          conversationId: temporary || key === DRAFT ? undefined : key,
           attachments: attachments.length ? attachments : undefined,
           images: images.length ? images.map((image) => ({ id: image.id })) : undefined,
           retry: retryOf ? true : undefined,
           showReasoning,
+          temporary,
           history: history.length ? history : undefined,
         },
         {
@@ -194,7 +200,18 @@ export function useChat({
           },
           onStatus: (s) =>
             dispatch({ type: "phase", key: currentKey, id: assistantId, phase: s.state, message: s.message }),
-          onText: (t) => dispatch({ type: "append", key: currentKey, id: assistantId, text: t }),
+          onText: (t) => {
+            if (!firstWord) {
+              firstWord = true;
+              dispatch({
+                type: "thought",
+                key: currentKey,
+                id: assistantId,
+                ms: Math.round(performance.now() - startedAt),
+              });
+            }
+            dispatch({ type: "append", key: currentKey, id: assistantId, text: t });
+          },
           onReasoning: (t) => dispatch({ type: "reasoning", key: currentKey, id: assistantId, text: t }),
           onDone: (d) => {
             dispatch({
@@ -204,6 +221,7 @@ export function useChat({
               newId: d.messageId,
               latencyMs: d.latencyMs,
               text: d.text,
+              usedMemory: d.usedMemory,
             });
             setLastLatency(d.latencyMs);
           },
@@ -216,7 +234,7 @@ export function useChat({
       );
       if (abortRef.current === controller) abortRef.current = null;
     },
-    [notify, showReasoning],
+    [notify, showReasoning, temporary],
   );
 
   const send = useCallback(

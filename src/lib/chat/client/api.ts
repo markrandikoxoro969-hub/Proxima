@@ -76,6 +76,21 @@ export const api = {
   deleteAccount: () =>
     request<{ deleted: true }>("/api/me", { method: "DELETE", body: JSON.stringify({ confirm: "DELETE" }) }),
   clearAll: () => request<{ deleted: number }>(`/api/sessions?confirm=all`, { method: "DELETE" }),
+  /** Settings → Memory switch. */
+  setMemoryEnabled: (enabled: boolean) =>
+    request<{ enabled: boolean }>("/api/memory", {
+      method: "POST",
+      body: JSON.stringify({ enabled }),
+    }),
+  /** Forget one memory (the "Forget this" action on a reply). */
+  forgetMemory: (id: string) => request<{ deleted: number }>(`/api/memory/${id}`, { method: "DELETE" }),
+  clearMemory: () => request<{ deleted: number; cleared: true }>("/api/memory", { method: "DELETE" }),
+  /** Edit one memory in Settings. */
+  editMemory: (id: string, text: string) =>
+    request<{ memory: { id: string; text: string } }>(`/api/memory/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ text }),
+    }),
   updateProfile: (
     patch: Partial<Pick<Profile, "displayName" | "age" | "theme" | "themePalette" | "particles">> & {
       /** Only the three source colours are needed; the server rebuilds the rest. */

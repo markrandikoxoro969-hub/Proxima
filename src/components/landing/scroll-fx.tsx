@@ -1,25 +1,19 @@
 "use client";
 
-import {
-  m,
-  useMotionValueEvent,
-  useReducedMotion,
-  useScroll,
-  useSpring,
-  useTransform,
-  useVelocity,
-} from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { m, useReducedMotion, useScroll, useSpring, useTransform } from "motion/react";
+import { useRef } from "react";
 import { cn } from "@/lib/cn";
 
 /**
  * Scroll effects, driven by motion values — never by React state.
  *
  *   <Parallax speed={1}>  moves slower/faster than the page while it is on screen
- *   <ScrollFx />          a hairline progress bar + a velocity blur on fast scroll
+ *   <ScrollFx />          a hairline reading-progress bar
  *
- * The blur is CSS-only (`filter`, max 2.5px) and is switched off on phones and
- * for reduced motion, so scrolling stays at 60fps where it matters.
+ * This used to also blur the hero and footer while scrolling fast. That was the
+ * most expensive thing on the page (a `filter` on a full-width layer forces a
+ * re-rasterise every frame), so it is gone — measured details in README →
+ * Performance. The progress bar is one transform, which costs nothing.
  */
 export function Parallax({
   children,
@@ -46,35 +40,8 @@ export function Parallax({
 }
 
 export function ScrollFx() {
-  const reduced = useReducedMotion();
-  const { scrollY, scrollYProgress } = useScroll();
-  const velocity = useVelocity(scrollY);
-  const smoothVelocity = useSpring(velocity, { stiffness: 120, damping: 30 });
-  const blur = useTransform(smoothVelocity, (v) => {
-    const px = (Math.abs(v) - 900) / 1100;
-    return Math.min(Math.max(px, 0), 2.5);
-  });
+  const { scrollYProgress } = useScroll();
   const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 28 });
-  const [desktop, setDesktop] = useState(false);
-
-  useEffect(() => {
-    const query = window.matchMedia("(min-width: 768px) and (prefers-reduced-motion: no-preference)");
-    const sync = () => setDesktop(query.matches);
-    sync();
-    query.addEventListener("change", sync);
-    return () => query.removeEventListener("change", sync);
-  }, []);
-
-  // Write straight to CSS: no component re-renders while scrolling.
-  useMotionValueEvent(blur, "change", (value) => {
-    if (!desktop || reduced) return;
-    document.documentElement.style.setProperty("--vblur", `${value.toFixed(2)}px`);
-  });
-
-  useEffect(() => {
-    if (desktop && !reduced) return;
-    document.documentElement.style.removeProperty("--vblur");
-  }, [desktop, reduced]);
 
   return (
     <m.div

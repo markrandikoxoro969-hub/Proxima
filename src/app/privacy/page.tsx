@@ -28,6 +28,7 @@ export default function PrivacyPage() {
             Your messages are sent to the PROXIMA AI engine to get a reply. Your name and email are not.
           </li>
           <li>No ads, no tracking or analytics cookies, and we never sell your data.</li>
+          <li>Memory is off unless you turn it on after seeing a consent card; temporary chats are not saved.</li>
           <li>
             You can download or delete your chats, or delete your whole account, any time in{" "}
             <Link href="/settings" className="font-bold text-fg underline underline-offset-2">
@@ -68,6 +69,15 @@ export default function PrivacyPage() {
           took, and the text of files you attach (up to {LIMITS.attachmentsMax} small text files per message).
         </li>
       </ul>
+      <h3>Optional memory</h3>
+      <p>
+        Memory is <strong>off by default</strong>. If you choose to turn it on, PROXIMA can save short notes
+        about durable facts, preferences, goals and routines, then retrieve a few relevant notes for a later
+        reply. You can review, correct, export or delete every note at <Link href="/settings/memory">Settings → Memory</Link>,
+        and turning memory off stops both reading and writing. Temporary chat does not save the chat or use
+        memory. We do not store passwords, API keys, card or ID numbers, exact addresses, health diagnoses, or
+        details about other people unless you explicitly ask PROXIMA to remember that detail.
+      </p>
       <h3>The demo on the home page</h3>
       <p>
         If you try the live demo without signing in, your messages are sent to the AI engine to get a reply
@@ -134,7 +144,9 @@ export default function PrivacyPage() {
 
       <h2>How long we keep it</h2>
       <p>
-        Your profile and chats are kept until you delete them. When you delete a chat or your account, it is
+        Your profile, chats and any optional memory notes are kept until you delete them. Memory notes remain
+        until you remove them or they expire; deleting a chat does not remove a separate memory note. Deleting
+        your account removes the memories through the database cascade. When you delete a chat or your account, it is
         removed from our database right away. Copies may remain in our database provider&apos;s backups for a
         short time before they are erased.
       </p>
@@ -142,14 +154,14 @@ export default function PrivacyPage() {
       <h2>Your choices</h2>
       <ul>
         <li>
-          <strong>See and change</strong> your profile in <Link href="/settings">Settings</Link>.
+          <strong>See and change</strong> your profile and memory choice in <Link href="/settings">Settings</Link>.
         </li>
         <li>
           <strong>Download</strong> all your chats (Markdown or JSON) in Settings, or one chat from the chat
           screen.
         </li>
         <li>
-          <strong>Delete</strong> one chat, all chats, or your whole account in Settings.
+          <strong>Delete</strong> one chat, all chats, individual memory notes, all memories, or your whole account in Settings.
         </li>
         <li>
           Remove Proxima&apos;s access in your Google account under <em>Security</em>, then{" "}

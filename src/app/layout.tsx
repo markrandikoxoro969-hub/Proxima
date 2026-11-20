@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
+import { PerfGuards } from "@/components/system/perf-guards";
+import { ThemeBackdrop } from "@/components/theme/theme-backdrop";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { site } from "@/lib/site";
 import { THEME_COLORS, THEME_STYLE_ID, themeInitScript, themeStyleSheet } from "@/lib/theme";
@@ -72,7 +74,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to content
         </a>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {/* Sky / Ocean / Nature paint a slow background behind every page. */}
+          <ThemeBackdrop />
+          {children}
+        </ThemeProvider>
+        <PerfGuards />
         <RegisterServiceWorker />
       </body>
     </html>

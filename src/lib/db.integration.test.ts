@@ -25,6 +25,7 @@ describe("database migrations", () => {
       "RateLimit",
       "Session",
       "User",
+      "UserMemory",
       "VerificationToken",
     ]);
   });
@@ -86,6 +87,9 @@ describe("Prisma client ↔ schema", () => {
     const user = await t.prisma.user.create({ data: { email: "cascade@example.com" } });
     const convo = await t.prisma.conversation.create({
       data: { userId: user.id, messages: { create: { role: "user", content: "bye" } } },
+    });
+    await t.prisma.userMemory.create({
+      data: { userId: user.id, text: "training for a marathon", category: "fitness", key: "training for a marathon" },
     });
     await t.prisma.user.delete({ where: { id: user.id } });
     expect(await t.prisma.conversation.findUnique({ where: { id: convo.id } })).toBeNull();
