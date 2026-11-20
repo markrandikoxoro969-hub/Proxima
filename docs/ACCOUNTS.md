@@ -128,7 +128,7 @@ you land on `/app` and see your name and photo. 🎉
 | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Google page: **Error 400: redirect_uri_mismatch**                   | The redirect URI in Google Cloud must be exactly `http://localhost:3000/api/auth/callback/google`. Open the site at `http://localhost:3000` (not `127.0.0.1`). |
 | PROXIMA login page: _“Access was denied…”_                          | Add your Gmail under **Audience → Test users**.                                                                                                                |
-| PROXIMA login page: _“Sign-in isn't set up correctly…”_             | A value in `.env.local` is wrong/missing → run `npm run env:check`, then restart `npm run dev`.                                                                |
+| PROXIMA login page: _“Sign-in isn't set up correctly…”_             | A value in `.env.local` is wrong/missing → run `npm run env:check`, then restart `npm run dev`. On the live site open `/api/status?setup=1`.                   |
 | Google page: **Access blocked: app has not completed verification** | You're not a test user yet (see above), or publish the app (docs/DEPLOY.md → Step 3).                                                                          |
 
 ---

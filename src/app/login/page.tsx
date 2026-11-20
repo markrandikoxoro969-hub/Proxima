@@ -22,7 +22,7 @@ const ERROR_MESSAGES: Record<string, string> = {
     "This email is already connected to a different sign-in method. Use that one instead.",
   Verification: "That sign-in link has expired or was already used. Request a new one.",
   Configuration:
-    "Sign-in isn't set up correctly on the server yet. Check the .env settings (docs/ACCOUNTS.md).",
+    "Sign-in isn't set up correctly on the server yet. Open /api/status?setup=1 on this site to see what to fix.",
   OAuthSignin: "Couldn't start Google sign-in. Please try again.",
   OAuthCallbackError: "Google sign-in was cancelled or failed. Please try again.",
 };

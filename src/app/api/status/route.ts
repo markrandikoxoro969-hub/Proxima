@@ -2,6 +2,7 @@ import { getAiProvider } from "@/lib/ai";
 import { json, withApi } from "@/lib/api/http";
 import { hashedClientId } from "@/lib/api/security";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { runSetupCheck } from "@/lib/setup-check";
 import { site } from "@/lib/site";
 
 /**
@@ -10,6 +11,9 @@ import { site } from "@/lib/site";
  * so your first message is faster. The app calls it when /app opens.
  *
  *   { ai: { status: "online" | "waking" | "offline", latencyMs }, version }
+ *
+ * GET /api/status?setup=1 — sign-in doctor: checks the login keys and the
+ * database, and says what to fix (never shows a key). See src/lib/setup-check.ts.
  */
 const PING_TIMEOUT_MS = 3_500;
 
@@ -17,6 +21,11 @@ export const GET = withApi(async (request: Request) => {
   await enforceRateLimit(`status:${hashedClientId(request)}`, RATE_LIMITS.status, undefined, {
     failOpen: true,
   });
+  if (new URL(request.url).searchParams.has("setup")) {
+    const setup = await runSetupCheck(new URL(request.url).origin);
+    return json({ setup });
+  }
+
   const provider = getAiProvider();
 
   let status: "online" | "waking" | "offline" = "online";

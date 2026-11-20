@@ -1,5 +1,14 @@
 import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
+import { cleanEnv } from "@/lib/env-clean";
+
+// Remove stray quotes/spaces from pasted keys before Auth.js reads them.
+const fixedKeys = cleanEnv();
+if (fixedKeys.length > 0) {
+  console.warn(
+    `[proxima] Removed extra quotes/spaces from: ${fixedKeys.join(", ")}. It works, but tidy them in your settings.`,
+  );
+}
 
 /**
  * Shared login settings. This file must stay LIGHT (no database import),

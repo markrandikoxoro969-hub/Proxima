@@ -22,7 +22,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:status": "prisma migrate status",
     "db:studio": "prisma studio",
-    "env:check": "node scripts/check-env.mjs"
+    "env:check": "node scripts/check-env.mjs",
+    "env:setup": "node scripts/setup-env.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

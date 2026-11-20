@@ -57,7 +57,9 @@ cp .env.example .env.local          # macOS / Linux / Git Bash
 Copy-Item .env.example .env.local   # Windows PowerShell
 ```
 
-Fill it in by following **[docs/ACCOUNTS.md](docs/ACCOUNTS.md)** (click-by-click: Neon database +
+Easiest: run `npm run env:setup`. It asks for each key (just paste and press Enter), checks it,
+creates `AUTH_SECRET` for you and writes `.env.local`. Or fill it in by hand following
+**[docs/ACCOUNTS.md](docs/ACCOUNTS.md)** (click-by-click: Neon database +
 Google login). Then check it and create the database tables:
 
 ```bash
