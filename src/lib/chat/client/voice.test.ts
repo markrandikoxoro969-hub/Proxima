@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { VOICE_PROFILES, isVoiceChoice, pickVoice, splitForSpeech, toSpeechText } from "./voice";
+import {
+  VOICE_PROFILES,
+  isVoiceChoice,
+  isVoiceEngine,
+  pickVoice,
+  splitForSpeech,
+  toSpeechText,
+} from "./voice";
 
 const voice = (name: string, lang: string, localService = true) => ({ name, lang, localService });
 
@@ -108,5 +115,8 @@ describe("pickVoice", () => {
     expect(isVoiceChoice("girl")).toBe(true);
     expect(isVoiceChoice("boy")).toBe(true);
     expect(isVoiceChoice("robot")).toBe(false);
+    expect(isVoiceEngine("natural")).toBe(true);
+    expect(isVoiceEngine("device")).toBe(true);
+    expect(isVoiceEngine("browser")).toBe(false);
   });
 });

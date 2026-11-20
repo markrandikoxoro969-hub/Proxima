@@ -31,7 +31,7 @@ import { useChatMode } from "@/lib/chat/client/use-mode";
 import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
 import { useVoiceMode } from "@/lib/chat/client/use-voice-mode";
 import { useVoiceOutput } from "@/lib/chat/client/use-voice-output";
-import type { VoiceChoice } from "@/lib/chat/client/voice";
+import type { VoiceChoice, VoiceEngine } from "@/lib/chat/client/voice";
 import { EASE } from "@/lib/motion/tokens";
 import type { EngineStatus, MessagesPage, Profile, SessionSummary } from "@/lib/chat/types";
 import type { ImageDTO } from "@/lib/image/types";
@@ -120,6 +120,7 @@ function ChatScreen({
   const {
     supported: voiceSupported,
     speaking: voiceSpeaking,
+    activeEngine: voiceEngine,
     speak: speakAloud,
     stop: stopSpeech,
   } = useVoiceOutput({
@@ -151,9 +152,11 @@ function ChatScreen({
   const speakReply = useCallback(
     (id: string, text: string) => {
       setSpeakingId(id);
-      if (!speakAloud(text, { voice: voice.voice, speed: voice.speed })) setSpeakingId(null);
+      if (!speakAloud(text, { voice: voice.voice, speed: voice.speed, engine: voice.engine })) {
+        setSpeakingId(null);
+      }
     },
-    [speakAloud, voice.voice, voice.speed],
+    [speakAloud, voice.voice, voice.speed, voice.engine],
   );
 
   // Speak each reply exactly once when it changes from "streaming" to "done".
@@ -198,10 +201,10 @@ function ChatScreen({
   );
 
   const sampleVoice = useCallback(
-    (choice: VoiceChoice, speed: number) => {
+    (choice: VoiceChoice, speed: number, engine: VoiceEngine) => {
       stopVoice();
       // A preview is not a reply: it must not trigger hands-free listening.
-      speakAloud(VOICE_SAMPLE, { voice: choice, speed, onDone: () => {} });
+      speakAloud(VOICE_SAMPLE, { voice: choice, speed, engine, onDone: () => {} });
     },
     [speakAloud, stopVoice],
   );
@@ -415,7 +418,11 @@ function ChatScreen({
       {
         id: "voice",
         label: voice.enabled ? "Turn off voice mode" : "Turn on voice mode",
-        hint: voice.enabled ? (voice.voice === "girl" ? "Girl voice" : "Boy voice") : undefined,
+        hint: voice.enabled
+          ? `${voice.voice === "girl" ? "Girl voice" : "Boy voice"} · ${
+              voice.engine === "natural" ? "Natural" : "Device"
+            }`
+          : undefined,
         icon: <SpeakerHigh weight={voice.enabled ? "fill" : "bold"} className="size-4" />,
         keywords: "speak read aloud voice girl boy hands free listen",
         run: () => {
@@ -464,6 +471,7 @@ function ChatScreen({
       setShowReasoning,
       voice.enabled,
       voice.voice,
+      voice.engine,
       setVoice,
       stopVoice,
     ],
@@ -527,6 +535,7 @@ function ChatScreen({
                 supported={voiceSupported}
                 settings={voice}
                 speaking={voiceSpeaking}
+                activeEngine={voiceEngine}
                 onChange={setVoice}
                 onStop={stopVoice}
                 onSample={sampleVoice}

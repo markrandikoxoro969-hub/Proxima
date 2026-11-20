@@ -26,7 +26,7 @@ export const FAQS = [
   },
   {
     q: "Can Proxima talk back?",
-    a: "Yes. Open Voice mode from the speaker button in the chat header, choose a girl or boy voice, and turn on read-aloud. Each finished answer is spoken, or tap the speaker under any reply. Hands-free also opens the mic for your next question.",
+    a: "Yes. Open Voice mode from the speaker button in the chat header, choose a girl or boy voice, and turn on read-aloud. Natural quality uses a realistic neural voice; Device quality works offline. Each finished answer is spoken, or tap the speaker under any reply. Hands-free also opens the mic for your next question.",
   },
   {
     q: "Why is the first reply sometimes slow?",

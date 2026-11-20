@@ -83,6 +83,16 @@ export default function PrivacyPage() {
         If you try the live demo without signing in, your messages are sent to the AI engine to get a reply
         but are <strong>not saved</strong> in our database.
       </p>
+      <h3>Spoken replies</h3>
+      <p>
+        If you choose <strong>Natural</strong> voice, the answer text is sent from your browser to our server
+        and then to the voice service configured for the site (Microsoft Edge voices, OpenAI, or Pollinations
+        / ElevenLabs) only so it can be turned into audio. We do not save the audio, and we do not use that
+        text for anything else. The generated audio is kept in the browser tab only. Choosing{" "}
+        <strong>Device</strong> voice keeps speech in your browser (some phones may use a voice supplied by
+        the browser maker).
+      </p>
+
       <h3>To prevent abuse</h3>
       <p>
         To limit how many messages can be sent per minute, we keep a counter linked to your account or to a{" "}

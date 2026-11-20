@@ -36,7 +36,7 @@ describe("<VoiceMenu />", () => {
     await userEvent.click(screen.getByRole("button", { name: /turn on voice mode/i }));
     await userEvent.click(screen.getByRole("switch", { name: /read replies aloud/i }));
     expect(onChange).toHaveBeenCalledWith({ enabled: true });
-    expect(onSample).toHaveBeenCalledWith("girl", 1);
+    expect(onSample).toHaveBeenCalledWith("girl", 1, "natural");
   });
 
   it("offers a girl voice and a boy voice", async () => {
@@ -48,7 +48,28 @@ describe("<VoiceMenu />", () => {
     expect(dialog.getByRole("button", { name: /^girl voice/i })).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(dialog.getByRole("button", { name: /^boy voice/i }));
     expect(onChange).toHaveBeenCalledWith({ voice: "boy" });
-    expect(onSample).toHaveBeenCalledWith("boy", 1);
+    expect(onSample).toHaveBeenCalledWith("boy", 1, "natural");
+  });
+
+  it("offers a natural voice and lets you switch device voice on", async () => {
+    const { onChange, onSample } = setup({
+      settings: { ...DEFAULT_VOICE_SETTINGS, enabled: true },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /voice mode on/i }));
+    const quality = within(screen.getByRole("group", { name: "Voice quality" }));
+    expect(quality.getByRole("button", { name: "Natural" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(quality.getByRole("button", { name: "Device" }));
+    expect(onChange).toHaveBeenCalledWith({ engine: "device" });
+    expect(onSample).toHaveBeenCalledWith("girl", 1, "device");
+  });
+
+  it("explains when natural voice fell back to the device voice", async () => {
+    setup({
+      settings: { ...DEFAULT_VOICE_SETTINGS, enabled: true },
+      activeEngine: "device",
+    });
+    await userEvent.click(screen.getByRole("button", { name: /voice mode on/i }));
+    expect(screen.getByText(/natural voice couldn't be reached/i)).toBeInTheDocument();
   });
 
   it("changes speed and stops a reply that is reading", async () => {

@@ -53,7 +53,10 @@ export function LiveDemo() {
     speaking,
     speak,
     stop: stopSpeaking,
-  } = useVoiceOutput({ onEnd: () => setSpeakingId(null) });
+  } = useVoiceOutput({
+    onEnd: () => setSpeakingId(null),
+    onError: () => setSpeakingId(null),
+  });
 
   const sessionRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -165,7 +168,7 @@ export function LiveDemo() {
     }
     stopSpeaking();
     setSpeakingId(id);
-    if (!speak(text, { voice: "girl", speed: 1 })) setSpeakingId(null);
+    if (!speak(text, { voice: "girl", speed: 1, engine: "natural" })) setSpeakingId(null);
   };
 
   const retry = (message: DemoMessage) => {

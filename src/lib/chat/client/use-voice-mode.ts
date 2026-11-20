@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
-import { VOICE_SPEEDS, isVoiceChoice, type VoiceChoice } from "./voice";
+import { VOICE_SPEEDS, isVoiceChoice, isVoiceEngine, type VoiceChoice, type VoiceEngine } from "./voice";
 
 /**
  * Voice mode preferences, remembered on this device.
@@ -11,6 +11,8 @@ import { VOICE_SPEEDS, isVoiceChoice, type VoiceChoice } from "./voice";
  *               question (the mic is never open while Proxima is talking).
  * `voice`     → "girl" or "boy".
  * `speed`     → 0.9, 1 or 1.1.
+ * `engine`    → "natural" (neural audio from our server) or "device" (the
+ *               browser's own speech synthesis, which also works offline).
  *
  * Stored in localStorage (not the account) like the answer mode: it is a
  * per-device choice, and the landing demo has no account at all.
@@ -20,6 +22,7 @@ export type VoiceSettings = {
   handsFree: boolean;
   voice: VoiceChoice;
   speed: number;
+  engine: VoiceEngine;
 };
 
 export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
@@ -27,6 +30,7 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   handsFree: false,
   voice: "girl",
   speed: 1,
+  engine: "natural",
 };
 
 const KEY = "proxima:voice-mode";
@@ -44,6 +48,7 @@ function sanitize(value: unknown): VoiceSettings {
     handsFree: raw.handsFree === true,
     voice: isVoiceChoice(raw.voice) ? raw.voice : DEFAULT_VOICE_SETTINGS.voice,
     speed,
+    engine: isVoiceEngine(raw.engine) ? raw.engine : DEFAULT_VOICE_SETTINGS.engine,
   };
 }
 
