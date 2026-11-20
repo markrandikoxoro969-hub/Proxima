@@ -56,7 +56,8 @@ describe("NVIDIA provider", () => {
     const sent = body()!;
     expect(sent.model).toBe("nvidia/test-model");
     expect(sent.stream).toBe(true);
-    expect(sent.temperature).toBe(1);
+    // Default mode ("thinking") uses its own tuning, capped by the env value.
+    expect(sent.temperature).toBe(0.7);
     expect(sent.top_p).toBe(0.95);
     expect(sent.max_tokens).toBe(2048);
     expect(sent.chat_template_kwargs).toEqual({ enable_thinking: true });
@@ -86,6 +87,34 @@ describe("NVIDIA provider", () => {
     const { provider, body } = setup([chunk({ content: "ok" })], { enableThinking: false });
     await collect(provider.stream!(request));
     expect(body()!.chat_template_kwargs).toBeUndefined();
+  });
+
+  it("fast mode turns private thinking off and shortens the answer", async () => {
+    const { provider, body } = setup([chunk({ content: "ok" })]);
+    await collect(provider.stream!({ ...request, mode: "fast" }));
+    const sent = body()!;
+    expect(sent.chat_template_kwargs).toBeUndefined();
+    expect(sent.temperature).toBe(0.4);
+    expect(sent.max_tokens).toBe(1024);
+    // 12 turns of context instead of 20.
+    expect((sent.messages as unknown[]).length).toBeLessThanOrEqual(1 + 12 + 1);
+  });
+
+  it("coding and analyze modes keep thinking on and get the full token budget", async () => {
+    for (const mode of ["coding", "analyze"] as const) {
+      const { provider, body } = setup([chunk({ content: "ok" })]);
+      await collect(provider.stream!({ ...request, mode }));
+      const sent = body()!;
+      expect(sent.chat_template_kwargs).toEqual({ enable_thinking: true });
+      // Never above NVIDIA_MAX_TOKENS (2048 in these tests).
+      expect(sent.max_tokens).toBe(2048);
+    }
+  });
+
+  it("ignores an unknown mode instead of failing", async () => {
+    const { provider, body } = setup([chunk({ content: "ok" })]);
+    await collect(provider.stream!({ ...request, mode: "nonsense" as never }));
+    expect(body()!.temperature).toBe(0.7);
   });
 
   it("ignores empty or malformed chunks", async () => {

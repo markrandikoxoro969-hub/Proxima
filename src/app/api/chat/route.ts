@@ -1,6 +1,7 @@
 import { AI_TIMEOUT_MS, AiProviderError, getAiProvider } from "@/lib/ai";
 import { LeadingCleanGate, stripFiller } from "@/lib/ai/clean-reply";
-import { HISTORY_LIMIT, SYSTEM_PROMPT } from "@/lib/ai/prompt";
+import { modeSystemPrompt, resolveChatMode, resolveModeConfig } from "@/lib/ai/modes";
+import { SYSTEM_PROMPT } from "@/lib/ai/prompt";
 import { generateReply, typeOut } from "@/lib/ai/reply";
 import type { AiErrorCode, AiHistoryMessage } from "@/lib/ai/types";
 import { ApiError, apiErrors, readJson, withApi } from "@/lib/api/http";
@@ -22,11 +23,11 @@ import { chatRequestSchema, LIMITS } from "@/lib/validation";
  * Guest (landing-page demo) → not saved, max 500 characters, limit 5/minute.
  *
  * Events sent to the browser, in order:
- *   meta       { mode, conversationId, title, userMessageId }
+ *   meta       { mode, answerMode, conversationId, title, userMessageId }
  *   status     { state: "thinking" | "waking", message? }
  *   reasoning  { text }   ← only if the browser asked (Settings → Show reasoning)
  *   token      { text }   ← many of these; the answer as it is written
- *   done       { messageId, latencyMs, source, text }  ← `text` is the final,
+ *   done       { messageId, latencyMs, source, mode, text }  ← `text` is the final,
  *                                                         cleaned answer
  *   error      { code, message, retryable }            ← instead of done
  *
@@ -52,6 +53,9 @@ export const POST = withApi(async (request: Request) => {
   const attachments = input.attachments ?? [];
   const imageIds = (input.images ?? []).map((image) => image.id);
   const showReasoning = input.showReasoning === true;
+  /** Fast / Thinking / Coding / Analyze — see src/lib/ai/modes.ts. */
+  const mode = resolveChatMode(input.mode);
+  const modeConfig = resolveModeConfig(mode);
   /** Temporary chats are never written to the database and never touch memory. */
   const temporary = input.temporary === true;
 
@@ -155,13 +159,13 @@ export const POST = withApi(async (request: Request) => {
     const recent = await db.message.findMany({
       where: { conversationId, ...(userMessageId ? { id: { not: userMessageId } } : {}) },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: HISTORY_LIMIT,
+      take: modeConfig.historyLimit,
       select: { role: true, content: true },
     });
     for (const m of recent.reverse()) history.push({ role: m.role, content: m.content });
   } else if (input.history) {
     // Guests (and temporary chats) keep their context in the browser only.
-    history.push(...input.history);
+    history.push(...input.history.slice(-modeConfig.historyLimit));
   }
 
   // ── Memory (Settings → Memory; off unless the person turned it on) ──
@@ -173,7 +177,11 @@ export const POST = withApi(async (request: Request) => {
   // provenance to a reply that did not actually receive the memory context.
   const memories = useMemory && !identityAnswer ? await relevantMemories(userId!, input.message) : [];
   const memorySection = memories.length ? memoryPrompt(memories) : "";
-  const system = memorySection ? `${SYSTEM_PROMPT}\n\n${memorySection}` : undefined;
+  // The mode's rules are appended last, so they win over the general prompt.
+  const system = modeSystemPrompt(
+    memorySection ? `${SYSTEM_PROMPT}\n\n${memorySection}` : SYSTEM_PROMPT,
+    mode,
+  );
 
   // ── Stream the reply ──
   const provider = getAiProvider();
@@ -187,7 +195,13 @@ export const POST = withApi(async (request: Request) => {
 
   const stream = createSseStream(
     async (sse) => {
-      sse.send("meta", { mode: userId ? "user" : "guest", conversationId, title, userMessageId });
+      sse.send("meta", {
+        mode: userId ? "user" : "guest",
+        answerMode: mode,
+        conversationId,
+        title,
+        userMessageId,
+      });
       sse.send("status", { state: "thinking" });
 
       const started = Date.now();
@@ -229,8 +243,9 @@ export const POST = withApi(async (request: Request) => {
               signal,
               history,
               showReasoning,
+              mode,
               images: pictures,
-              ...(system ? { system } : {}),
+              system,
             });
 
         for await (const delta of deltas) {
@@ -275,6 +290,7 @@ export const POST = withApi(async (request: Request) => {
         sse.send("done", {
           messageId,
           latencyMs,
+          mode,
           source: identityAnswer ? "identity" : provider.id,
           // The clean final answer. The client swaps it in if trailing filler was removed.
           text: text || sentText,

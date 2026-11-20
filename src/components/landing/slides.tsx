@@ -109,7 +109,9 @@ export function Slides() {
       id="features"
       aria-roledescription="carousel"
       aria-label="What Proxima can do"
-      className="relative flex h-dvh min-h-[640px] flex-col overflow-hidden border-y border-line bg-surface-solid pt-24 pb-safe"
+      // `min()` instead of a flat 640px: on a short phone the slide no longer
+      // gets clipped by a section taller than the screen.
+      className="relative flex h-dvh min-h-[min(40rem,100svh)] flex-col overflow-hidden border-y border-line bg-surface-solid pt-20 pb-safe sm:pt-24"
     >
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         Slide {selected + 1} of {SLIDES.length}: {current.kicker}
@@ -133,7 +135,9 @@ export function Slides() {
                     "mx-auto grid h-full max-w-6xl content-center items-center gap-8 px-5 transition-[opacity,filter,transform] duration-700 ease-premium sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-16",
                     active
                       ? "scale-100 opacity-100 blur-none"
-                      : "scale-[0.94] opacity-20 blur-[6px] md:blur-[12px]",
+                      : // Blurring four off-screen full-size slides is expensive on a
+                        // phone GPU; the dimmed scale alone reads the same there.
+                        "scale-[0.94] opacity-20 blur-[6px] max-md:blur-none md:blur-[12px]",
                   )}
                 >
                   <div className="text-center lg:text-left">
@@ -147,7 +151,15 @@ export function Slides() {
                       {slide.text}
                     </p>
                   </div>
-                  <div className="mx-auto w-full max-w-md">{slide.visual}</div>
+                  {/*
+                    Phones show the words only: title + text + controls fill the
+                    screen, so the tall illustration would be clipped. From 640px
+                    it returns. Only the active slide and its neighbours keep
+                    their visuals in the DOM — five full scenes is a lot to hold.
+                  */}
+                  <div className="mx-auto hidden w-full max-w-md sm:block" aria-hidden>
+                    {Math.abs(i - selected) <= 1 ? slide.visual : null}
+                  </div>
                 </div>
               </div>
             );

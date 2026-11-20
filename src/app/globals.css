@@ -141,6 +141,8 @@ html.dark {
   body {
     background-color: var(--bg);
     color: var(--fg);
+    /* A stray decorative element must never make a phone scroll sideways. */
+    overflow-x: clip;
     /* Themes may change the voice (see THEME_FONT_STACKS in lib/theme/palettes). */
     font-family: var(--font-body, var(--font-sans));
     font-weight: 500;
@@ -173,6 +175,28 @@ html.dark {
   button,
   [role="button"] {
     cursor: pointer;
+  }
+
+  /* Touch: no 300ms delay and no accidental double-tap zoom on controls. */
+  button,
+  a,
+  summary,
+  label[for],
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+  /*
+   * iOS Safari zooms the page when a focused field's text is under 16px.
+   * Phones get 16px fields (the design barely changes); larger screens keep
+   * their own sizes.
+   */
+  @media (max-width: 767px) {
+    input,
+    textarea,
+    select {
+      font-size: max(16px, 1em);
+    }
   }
   button:disabled {
     cursor: not-allowed;
@@ -268,10 +292,18 @@ html.dark {
   }
 }
 
-/* While a reply streams, its growing edge fades in instead of snapping in. */
+/* While a reply streams, its growing edge fades in instead of snapping in.
+   Phones skip the mask: masking a growing element re-composites it on every
+   streamed frame, which is exactly when scrolling feels worst. */
 .markdown.is-streaming {
   mask-image: linear-gradient(to bottom, black calc(100% - 1.4em), rgb(0 0 0 / 0.7));
   -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 1.4em), rgb(0 0 0 / 0.7));
+}
+@media (max-width: 767px) {
+  .markdown.is-streaming {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
 }
 
 /* Blinking block caret at the end of a streaming reply. */
@@ -337,7 +369,12 @@ html.dark {
   border-radius: 9999px;
   background:
     radial-gradient(circle at 35% 35%, #fff 0%, transparent 42%),
-    radial-gradient(circle, var(--accent) 0%, color-mix(in oklab, var(--accent) 40%, transparent) 55%, transparent 72%);
+    radial-gradient(
+      circle,
+      var(--accent) 0%,
+      color-mix(in oklab, var(--accent) 40%, transparent) 55%,
+      transparent 72%
+    );
   box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 55%, transparent);
   animation: thinking-orb 2.2s ease-in-out infinite;
 }
@@ -1090,8 +1127,9 @@ html[data-scene] .app-shell {
 .theme-backdrop span {
   position: absolute;
   display: block;
-  will-change: transform;
   transform: translate3d(0, 0, 0);
+  /* No permanent `will-change`: four full-screen promoted layers cost GPU
+     memory on a phone. The compositor promotes an animating layer by itself. */
 }
 
 @keyframes theme-fade {
@@ -1155,8 +1193,16 @@ html[data-scene] .app-shell {
   bottom: -46vmax;
   left: -16vmax;
   background:
-    radial-gradient(circle at 40% 60%, color-mix(in oklab, var(--accent) 26%, transparent) 0%, transparent 58%),
-    radial-gradient(circle at 60% 40%, color-mix(in oklab, var(--accent) 14%, transparent) 0%, transparent 52%);
+    radial-gradient(
+      circle at 40% 60%,
+      color-mix(in oklab, var(--accent) 26%, transparent) 0%,
+      transparent 58%
+    ),
+    radial-gradient(
+      circle at 60% 40%,
+      color-mix(in oklab, var(--accent) 14%, transparent) 0%,
+      transparent 52%
+    );
   animation: scene-sway 34s ease-in-out infinite alternate;
 }
 .theme-backdrop[data-scene="nature"] .tb-glow {
@@ -1170,14 +1216,21 @@ html[data-scene] .app-shell {
   animation: scene-pulse 30s ease-in-out infinite;
 }
 
-/* Sky: three long, soft clouds drifting sideways. */
+/* Sky: three long, soft clouds drifting sideways.
+   `inset` is wider than the screen so a pure transform drift never shows an
+   edge — animating background-position would repaint the whole layer every
+   frame (the single most expensive thing the old version did). */
 .theme-backdrop[data-scene="sky"] .tb-detail {
-  inset: 0;
+  inset: -10% -22%;
   background-image:
-    radial-gradient(34vmax 7vmax at 18% 26%, color-mix(in oklab, var(--fg) 12%, transparent), transparent 70%),
+    radial-gradient(
+      34vmax 7vmax at 18% 26%,
+      color-mix(in oklab, var(--fg) 12%, transparent),
+      transparent 70%
+    ),
     radial-gradient(26vmax 5vmax at 64% 18%, color-mix(in oklab, var(--fg) 9%, transparent), transparent 70%),
     radial-gradient(40vmax 8vmax at 48% 44%, color-mix(in oklab, var(--bg) 70%, transparent), transparent 75%);
-  animation: scene-drift-x 150s linear infinite alternate;
+  animation: scene-drift-sky 150s linear infinite alternate;
 }
 
 /* Sky: soft sun rays fanning from the top-right. */
@@ -1237,7 +1290,11 @@ html[data-scene] .app-shell {
   height: 70vmax;
   opacity: 0.3;
   background-image:
-    radial-gradient(16vmax 6vmax at 60% 20%, color-mix(in oklab, var(--fg) 18%, transparent), transparent 70%),
+    radial-gradient(
+      16vmax 6vmax at 60% 20%,
+      color-mix(in oklab, var(--fg) 18%, transparent),
+      transparent 70%
+    ),
     radial-gradient(12vmax 5vmax at 30% 42%, color-mix(in oklab, var(--fg) 14%, transparent), transparent 70%);
   animation: scene-sway 54s ease-in-out infinite alternate;
 }
@@ -1261,12 +1318,12 @@ html[data-scene] .app-shell {
     transform: translate3d(1.5%, -1.5%, 0) scale(1.03);
   }
 }
-@keyframes scene-drift-x {
+@keyframes scene-drift-sky {
   from {
-    background-position: -8% 0;
+    transform: translate3d(-4%, 0, 0);
   }
   to {
-    background-position: 10% 0;
+    transform: translate3d(4%, 0, 0);
   }
 }
 @keyframes scene-drift-y {
@@ -1286,10 +1343,15 @@ html[data-scene] .app-shell {
   }
 }
 
-/* Phones: one layer fewer and a calmer wash. */
+/* Phones: one layer fewer, no busy detail animation, a calmer wash.
+   The big glow still breathes (one compositor layer), which is enough life
+   without burning a phone's GPU on drifting texture. */
 @media (max-width: 767px) {
   .theme-backdrop .tb-far {
     display: none;
+  }
+  .theme-backdrop .tb-detail {
+    animation: none !important;
   }
   .theme-backdrop {
     opacity: 0.85;

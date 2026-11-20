@@ -30,12 +30,16 @@ export function createSujanCoreProvider(options: Options = {}): AiProvider {
   const fetchImpl: typeof fetch = (...args) => (options.fetchImpl ?? globalThis.fetch)(...args);
   const retryDelayMs = options.retryDelayMs ?? 1500;
 
-  async function callOnce({ message, sessionId, signal }: AiRequest): Promise<Response> {
+  async function callOnce({ message, sessionId, signal, system }: AiRequest): Promise<Response> {
     try {
+      // This API has no separate "system" field, so the instructions (PROXIMA's
+      // prompt, memory notes and the composer's mode) travel at the top of the
+      // message. Without this the fallback would ignore the mode entirely.
+      const prompt = system?.trim() ? `${system.trim()}\n\n---\n\n${message}` : message;
       return await fetchImpl(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ message, session_id: sessionId }),
+        body: JSON.stringify({ message: prompt, session_id: sessionId }),
         signal,
         cache: "no-store",
       });

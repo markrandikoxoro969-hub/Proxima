@@ -9,7 +9,8 @@ Open your live address, e.g. `https://proxima.vercel.app`.
 ## 1. Landing page
 
 - [ ] The page appears quickly (under ~2–3 seconds on mobile data), with no blank white flash.
-- [ ] The headline goes from blurry to sharp, word by word. Stars drift in the background.
+- [ ] The headline goes from blurry to sharp, word by word. (Stars drift on desktop; phones skip
+      that canvas so scrolling stays light.)
 - [ ] Nothing sticks out sideways: swipe left/right on the page, and it shouldn't move.
 - [ ] The top bar stays visible while scrolling and doesn't cover text after tapping a section.
 - [ ] Scrolling feels like normal phone scrolling (no lag, no "floaty" feeling).
@@ -27,6 +28,11 @@ Open your live address, e.g. `https://proxima.vercel.app`.
 - [ ] First time: the onboarding shows (typing logo → name → age → loading).
 - [ ] Type a message: the **keyboard doesn't cover** the message box, and the page doesn't jump around.
 - [ ] The reply streams smoothly. While it streams you can scroll up to read, and it doesn't drag you back down.
+- [ ] **Answer mode** button (bottom-left of the message box): tap it → four modes appear.
+      Pick **Coding**, ask “Write a Python hello world” → the reply is code-first and the reply header
+      shows a small **CODING** chip. Pick **Fast** → a much shorter answer. Pick **Thinking** again.
+- [ ] The mode button stays inside the screen at 320–390px, and every mode row is easy to tap.
+- [ ] **Attach** (paperclip) opens one menu with picture / file / create-a-picture. Each works.
 - [ ] Ask for code (e.g. “Write a Python hello world”) → the code block is coloured → **Copy** → paste somewhere → it works.
 - [ ] **Microphone** button → allow microphone → speak → your words appear in the box.
       _(iPhone: Safari supports this on recent iOS versions. If the button is missing, that browser doesn't support voice input.)_
@@ -42,8 +48,9 @@ Open your live address, e.g. `https://proxima.vercel.app`.
 ## 3. Settings and other pages
 
 - [ ] `/settings`: change name, theme and particles → **Save changes** → “Settings saved.”
-- [ ] **Show reasoning** is off by default. Turn it on, send a message → a collapsed “Reasoning” block
-      appears; turn it off and it disappears. It must never appear in a saved reply after a reload.
+- [ ] **Show thinking** is off by default (it also lives in the answer-mode menu). Turn it on in
+      Thinking mode, send a message → a collapsed “Reasoning” block appears; turn it off and it
+      disappears. It must never appear in a saved reply after a reload.
 - [ ] **Download all (Markdown)** saves a file you can open.
 - [ ] `/privacy` and `/terms` are easy to read and links work.
 - [ ] Open a wrong address like `/hello` → the **404 “Lost in space”** page with working buttons.

@@ -53,9 +53,14 @@ function SettingsScreen({
       <header className="mx-auto flex max-w-2xl items-center justify-between gap-2 px-4 py-4 sm:px-6">
         <Logo />
         <div className="flex items-center gap-1">
-          <ButtonLink href="/app" variant="ghost" className="px-3 whitespace-nowrap">
+          <ButtonLink
+            href="/app"
+            variant="ghost"
+            className="px-3 whitespace-nowrap"
+            aria-label="Back to chat"
+          >
             <ArrowLeft weight="bold" className="size-4" aria-hidden />
-            Back to chat
+            <span className="hidden min-[420px]:inline">Back to chat</span>
           </ButtonLink>
           <ThemeToggle />
         </div>
@@ -211,7 +216,12 @@ function MemorySection({ profile, onSaved }: { profile: Profile; onSaved: (profi
       await api.setMemoryEnabled(next);
       setEnabled(next);
       onSaved({ ...profile, memoryEnabled: next, memoryConsented: profile.memoryConsented || next });
-      notify(next ? "Memory is on. You can review every note any time." : "Memory is off. New chats won't be remembered.", "success");
+      notify(
+        next
+          ? "Memory is on. You can review every note any time."
+          : "Memory is off. New chats won't be remembered.",
+        "success",
+      );
     } catch (error) {
       notify((error as Error).message, "error");
     } finally {

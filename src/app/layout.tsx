@@ -40,12 +40,16 @@ export const metadata: Metadata = {
 /**
  * Viewport: zoom is ALLOWED (the old file blocked it with user-scalable=no,
  * which fails accessibility). `viewport-fit=cover` lets us use safe-area
- * insets on phones with notches.
+ * insets on phones with notches, and `interactiveWidget` keeps the message box
+ * above the on-screen keyboard.
  */
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // Android: shrink the page when the keyboard opens instead of letting it
+  // cover the composer (the chat then keeps its input visible).
+  interactiveWidget: "resizes-content",
   themeColor: THEME_COLORS.dark,
   colorScheme: "dark light",
 };

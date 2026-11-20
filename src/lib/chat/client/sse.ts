@@ -1,3 +1,5 @@
+import type { ChatMode } from "@/lib/ai/modes";
+
 /**
  * Reads the Server-Sent Events stream from POST /api/chat.
  * (The browser's built-in EventSource only supports GET, so we parse it
@@ -7,7 +9,10 @@ export type ChatStreamEvent =
   | {
       event: "meta";
       data: {
+        /** Who is asking: a signed-in account or the landing-page demo. */
         mode: "user" | "guest";
+        /** The answer style the server actually used. */
+        answerMode?: ChatMode;
         conversationId: string | null;
         title: string | null;
         userMessageId: string | null;
@@ -23,6 +28,8 @@ export type ChatStreamEvent =
         messageId: string | null;
         latencyMs: number;
         source: string;
+        /** The answer style the server actually used. */
+        mode?: ChatMode;
         text?: string;
         /** Memories this answer used (only when Memory is on). */
         usedMemory?: { id: string; text: string }[];

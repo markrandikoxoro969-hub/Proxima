@@ -13,6 +13,7 @@ import {
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import dynamic from "next/dynamic";
 import { memo, useEffect, useState } from "react";
+import { MODE_CONFIG } from "@/lib/ai/modes";
 import type { UiMessage } from "@/lib/chat/client/chat-state";
 import { formatBytes } from "@/lib/chat/client/files";
 import { cn } from "@/lib/cn";
@@ -130,12 +131,17 @@ function AssistantMessage({
         <Planet weight="fill" className="size-4.5" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="mb-1 text-[11px] font-extrabold tracking-[0.25em] text-subtle uppercase">
+        <p className="mb-1 flex items-center gap-2 text-[11px] font-extrabold tracking-[0.25em] text-subtle uppercase">
           Proxima<span className="sr-only"> replied:</span>
+          {message.mode && message.mode !== "thinking" && (
+            <span className="rounded-full border border-line px-1.5 py-0.5 text-[9px] tracking-[0.18em] text-muted">
+              {MODE_CONFIG[message.mode].label}
+            </span>
+          )}
         </p>
 
         {waiting ? (
-          <Thinking phase={message.phase} message={message.statusMessage} />
+          <Thinking phase={message.phase} message={message.statusMessage} mode={message.mode} />
         ) : (
           <>
             {message.thoughtMs ? <ThoughtFor ms={message.thoughtMs} /> : null}
@@ -214,7 +220,6 @@ function AssistantMessage({
   );
 }
 
-
 /** Small provenance chip with a direct "Forget this" action for each note. */
 function MemoryUsed({ memories }: { memories: { id: string; text: string }[] }) {
   const [forgotten, setForgotten] = useState<string[]>([]);
@@ -252,7 +257,11 @@ function MemoryUsed({ memories }: { memories: { id: string; text: string }[] }) 
           </button>
         </span>
       ))}
-      {error && <span className="text-xs text-red-500" role="status">{error}</span>}
+      {error && (
+        <span className="text-xs text-red-500" role="status">
+          {error}
+        </span>
+      )}
     </div>
   );
 }
@@ -263,9 +272,18 @@ function MemoryUsed({ memories }: { memories: { id: string; text: string }[] }) 
  * and a live seconds counter. Screen readers hear one calm sentence instead of
  * the decoration. Once the reply starts it collapses to "Thought for 4s".
  */
-function Thinking({ phase, message }: { phase?: UiMessage["phase"]; message?: string }) {
+function Thinking({
+  phase,
+  message,
+  mode,
+}: {
+  phase?: UiMessage["phase"];
+  message?: string;
+  mode?: UiMessage["mode"];
+}) {
   const reduced = useReducedMotion();
   const waking = phase === "waking";
+  const label = mode ? MODE_CONFIG[mode].waiting : "Thinking";
   const [seconds, setSeconds] = useState(0);
 
   // A live counter, so a slow cold start feels like progress instead of a hang.
@@ -280,16 +298,16 @@ function Thinking({ phase, message }: { phase?: UiMessage["phase"]; message?: st
 
   return (
     <div className="flex flex-col gap-2 py-1.5" role="status" aria-live="polite">
-      <span className="sr-only">{waking ? "Waking up the engine" : "Proxima is thinking"}</span>
+      <span className="sr-only">{waking ? "Waking up the engine" : `Proxima is ${label.toLowerCase()}`}</span>
       <div className="flex items-center gap-2.5" aria-hidden>
         <span className="thinking-orb" />
-        <span className="thinking-label text-sm">{waking ? "Waking up" : "Thinking"}</span>
+        <span className="thinking-label text-sm">{waking ? "Waking up" : label}</span>
         <span className="thinking-dots">
           <span />
           <span />
           <span />
         </span>
-        {seconds > 0 && <span className="font-mono text-[11px] tabular-nums text-subtle">{seconds}s</span>}
+        {seconds > 0 && <span className="font-mono text-[11px] text-subtle tabular-nums">{seconds}s</span>}
       </div>
       {waking && (
         <p className="max-w-md text-xs text-subtle">

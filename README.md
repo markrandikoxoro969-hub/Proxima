@@ -8,7 +8,8 @@ Google login (Auth.js), Framer Motion, and server-side streaming from the PROXIM
 > then test on your phone → **[docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md)**.
 
 **What's inside:** cinematic landing page with a live demo · `/app` chat (streaming replies,
-markdown + code copy, voice input, file + picture attach, export) · selectable themes, including
+four answer modes — Thinking, Fast, Coding, Analyze — markdown + code copy, voice input,
+file + picture attach, export) · selectable themes, including
 themes you build yourself · an image studio (AI create + AI edit) · `/settings` (profile,
 appearance, download/delete data, delete account) · Privacy & Terms · 404 · installable phone app
 with an offline page · Google login · Postgres storage · rate limits · security headers · SEO +
@@ -197,6 +198,7 @@ Proxima/
 │  │  │  ├─ markdown.tsx        ← safe markdown (no HTML runs), tables, links
 │  │  │  ├─ code-block.tsx      ← code colours (Prism) + Copy button
 │  │  │  ├─ composer.tsx        ← message box: Enter to send, files, voice, 4000 counter
+│  │  │  ├─ mode-menu.tsx       ← Thinking / Fast / Coding / Analyze picker + Show thinking
 │  │  │  ├─ empty-state.tsx     ← "HOW CAN I HELP?" + suggestions
 │  │  │  ├─ settings-dialog.tsx ← name, age, theme, particles, clear logs, sign out
 │  │  │  ├─ onboarding.tsx      ← typing logo → name → age → loading
@@ -222,11 +224,12 @@ Proxima/
 │  ├─ generated/prisma/    ← auto-generated database client (not in git)
 │  ├─ lib/
 │  │  ├─ ai/               ← ⭐ swappable AI provider (providers/sujan-core.ts, providers/mock.ts)
+│  │  │  └─ modes.ts       ← the four answer modes: prompts + model settings (browser + server)
 │  │  ├─ api/              ← API helpers: errors, same-origin check, SSE stream
 │  │  ├─ auth/             ← safe redirects + "who is signed in" helpers
 │  │  ├─ chat/             ← attachments → prompt, titles, export, database queries
 │  │  │  └─ client/        ← browser side: reading the stream, chat state (useChat),
-│  │  │                       files, voice input, code highlighting
+│  │  │                       answer mode (use-mode), files, voice input, code highlighting
 │  │  ├─ identity.ts       ← detects identity questions, cleans leaks in AI replies
 │  │  ├─ rate-limit.ts     ← limits stored in Postgres (20/min signed in, 5/min demo)
 │  │  ├─ validation.ts     ← all input rules (zod): 4000 chars, 100 KB files, …
@@ -282,10 +285,24 @@ The landing page is plain, fast HTML. Sections just carry **labels**, and one sm
 
 ## Chat behaviour worth knowing
 
+- **Answer modes.** The composer has a small mode button (or ⌘K → “Answer mode: …”) with four choices:
+
+  | Mode | What it does | Private thinking | Token budget |
+  | --- | --- | --- | --- |
+  | **Thinking** (default) | Reasons before answering; checks edge cases | On | 4096 |
+  | **Fast** | One to three sentences, no private thinking | Off | 1024 |
+  | **Coding** | Complete, runnable code with the right language tag | On | 6144 |
+  | **Analyze** | Known vs assumed, a comparison, then a recommendation | On | 6144 |
+
+  Each mode swaps the system-prompt section **and** the model settings (temperature, top_p,
+  history length), so it changes how the engine actually answers — not just a label. The choice is
+  remembered on that device, and the reply shows a small mode chip. `NVIDIA_MAX_TOKENS` still caps
+  the budget. The landing-page demo uses Thinking unless changed in the app.
 - **Reasoning is private by default.** Newer models (NVIDIA Nemotron) stream their thinking in a
   separate field. PROXIMA never shows it and never saves it. While the model thinks you see a
-  wordless orb and a shimmer line. Settings → **Show reasoning** (off by default) reveals it in a
-  collapsed block for that browser only, for debugging.
+  wordless orb and a shimmer line (the label follows the mode: Thinking / Writing code / Analyzing).
+  The mode menu's **Show thinking** switch (or Settings → **Show reasoning**, off by default) reveals
+  it in a collapsed block for that browser only, for debugging.
 - **The reply is cleaned, then streamed.** The server removes openers like "Great question" before
   the first sentence is shown, so what you read is exactly what gets saved.
 - **⌘K / Ctrl+K** opens the command palette in the chat (new chat, theme, copy last reply, settings).
@@ -391,6 +408,11 @@ These are incremental upgrades to the existing PROXIMA app; the default face sta
 | Glass surfaces | blur radius was 20px; up to 4 surfaces could stack | 12px desktop, 8px phone; dialogs, toasts and cards use solid glass; active blurred surfaces are budgeted at 3 or fewer | CSS design limits, not a GPU trace |
 | Long/streaming chat | Each message can update independently | existing `MessageItem` memo + virtual list + `FrameBatcher` (at most one text callback/frame) retained; chat scroll has `data-lenis-prevent` | Protects older rows and prevents Lenis from taking chat scrolling |
 | Motion when not visible | background tabs could continue CSS animation | `PerfGuards` pauses CSS animations while hidden; reduced-motion/low-core devices get still theme scenes | Browser CSS behavior; verify on your device |
+| Background particles | a 60fps full-screen canvas on every screen, 60 dots on desktop / 28 on phones | the canvas is **desktop-only**, 42 dots, **30fps**, and still pauses off-screen / on a hidden tab | Cuts the canvas work by ~half and removes it entirely on phones |
+| Theme scenes | four promoted layers (`will-change` on each); phone clouds animated `background-position` = full-layer repaint every frame | no forced `will-change`; the drift is a transform again; phones freeze the busy detail layer and drop the far layer | Removes a per-frame full-screen repaint |
+| Landing below the fold | every section's DOM, the live demo's state and the slide visuals were built on first load | `content-visibility: auto` on Skills / How it works / FAQ; the live demo mounts near the viewport; only the active slide ±1 keep their visuals | Less DOM and hydration before the first scroll |
+| Streaming on phones | the growing reply carried a full-layer `mask-image` reset every frame | the mask is disabled ≤767px (the caret still shows progress) | Fewer composites while text streams |
+| Phone inputs | fields under 16px make iOS zoom on focus; a stray element could scroll the page sideways | 16px fields on phones, `overflow-x: clip`, `touch-action: manipulation`; `interactiveWidget=resizes-content` keeps the composer above the keyboard | Prevents two of the most common mobile annoyances |
 
 **Honesty note:** this workspace has no Chrome/Lighthouse browser, so no real trace, INP, React Profiler, Lighthouse score or before/after FPS was captured. We won't invent those figures. To get device measurements, use Chrome DevTools → **Performance**: record 10 seconds of scrolling and 10 seconds of streaming; inspect long tasks (over 50ms), frame time (16.7ms budget), and event handlers. In **React DevTools → Profiler**, record a stream and check that earlier message rows do not commit. Run Lighthouse with **Mobile** selected and record Performance + INP. Target: 60fps, INP under 200ms, no typing/streaming task over 50ms.
 

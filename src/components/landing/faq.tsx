@@ -47,7 +47,7 @@ export function Faq() {
   };
 
   return (
-    <section id="faq" aria-labelledby="faq-title" className="px-5 py-24 sm:px-8 sm:py-32">
+    <section id="faq" aria-labelledby="faq-title" className="cv-auto px-5 py-24 sm:px-8 sm:py-32">
       <SectionHeading id="faq-title" eyebrow="FAQ" title="Questions, answered." />
       <div className="mx-auto mt-14 flex max-w-3xl flex-col gap-3">
         {FAQS.map((f, i) => (

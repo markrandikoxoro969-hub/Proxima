@@ -1,3 +1,5 @@
+import type { ChatMode } from "./modes";
+
 /**
  * The contract every AI provider follows. To switch AI services later,
  * write a new file in ./providers that returns an `AiProvider`, register it
@@ -30,6 +32,8 @@ export type AiRequest = {
   system?: string;
   /** Let the provider emit its private reasoning (never shown by default). */
   showReasoning?: boolean;
+  /** Answer style chosen in the composer (fast / thinking / coding / analyze). */
+  mode?: ChatMode;
   /** Pictures attached to the newest message, in order. */
   images?: AiImage[];
 };

@@ -1,5 +1,6 @@
 import "server-only";
 import OpenAI from "openai";
+import { modeModelSettings, resolveChatMode } from "../modes";
 import { buildMessages, SYSTEM_PROMPT } from "../prompt";
 import { resolveNvidiaSettings, type NvidiaSettings } from "../settings";
 import { AiProviderError, type AiDelta, type AiProvider, type AiRequest } from "../types";
@@ -81,6 +82,12 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
       throw new AiProviderError("NVIDIA_API_KEY is not set", "unavailable");
     }
 
+    // The composer's mode decides how much room and reasoning the model gets.
+    // NVIDIA_MAX_TOKENS stays the hard ceiling, so a small env value still wins.
+    const mode = resolveChatMode(request.mode);
+    const tuning = modeModelSettings(mode, settings.maxTokens);
+    const useThinking = settings.enableThinking && tuning.thinking;
+
     const body = {
       model: settings.model,
       messages: buildMessages({
@@ -89,14 +96,15 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
         system: request.system ?? SYSTEM_PROMPT,
         images: request.images,
         attachImages: supportsVision(settings.model),
+        historyLimit: tuning.historyLimit,
       }),
-      temperature: 1,
-      top_p: 0.95,
-      max_tokens: settings.maxTokens,
+      temperature: tuning.temperature,
+      top_p: tuning.topP,
+      max_tokens: tuning.maxTokens,
       stream: true,
       // NVIDIA-specific: let the model reason privately first. Behind a flag so
       // it can be switched off without a code change.
-      ...(settings.enableThinking
+      ...(useThinking
         ? ({ chat_template_kwargs: { enable_thinking: true } } satisfies ChatTemplateKwargs)
         : {}),
     };
@@ -134,7 +142,7 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
 
   return {
     id: "nvidia",
-    label: `NVIDIA (${settings.model})`,
+    label: `NVIDIA (${settings.model})`, // modes are applied per request, not per provider
     stream,
 
     async ping(signal) {
