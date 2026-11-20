@@ -2,6 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { auth } from "@/auth";
+import type { Profile } from "@/lib/chat/types";
 import { db } from "@/lib/db";
 
 /**
@@ -38,4 +39,9 @@ export async function requireUser(returnTo: string): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect(`/login?callbackUrl=${encodeURIComponent(returnTo)}`);
   return user;
+}
+
+/** The safe, browser-ready version of the user (what client components receive). */
+export function toProfile({ onboardedAt, ...user }: CurrentUser): Profile {
+  return { ...user, onboarded: onboardedAt !== null };
 }

@@ -56,7 +56,12 @@ for (const file of walk(appDir)) {
     const route = key.replace(/\/page$/, "") || "/";
     if (route.startsWith("/_")) continue; // internal pages
     const files = new Set(shared);
-    for (const list of Object.values(manifest.entryJSFiles ?? {})) list.forEach((f) => files.add(f));
+    for (const [entry, list] of Object.entries(manifest.entryJSFiles ?? {})) {
+      // The 404 page and the last-resort error screen only download when they're shown,
+      // so they don't count toward a normal page's first load.
+      if (/\/(not-found|global-error)$/.test(entry)) continue;
+      list.forEach((f) => files.add(f));
+    }
     const kb = [...files].reduce((sum, f) => sum + gzipKb(f), 0);
     const budget = budgets.routes?.[route] ?? budgets.default;
     rows.push({ route, kb, budget, file: relative(root, file).split(sep).join("/") });

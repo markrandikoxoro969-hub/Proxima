@@ -83,5 +83,8 @@ and run `npm run db:deploy` and `npm run env:check`. (Production on Vercel still
 
 ## Production (Vercel)
 
-Covered in Phase 6. Short version: Vercel uses the same Neon database variables, and
-`npm run db:deploy` runs before each deploy so new tables are created automatically.
+Vercel uses the same Neon variables (`DATABASE_URL` + `DIRECT_URL`, added in
+**Vercel → Settings → Environment Variables**). On every deploy Vercel runs the `vercel-build`
+script (`prisma migrate deploy && next build`), so new tables and changes are applied automatically
+before the new version goes live. If a migration fails, the deploy stops and the old version keeps
+running. Full guide: [DEPLOY.md](./DEPLOY.md).

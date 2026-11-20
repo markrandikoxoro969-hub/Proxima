@@ -65,7 +65,15 @@ export function SiteFooter() {
         <p>
           © {new Date().getFullYear()} {site.name} · by {site.developer}
         </p>
-        <p>{site.version}</p>
+        <div className="flex items-center gap-1">
+          <Link href="/privacy" className="inline-flex tap items-center rounded-lg px-2 hover:text-fg">
+            Privacy
+          </Link>
+          <Link href="/terms" className="inline-flex tap items-center rounded-lg px-2 hover:text-fg">
+            Terms
+          </Link>
+          <span className="px-2">{site.version}</span>
+        </div>
       </div>
 
       {/* Giant faded wordmark */}

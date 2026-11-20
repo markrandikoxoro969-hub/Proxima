@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { z } from "zod";
 import { ChatApp } from "@/components/chat/chat-app";
-import { requireUser } from "@/lib/auth/session";
+import { requireUser, toProfile } from "@/lib/auth/session";
 import { getMessagesPage, listSessions } from "@/lib/chat/queries";
-import type { MessagesPage, Profile } from "@/lib/chat/types";
+import type { MessagesPage } from "@/lib/chat/types";
 import { db } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Chat", robots: { index: false, follow: false } };
@@ -23,17 +23,7 @@ export default async function AppPage({ searchParams }: PageProps<"/app">) {
     requestedId.success ? loadOwnedConversation(user.id, requestedId.data) : Promise.resolve(null),
   ]);
 
-  const profile: Profile = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    image: user.image,
-    displayName: user.displayName,
-    age: user.age,
-    theme: user.theme,
-    particles: user.particles,
-    onboarded: user.onboardedAt !== null,
-  };
+  const profile = toProfile(user);
 
   return (
     <ChatApp
