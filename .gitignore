@@ -48,3 +48,6 @@ next-env.d.ts
 
 # Local test screenshots (not part of the site)
 /.arena/
+
+# Python cache (ai-server)
+__pycache__/

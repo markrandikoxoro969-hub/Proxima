@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: chat-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --timeout 120
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false # paste it on Render → Environment (never in code)
+      - key: MODEL
+        value: meta-llama/llama-3.3-70b-instruct:free
+      - key: SITE_URL
+        value: https://proxima-three-delta.vercel.app
+      - key: SITE_NAME
+        value: PROXIMA

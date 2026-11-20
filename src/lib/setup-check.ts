@@ -141,7 +141,27 @@ async function checkAi(): Promise<SetupCheck> {
         ? `No reply within ${AI_TEST_TIMEOUT_MS / 1000} s. The free Render server is probably waking up: reload this page in a minute.`
         : code === "bad_response"
           ? `The AI answered, but not in the expected format { "reply": "..." }. Check ${settings.url}.`
-          : `Couldn't get a reply from ${settings.url}${error instanceof AiProviderError && error.status ? ` (HTTP ${error.status})` : ""}. Open ${host} in your browser to see if the AI server is up.`;
+          : `Couldn't get a reply from ${settings.url}. ${(error as Error).message}. ${aiHint((error as Error).message, host)}`;
     return { name, ok: false, detail: detail + tip };
   }
+}
+
+/** Turns the AI server's error text into a next step. */
+function aiHint(message: string, host: string): string {
+  if (/OPENROUTER_API_KEY is not set/i.test(message)) {
+    return "Add OPENROUTER_API_KEY on Render: your AI service, then Environment, then Add, then Save (it restarts by itself).";
+  }
+  if (/openrouter/i.test(message) && /\b401\b|unauthori[sz]ed|user not found/i.test(message)) {
+    return "The AI server's OpenRouter key is invalid or was revoked: create a new key at openrouter.ai/keys and put it in the AI server's settings on Render (OPENROUTER_API_KEY).";
+  }
+  if (/\b402\b|credits|payment/i.test(message)) {
+    return "The AI server's OpenRouter account is out of credits (openrouter.ai/credits) or the model isn't free anymore.";
+  }
+  if (/\b404\b|no endpoints|not a valid model/i.test(message)) {
+    return "The AI model used by the AI server no longer exists on OpenRouter: change MODEL on Render to a current model.";
+  }
+  if (/\b429\b|too many requests|rate.?limit/i.test(message)) {
+    return "The free AI model is busy or the daily free limit was reached. Try again later, or use a paid model.";
+  }
+  return `Open ${host} in your browser to check the AI server, and look at its Logs on Render.`;
 }

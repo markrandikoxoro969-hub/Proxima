@@ -33,6 +33,19 @@ describe("sujan-core provider", () => {
     expect(JSON.parse(init.body as string)).toEqual({ message: "Hi", session_id: "s1" });
   });
 
+  it("keeps the AI server's own error text (for logs and the setup check)", async () => {
+    const { provider } = setup(
+      ok({ reply: "Unable to contact AI.", error: "401 Client Error: Unauthorized", session_id: "s1" }, 500),
+    );
+    await expect(provider.complete!(request())).rejects.toMatchObject({
+      code: "upstream",
+      status: 500,
+      message: "AI API responded with HTTP 500: Unable to contact AI. 401 Client Error: Unauthorized",
+    });
+    const html = setup(new Response("<html><body><h1>Bad   Gateway</h1></body></html>", { status: 500 }));
+    await expect(html.provider.complete!(request())).rejects.toThrow("HTTP 500: Bad Gateway");
+  });
+
   it("retries once when Render is restarting (503)", async () => {
     const { provider, fetchImpl } = setup(ok({}, 503), ok({ reply: "Back!" }));
     await expect(provider.complete!(request())).resolves.toBe("Back!");

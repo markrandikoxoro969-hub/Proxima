@@ -21,6 +21,7 @@ offline page · Google login · Postgres storage · rate limits · security head
 | [docs/API.md](docs/API.md)                         | Every API endpoint, the chat stream, switching the AI |
 | [docs/DEPLOY.md](docs/DEPLOY.md)                   | Put the site online with Vercel (+ your own domain)   |
 | [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) | Final test on a real phone                            |
+| [docs/AI-SERVER.md](docs/AI-SERVER.md)             | Fix the Render AI server (OpenRouter key, model)      |
 
 ---
 
@@ -132,6 +133,7 @@ After that, every merge into `main` goes live automatically. Then run through
 
 ```
 Proxima/
+├─ ai-server/             ← the Render AI server (Python), fixed: key read from Render settings
 ├─ docs/
 │  ├─ ACCOUNTS.md          ← click-by-click: Neon, Google login, Resend
 │  ├─ API.md               ← every API endpoint, the chat stream format, how to switch AI

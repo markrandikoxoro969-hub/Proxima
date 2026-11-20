@@ -17,7 +17,15 @@ const GOOD = {
 function googleReplies(error: string, ai: string | number = "ok") {
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
     if (String(input).includes("oauth2.googleapis.com")) return Response.json({ error }, { status: 400 });
-    return typeof ai === "number" ? new Response("down", { status: ai }) : Response.json({ reply: ai });
+    return typeof ai === "number"
+      ? Response.json(
+          {
+            reply: "Unable to contact AI.",
+            error: "401 Client Error: Unauthorized for url: https://openrouter.ai/api/v1/chat/completions",
+          },
+          { status: ai },
+        )
+      : Response.json({ reply: ai });
   });
 }
 const byName = (checks: { name: string; ok: boolean; detail: string }[], name: string) =>
@@ -88,7 +96,8 @@ describe("runSetupCheck", () => {
     googleReplies("invalid_grant", 500);
     const down = byName((await runSetupCheck("https://a.b")).checks, "AI engine");
     expect(down.ok).toBe(false);
-    expect(down.detail).toContain("HTTP 500");
+    expect(down.detail).toContain("HTTP 500: Unable to contact AI. 401 Client Error");
+    expect(down.detail).toContain("OpenRouter key is invalid or was revoked");
 
     vi.stubEnv("AI_PROVIDER", "mock");
     const mock = byName((await runSetupCheck("https://a.b")).checks, "AI engine");
