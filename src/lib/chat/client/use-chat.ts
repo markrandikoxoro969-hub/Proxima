@@ -189,7 +189,10 @@ export function useChat({
           showReasoning,
           mode: answerMode,
           temporary,
-          history: history.length ? history : undefined,
+          // Signed-in chats are rebuilt from the database on the server.
+          // Sending the same history from the browser made every request tens
+          // of kilobytes larger (and could trip the old 4000-char limit).
+          history: temporary && history.length ? history : undefined,
         },
         {
           signal: controller.signal,
@@ -270,7 +273,15 @@ export function useChat({
       if (!userMessage) return;
       // `retry: true` tells the server "don't save my message twice". If it was
       // never saved (e.g. you were offline), the server simply saves it now.
-      const outgoingIds = (userMessage.outgoingImages ?? []).map((image) => ({ id: image.id }));
+      // After a reload the in-memory `outgoingImages` is gone, so rebuild the
+      // ids from the saved attachment metadata — otherwise a retried picture
+      // message would reach the AI as text only.
+      const outgoingIds = (
+        userMessage.outgoingImages ??
+        (userMessage.attachments ?? [])
+          .filter((attachment) => attachment.kind === "image" && attachment.imageId)
+          .map((attachment) => ({ id: attachment.imageId! }))
+      ).map((image) => ({ id: image.id }));
       await run({
         key,
         text: userMessage.content,

@@ -554,10 +554,28 @@ html.dark {
   border-bottom: 1px solid var(--line);
   padding: 0.55em 0.9em;
   text-align: left;
+  /*
+   * `.markdown` uses overflow-wrap:anywhere so a long URL can't overflow.
+   * Inside a table that rule is harmful: a narrow column then breaks normal
+   * words into one letter per line ("A / B / C"). Keep whole words together
+   * and give each cell a readable minimum; the wrapper scrolls if needed.
+   */
+  overflow-wrap: break-word;
+  word-break: normal;
+  min-width: 5rem;
 }
 .markdown th {
   background: var(--surface-hover);
   font-weight: 800;
+}
+@media (max-width: 640px) {
+  .markdown table {
+    font-size: 0.86em;
+  }
+  .markdown th,
+  .markdown td {
+    padding: 0.45em 0.6em;
+  }
 }
 .markdown input[type="checkbox"] {
   margin-right: 0.4em;
@@ -870,7 +888,7 @@ html.has-cursor :is(input, textarea, [contenteditable="true"]) {
     transform-origin: bottom;
   }
 }
-/* Animations inside hidden slides take a break. */
+/* Animations inside an inert region (closed sidebar, onboarding backdrop) pause. */
 [inert] * {
   animation-play-state: paused !important;
 }

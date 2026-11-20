@@ -94,17 +94,22 @@ Keys are read on the server only, never logged, and never sent to the browser.
 
 ## Let the chat _see_ pictures
 
-Attached pictures reach the AI as image parts only when the chat model can see
-them. With NVIDIA, either switch the model or say so explicitly:
+Attached pictures always reach the AI. The default Nemotron model is text-only,
+so Proxima first has `meta/llama-3.2-90b-vision-instruct` read the picture and
+passes its description to the main model. No configuration is required.
+
+To change or disable the reader:
 
 ```bash
-NVIDIA_MODEL="meta/llama-3.2-90b-vision-instruct"
-# or, if the model name doesn't contain "vision":
-NVIDIA_VISION="true"
+# Faster, lighter OCR (less accurate on small text):
+NVIDIA_VISION_MODEL="meta/llama-3.2-11b-vision-instruct"
+# Turn the reader off; the AI will honestly ask you to describe the picture:
+NVIDIA_VISION_MODEL="off"
 ```
 
-The default Nemotron model is text-only; it receives a note that a picture was
-attached and asks you to describe it, instead of making something up.
+You can also put a vision model in `NVIDIA_MODEL` and the picture is sent to it
+directly. Add `NVIDIA_VISION="true"` only when that model's name does not say
+"vision", "vl", "llava" or similar.
 
 ## Limits
 

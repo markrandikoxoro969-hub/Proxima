@@ -107,7 +107,8 @@ export const MODE_CONFIG: Record<ChatMode, ModeConfig> = {
     guidance: [
       "Mode: Analyze.",
       "Break the question into its parts before answering. Separate what is known from what is assumed, and say which is which.",
-      "Use a short table or bullet list when comparing options, causes or evidence. Keep every line earning its place.",
+      "Use short bullet points when comparing options, causes or evidence. Avoid tables unless the numbers genuinely need columns; if you use one, keep it to two narrow columns that read on a phone.",
+      "Name each option or cause in full. Never use a letter, number or one-word label as a placeholder standing in for an explanation.",
       "Finish with a clear conclusion or recommendation, plus the main risk or the next thing worth checking.",
       "If the data is not enough for a firm conclusion, say what is missing instead of guessing.",
     ].join("\n"),

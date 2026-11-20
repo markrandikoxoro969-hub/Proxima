@@ -15,7 +15,6 @@ Open your live address, e.g. `https://proxima.vercel.app`.
 - [ ] The top bar stays visible while scrolling and doesn't cover text after tapping a section.
 - [ ] Scrolling feels like normal phone scrolling (no lag, no "floaty" feeling).
 - [ ] Sections fade in as you scroll; none stay invisible.
-- [ ] **Slides:** swipe left/right → they change; the **← →** buttons work; the counter shows `02 / 05` etc.
 - [ ] **Live demo:** type a question → **Send** → the reply streams in word by word (no example buttons).
 - [ ] **Stop** while it's answering → it stops. **New demo** clears it.
 - [ ] **FAQ:** tap a question → it opens; tap another → the first closes.

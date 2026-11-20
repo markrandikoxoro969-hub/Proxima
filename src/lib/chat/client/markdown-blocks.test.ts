@@ -29,6 +29,19 @@ describe("splitMarkdownBlocks", () => {
 });
 
 describe("toBlocks", () => {
+  it("keeps a lettered list together across a blank line", () => {
+    expect(toBlocks("Points:\n\nA. First point\n\nB. Second point")).toEqual([
+      "Points:",
+      "A. First point\n\nB. Second point",
+    ]);
+  });
+
+  it("keeps a table together even if a blank line slips in", () => {
+    expect(toBlocks("| Option | Cost |\n| --- | --- |\n\n| A | 1 |\n| B | 2 |")).toEqual([
+      "| Option | Cost |\n| --- | --- |\n\n| A | 1 |\n| B | 2 |",
+    ]);
+  });
+
   it("keeps loose lists together so numbering continues", () => {
     expect(toBlocks("Steps:\n\n1. First\n\n2. Second\n\n   more about second\n\nDone")).toEqual([
       "Steps:",

@@ -199,7 +199,7 @@ Proxima/
 │  │  │  ├─ code-block.tsx      ← code colours (Prism) + Copy button
 │  │  │  ├─ composer.tsx        ← message box: Enter to send, files, voice, 4000 counter
 │  │  │  ├─ mode-menu.tsx       ← Thinking / Fast / Coding / Analyze picker + Show thinking
-│  │  │  ├─ empty-state.tsx     ← "HOW CAN I HELP?" + suggestions
+│  │  │  ├─ empty-state.tsx     ← greeting + one line of guidance (no cards)
 │  │  │  ├─ settings-dialog.tsx ← name, age, theme, particles, clear logs, sign out
 │  │  │  ├─ onboarding.tsx      ← typing logo → name → age → loading
 │  │  │  └─ particles.tsx       ← background stars (fewer on phones, pauses when hidden)
@@ -208,7 +208,6 @@ Proxima/
 │  │  │  ├─ hero.tsx            ← blur → sharp headline, stars, orbit rings
 │  │  │  ├─ skills.tsx          ← the six skills grid
 │  │  │  ├─ how-it-works.tsx    ← 3 steps
-│  │  │  ├─ slides.tsx          ← full-screen slides (swipe, arrow keys, dots)
 │  │  │  ├─ live-demo.tsx       ← real chat without login (not saved, 5 msgs/min)
 │  │  │  ├─ faq.tsx             ← questions (works without JavaScript) + Google FAQ data
 │  │  │  ├─ site-footer.tsx     ← final call-to-action + links
@@ -356,8 +355,8 @@ This was a prior simulated-device snapshot, not a repeatable local Chrome measur
       cold-start "waking up" status, Postgres rate limits), sessions, export, profile, status, API tests
 - [x] **Phase 4 — `/app` chat:** onboarding, sidebar, streaming markdown + code copy, settings, voice,
       files, export, toasts, virtual scrolling, retry, keyboard shortcuts
-- [x] **Phase 5 — Landing + motion:** cinematic hero, skills, how it works, swipeable slides
-      (touch + keyboard), live demo (guest, not saved), FAQ, footer; reveals, parallax, Lenis, magnetic
+- [x] **Phase 5 — Landing + motion:** cinematic hero, skills, how it works, live demo
+      (guest, not saved), FAQ, footer; reveals, parallax, Lenis, magnetic
       buttons, glow, custom cursor, page transitions — all reduced-motion aware
 - [x] **Phase 6 — Polish + ship:** `/settings` (download/delete data, delete account), Privacy, Terms,
       404 + error pages, SEO metadata, share image, sitemap, robots, installable app + offline page,
@@ -410,7 +409,7 @@ These are incremental upgrades to the existing PROXIMA app; the default face sta
 | Motion when not visible | background tabs could continue CSS animation | `PerfGuards` pauses CSS animations while hidden; reduced-motion/low-core devices get still theme scenes | Browser CSS behavior; verify on your device |
 | Background particles | a 60fps full-screen canvas on every screen, 60 dots on desktop / 28 on phones | the canvas is **desktop-only**, 42 dots, **30fps**, and still pauses off-screen / on a hidden tab | Cuts the canvas work by ~half and removes it entirely on phones |
 | Theme scenes | four promoted layers (`will-change` on each); phone clouds animated `background-position` = full-layer repaint every frame | no forced `will-change`; the drift is a transform again; phones freeze the busy detail layer and drop the far layer | Removes a per-frame full-screen repaint |
-| Landing below the fold | every section's DOM, the live demo's state and the slide visuals were built on first load | `content-visibility: auto` on Skills / How it works / FAQ; the live demo mounts near the viewport; only the active slide ±1 keep their visuals | Less DOM and hydration before the first scroll |
+| Landing below the fold | every section's DOM and the live demo's state were built on first load | `content-visibility: auto` on Skills / How it works / FAQ; the live demo mounts near the viewport | Less DOM and hydration before the first scroll |
 | Streaming on phones | the growing reply carried a full-layer `mask-image` reset every frame | the mask is disabled ≤767px (the caret still shows progress) | Fewer composites while text streams |
 | Phone inputs | fields under 16px make iOS zoom on focus; a stray element could scroll the page sideways | 16px fields on phones, `overflow-x: clip`, `touch-action: manipulation`; `interactiveWidget=resizes-content` keeps the composer above the keyboard | Prevents two of the most common mobile annoyances |
 

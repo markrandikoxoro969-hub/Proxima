@@ -32,8 +32,11 @@ function cacheKey(): string {
     settings.id,
     settings.url,
     nvidia.model,
+    nvidia.visionModel,
+    nvidia.baseURL,
     String(nvidia.maxTokens),
     String(nvidia.enableThinking),
+    String(nvidia.firstTokenTimeoutMs),
     // Never put the key itself in a string that could end up in a log.
     nvidiaConfigured() ? "nvidia-key:yes" : "nvidia-key:no",
   ].join("|");
@@ -76,6 +79,6 @@ export function resetAiProviderCache(): void {
 export { resolveAiSettings } from "./settings";
 export { SYSTEM_PROMPT } from "./prompt";
 
-export const AI_TIMEOUT_MS = () => Number(process.env.AI_TIMEOUT_MS) || 90_000;
+export const AI_TIMEOUT_MS = () => Number(process.env.AI_TIMEOUT_MS) || 110_000;
 
 export { AiProviderError, type AiDelta, type AiProvider, type AiRequest } from "./types";

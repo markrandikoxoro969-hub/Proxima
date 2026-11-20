@@ -22,7 +22,19 @@ export const DEFAULT_SUJAN_CORE_URL = DEFAULT_RENDER_URL;
 
 export const DEFAULT_NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 export const DEFAULT_NVIDIA_MODEL = "nvidia/nemotron-3-ultra-550b-a55b";
-export const DEFAULT_NVIDIA_MAX_TOKENS = 4096;
+/**
+ * Hard ceiling for one answer, including the model's private reasoning. It must
+ * be at least the largest mode budget (Analyze/Coding: 6144), otherwise a long
+ * analysis is cut off mid-sentence or mid-table.
+ */
+export const DEFAULT_NVIDIA_MAX_TOKENS = 8192;
+/**
+ * Used only when someone attaches a picture and the main model is text-only.
+ * It reads the picture (text, layout, objects) and hands a description to the
+ * main model, so pictures work without changing NVIDIA_MODEL. Set
+ * NVIDIA_VISION_MODEL to another vision id (or "off") to override.
+ */
+export const DEFAULT_NVIDIA_VISION_MODEL = "meta/llama-3.2-90b-vision-instruct";
 
 /** The default provider when AI_PROVIDER is not set. */
 export const DEFAULT_AI_PROVIDER = "nvidia";
@@ -81,6 +93,8 @@ export function resolveAiSettings(env: Record<string, string | undefined> = proc
 export type NvidiaSettings = {
   apiKey: string;
   model: string;
+  /** Vision model used to describe pictures for a text-only main model. "" = off. */
+  visionModel: string;
   maxTokens: number;
   enableThinking: boolean;
   baseURL: string;
@@ -92,13 +106,13 @@ export type NvidiaSettings = {
  * NVIDIA settings, read fresh on every call so tests (and Vercel env changes)
  * take effect without a rebuild.
  */
-export function resolveNvidiaSettings(
-  env: Record<string, string | undefined> = process.env,
-): NvidiaSettings {
+export function resolveNvidiaSettings(env: Record<string, string | undefined> = process.env): NvidiaSettings {
   const thinking = (env.NVIDIA_ENABLE_THINKING ?? "true").trim().toLowerCase();
+  const vision = (env.NVIDIA_VISION_MODEL ?? "").trim();
   return {
     apiKey: (env.NVIDIA_API_KEY ?? "").trim(),
     model: (env.NVIDIA_MODEL ?? "").trim() || DEFAULT_NVIDIA_MODEL,
+    visionModel: /^(off|none|false|0)$/i.test(vision) ? "" : vision || DEFAULT_NVIDIA_VISION_MODEL,
     maxTokens: number(env.NVIDIA_MAX_TOKENS, DEFAULT_NVIDIA_MAX_TOKENS),
     // On by default: the model reasons silently before it answers.
     enableThinking: thinking !== "false" && thinking !== "0" && thinking !== "off",

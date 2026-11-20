@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_NVIDIA_MAX_TOKENS,
   DEFAULT_NVIDIA_MODEL,
+  DEFAULT_NVIDIA_VISION_MODEL,
   DEFAULT_RENDER_URL,
   resolveAiSettings,
   resolveNvidiaSettings,
@@ -45,6 +46,16 @@ describe("resolveNvidiaSettings", () => {
     expect(settings.enableThinking).toBe(true);
     expect(settings.baseURL).toBe("https://integrate.api.nvidia.com/v1");
     expect(settings.firstTokenTimeoutMs).toBe(45_000);
+    expect(settings.visionModel).toBe(DEFAULT_NVIDIA_VISION_MODEL);
+  });
+
+  it("can read pictures with a different vision model, or turn the reader off", () => {
+    expect(resolveNvidiaSettings({ NVIDIA_VISION_MODEL: "meta/custom-vl" }).visionModel).toBe(
+      "meta/custom-vl",
+    );
+    for (const off of ["off", "none", "false", "0", " OFF "]) {
+      expect(resolveNvidiaSettings({ NVIDIA_VISION_MODEL: off }).visionModel).toBe("");
+    }
   });
 
   it("reads every value from the environment", () => {

@@ -30,7 +30,7 @@ export function imageFileProblem(file: Pick<File, "type" | "size" | "name">): st
   const looksLikeImage = type.startsWith("image/");
   if (!looksLikeImage) {
     // Some phones leave the type empty for .heic/.jpg — fall back to the name.
-    if (!/\.(png|jpe?g|webp|heic|heif)$/i.test(file.name)) return "isn't a picture (PNG, JPEG or WebP)";
+    if (!/\.(png|jpe?g|webp|heic|heif)$/i.test(file.name)) return "isn't a picture (PNG, JPEG, WebP or HEIC)";
   }
   if (type === "image/svg+xml") return "is an SVG, which isn't safe to upload";
   if (/\.gif$/i.test(file.name) || type === "image/gif")
@@ -77,9 +77,9 @@ async function loadImage(file: File | Blob): Promise<Loaded> {
 }
 
 function encodeCanvas(canvas: HTMLCanvasElement): string {
-  const webp = canvas.toDataURL("image/webp", 0.86);
+  const webp = canvas.toDataURL("image/webp", 0.92);
   if (webp.startsWith("data:image/webp")) return webp;
-  return canvas.toDataURL("image/jpeg", 0.88);
+  return canvas.toDataURL("image/jpeg", 0.92);
 }
 
 /**
@@ -92,7 +92,8 @@ export async function shrinkImageFile(
   const source = await loadImage(file);
   const scale = Math.min(1, IMAGE_LIMITS.uploadEdgeMax / Math.max(source.width, source.height));
   const widths = [Math.round(source.width * scale), 960, 768, 640, 512];
-  const qualities = [0.86, 0.78, 0.68];
+  // Start high: words in screenshots must stay sharp enough for the vision model.
+  const qualities = [0.92, 0.82, 0.7];
 
   let best = { dataUrl: "", width: 0, height: 0, bytes: 0 };
   for (const targetWidth of widths) {

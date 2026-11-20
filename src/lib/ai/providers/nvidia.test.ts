@@ -2,11 +2,15 @@
 import type OpenAI from "openai";
 import { describe, expect, it, vi } from "vitest";
 import { buildMessages, SYSTEM_PROMPT } from "../prompt";
-import { createNvidiaProvider } from "./nvidia";
-import type { AiDelta } from "../types";
+import { createNvidiaProvider, type VisionRead } from "./nvidia";
+import type { AiDelta, AiImage } from "../types";
 
 /** A fake OpenAI client whose stream is the given chunks. */
-function setup(chunks: unknown[], overrides: { enableThinking?: boolean } = {}) {
+function setup(
+  chunks: unknown[],
+  overrides: { enableThinking?: boolean; model?: string; visionModel?: string } = {},
+  describeImages?: (client: OpenAI, input: VisionRead) => Promise<string>,
+) {
   let body: Record<string, unknown> | undefined;
   const createStream = vi.fn(async (_client: OpenAI, sent: unknown) => {
     body = sent as Record<string, unknown>;
@@ -19,11 +23,13 @@ function setup(chunks: unknown[], overrides: { enableThinking?: boolean } = {}) 
     createStream: createStream as never,
     settings: {
       apiKey: "nvapi-test",
-      model: "nvidia/test-model",
+      model: overrides.model ?? "nvidia/test-model",
+      visionModel: overrides.visionModel ?? "",
       maxTokens: 2048,
       enableThinking: overrides.enableThinking ?? true,
       firstTokenTimeoutMs: 1000,
     },
+    describeImages,
   });
   return { provider, createStream, body: () => body };
 }
@@ -120,6 +126,87 @@ describe("NVIDIA provider", () => {
   it("ignores empty or malformed chunks", async () => {
     const { provider } = setup([{}, null, { choices: [] }, chunk({ content: "hi" })]);
     expect(await collect(provider.stream!(request))).toEqual([{ type: "text", text: "hi" }]);
+  });
+
+  it("lets a text-only model see pictures through a vision reader", async () => {
+    const images: AiImage[] = [
+      { dataUrl: "data:image/png;base64,AAAA", mime: "image/png", width: 800, height: 600 },
+    ];
+    const describeImages = vi.fn(async (client: OpenAI, input: VisionRead) => {
+      expect(client).toBeDefined();
+      expect(input.images).toHaveLength(1);
+      return 'A login form with the error "Invalid password".';
+    });
+    const { provider, body } = setup(
+      [chunk({ content: "The form says invalid password." })],
+      {
+        visionModel: "meta/vision-test",
+      },
+      describeImages,
+    );
+
+    const deltas = await collect(provider.stream!({ ...request, images }));
+
+    expect(describeImages).toHaveBeenCalledOnce();
+    expect(describeImages.mock.calls[0]?.[1]).toMatchObject({
+      model: "meta/vision-test",
+      question: request.message,
+    });
+    const sent = body()!;
+    // The answer still comes from the main model, with the picture description in the prompt.
+    expect(sent.model).toBe("nvidia/test-model");
+    const messages = sent.messages as { role: string; content: unknown }[];
+    const newest = messages.at(-1)!;
+    expect(typeof newest.content).toBe("string");
+    expect(newest.content).toContain("Invalid password");
+    expect(newest.content).not.toContain("can't see images");
+    expect(deltas).toEqual([{ type: "text", text: "The form says invalid password." }]);
+  });
+
+  it("keeps the honest picture note when the vision reader is unavailable", async () => {
+    const images: AiImage[] = [
+      { dataUrl: "data:image/png;base64,AAAA", mime: "image/png", width: 800, height: 600 },
+    ];
+    const describeImages = vi.fn(async () => {
+      throw new Error("vision model is offline");
+    });
+    const { provider, body } = setup(
+      [chunk({ content: "ok" })],
+      {
+        visionModel: "meta/vision-test",
+      },
+      describeImages,
+    );
+
+    const deltas = await collect(provider.stream!({ ...request, images }));
+
+    const newest = (body()!.messages as { content: string }[]).at(-1)!;
+    expect(newest.content).toContain("attached a picture");
+    expect(newest.content).toContain("can't see images");
+    expect(deltas).toEqual([{ type: "text", text: "ok" }]);
+  });
+
+  it("sends image parts directly to a vision model and skips the thinking flag", async () => {
+    const images: AiImage[] = [
+      { dataUrl: "data:image/png;base64,AAAA", mime: "image/png", width: 800, height: 600 },
+    ];
+    const describeImages = vi.fn();
+    const { provider, body } = setup(
+      [chunk({ content: "I see it." })],
+      {
+        model: "meta/llama-3.2-90b-vision-instruct",
+      },
+      describeImages,
+    );
+
+    await collect(provider.stream!({ ...request, images }));
+
+    expect(describeImages).not.toHaveBeenCalled();
+    const sent = body()!;
+    expect(sent.chat_template_kwargs).toBeUndefined();
+    const newest = (sent.messages as { content: unknown }[]).at(-1)!;
+    expect(Array.isArray(newest.content)).toBe(true);
+    expect((newest.content as { type: string }[]).some((part) => part.type === "image_url")).toBe(true);
   });
 
   it("fails clearly when no key is configured", async () => {

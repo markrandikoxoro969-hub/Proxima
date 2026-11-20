@@ -8,7 +8,8 @@ export function Logo({ className, href = "/" }: { className?: string; href?: str
   const content = (
     <>
       <Planet weight="fill" className="size-7 shrink-0" aria-hidden />
-      <span className="text-lg font-extrabold tracking-[0.2em]">{site.name}</span>
+      {/* On a 320px phone the full wordmark pushes the header buttons off-screen. */}
+      <span className="hidden text-lg font-extrabold tracking-[0.2em] min-[350px]:inline">{site.name}</span>
     </>
   );
   const classes = cn("inline-flex items-center gap-2.5", className);

@@ -327,6 +327,11 @@ export const Composer = memo(function Composer({
             {speech.interim}
           </p>
         )}
+        {tooLong && (
+          <p role="alert" className="px-5 pb-2 text-xs font-semibold text-red-500">
+            Too long by {length - LIMITS.messageMax} characters. Shorten it to send.
+          </p>
+        )}
 
         <div className="flex items-center gap-1 px-2 pb-2">
           {/* Answer mode first: it is the choice people change most often. */}
@@ -371,7 +376,7 @@ export const Composer = memo(function Composer({
             ref={imageInputRef}
             type="file"
             multiple
-            accept="image/png,image/jpeg,image/webp"
+            accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
             className="sr-only"
             tabIndex={-1}
             aria-hidden

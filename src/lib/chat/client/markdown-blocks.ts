@@ -46,7 +46,19 @@ export function splitMarkdownBlocks(markdown: string): string[] {
  * into the previous one when both are list items of the same kind.
  */
 export function mergeListBlocks(blocks: string[]): string[] {
-  const kind = (b: string) => (/^\s{0,3}\d+[.)]\s/.test(b) ? "ol" : /^\s{0,3}[-*+]\s/.test(b) ? "ul" : null);
+  const kind = (b: string) => {
+    const first = b.trimStart();
+    if (/^\d+[.)]\s/.test(first)) return "ol";
+    // Lettered lists are common in analysed answers; they are valid Markdown
+    // paragraphs, and splitting them after a blank line makes each marker sit
+    // alone above its text.
+    if (/^[A-Za-z][.)]\s/.test(first)) return "alpha";
+    if (/^[-*+]\s/.test(first)) return "ul";
+    if (/^>/.test(first)) return "quote";
+    // A table split by a blank line is no longer a table; keep it whole.
+    if (/^\|/.test(first)) return "table";
+    return null;
+  };
   const indented = (b: string) => /^(\s{2,}|\t)\S/.test(b);
   const out: string[] = [];
   for (const block of blocks) {

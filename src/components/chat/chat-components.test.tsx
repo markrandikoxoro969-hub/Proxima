@@ -114,6 +114,31 @@ describe("<MessageItem />", () => {
     expect(onRetry).toHaveBeenCalledWith("m1");
   });
 
+  it("shows the answer-mode badge on a normal reply, but not on an error", () => {
+    const { unmount } = render(
+      <MessageItem
+        message={msg({ mode: "analyze", content: "A complete answer." })}
+        onRetry={() => {}}
+        canRetry
+      />,
+    );
+    expect(screen.getByText("Analyze")).toBeInTheDocument();
+    unmount();
+
+    render(
+      <MessageItem
+        message={msg({
+          mode: "analyze",
+          status: "error",
+          error: { code: "timeout", message: "Too slow, try again.", retryable: true },
+        })}
+        onRetry={() => {}}
+        canRetry
+      />,
+    );
+    expect(screen.queryByText("Analyze")).toBeNull();
+  });
+
   it("renders user text as plain text (no HTML)", () => {
     const { container } = render(
       <MessageItem message={msg({ role: "user", content: "<b>bold?</b>" })} onRetry={() => {}} canRetry />,
