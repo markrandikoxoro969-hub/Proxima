@@ -35,7 +35,6 @@ import { SkillPicker } from "@/components/skills/skill-picker";
 import { ModeMenu } from "./mode-menu";
 
 const MAX_HEIGHT = 200;
-const WARN_AT = 3900;
 
 /** What the chat needs to send a picture: its id (the bytes stay on the server). */
 export type SendableImage = { id: string; url: string; width: number; height: number; name: string };
@@ -107,7 +106,6 @@ export const Composer = memo(function Composer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const counterId = useId();
   const hintId = useId();
 
   const length = text.length;
@@ -488,7 +486,7 @@ export const Composer = memo(function Composer({
           enterKeyHint="send"
           autoComplete="off"
           spellCheck
-          aria-describedby={`${counterId} ${hintId}`}
+          aria-describedby={hintId}
           aria-invalid={tooLong || undefined}
           className="block max-h-[200px] w-full resize-none bg-transparent px-5 pt-4 pb-2 text-base leading-relaxed placeholder:text-subtle focus:outline-none focus-visible:outline-none"
         />
@@ -503,100 +501,91 @@ export const Composer = memo(function Composer({
           </p>
         )}
 
-        <div className="flex items-center gap-1 px-2 pb-2">
-          {/* Answer style and optional installed skills guide replies while selected. */}
-          <ModeMenu mode={mode} onChange={onModeChange} />
-          <SkillPicker
-            skills={skills}
-            selected={selectedSkills}
-            onChange={onSkillsChange}
-            onOpen={onSkillsOpen}
-          />
+        <div role="group" aria-label="Message actions" className="flex items-center gap-1 px-2 pb-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+            {/* Answer style and optional installed skills guide replies while selected. */}
+            <ModeMenu mode={mode} onChange={onModeChange} className="shrink-0" />
+            <div className="shrink-0">
+              <SkillPicker
+                skills={skills}
+                selected={selectedSkills}
+                onChange={onSkillsChange}
+                onOpen={onSkillsOpen}
+              />
+            </div>
 
-          <button
-            type="button"
-            aria-pressed={temporary}
-            aria-label={
-              temporary ? "Temporary chat is on. Messages are not saved." : "Start a temporary chat"
-            }
-            onClick={() => {
-              setTemporary(!temporary);
-              onTemporaryChange?.();
-            }}
-            title={temporary ? "Temporary chat is on. Messages are not saved." : "Start a temporary chat"}
-            className={cn(
-              "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2.5 text-xs font-bold transition-[color,background-color] duration-200",
-              temporary
-                ? "bg-[var(--accent)]/12 text-[var(--accent-text)]"
-                : "text-subtle hover:bg-surface-hover hover:text-fg",
-            )}
-          >
-            <EyeSlash weight={temporary ? "fill" : "bold"} className="size-4" aria-hidden />
-            <span className="hidden sm:inline">{temporary ? "Temporary on" : "Temporary"}</span>
-          </button>
+            <button
+              type="button"
+              aria-pressed={temporary}
+              aria-label={
+                temporary ? "Temporary chat is on. Messages are not saved." : "Start a temporary chat"
+              }
+              onClick={() => {
+                setTemporary(!temporary);
+                onTemporaryChange?.();
+              }}
+              title={temporary ? "Temporary chat is on. Messages are not saved." : "Start a temporary chat"}
+              className={cn(
+                "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl px-2.5 text-xs font-bold transition-[color,background-color] duration-200",
+                temporary
+                  ? "bg-[var(--accent)]/12 text-[var(--accent-text)]"
+                  : "text-subtle hover:bg-surface-hover hover:text-fg",
+              )}
+            >
+              <EyeSlash weight={temporary ? "fill" : "bold"} className="size-4" aria-hidden />
+              <span className="hidden sm:inline">{temporary ? "Temporary on" : "Temporary"}</span>
+            </button>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={`text/*,application/json,${ACCEPT_ATTRIBUTE}`}
-            className="sr-only"
-            tabIndex={-1}
-            aria-hidden
-            onChange={(e) => {
-              if (e.target.files) void addFiles(e.target.files);
-              e.target.value = ""; // allow picking the same file again
-            }}
-          />
-          <input
-            ref={imageInputRef}
-            type="file"
-            multiple
-            accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
-            className="sr-only"
-            tabIndex={-1}
-            aria-hidden
-            onChange={(e) => {
-              if (e.target.files) void addFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          <AttachMenu
-            onPicture={() => imageInputRef.current?.click()}
-            onFile={() => fileInputRef.current?.click()}
-            onCreateImage={onOpenStudio}
-            pictureDisabled={images.length >= IMAGE_LIMITS.perMessage}
-            fileDisabled={files.length >= LIMITS.attachmentsMax}
-            pictureLimit={IMAGE_LIMITS.perMessage}
-            fileLimit={LIMITS.attachmentsMax}
-          />
-          <IconButton
-            label={listening ? "Stop voice input" : "Voice input"}
-            onClick={toggleListening}
-            pressed={listening}
-            className={cn(listening && "bg-red-500/15 text-red-500 hover:bg-red-500/20 hover:text-red-500")}
-          >
-            <Microphone
-              weight={listening ? "fill" : "bold"}
-              className={cn("size-5", listening && "animate-pulse")}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={`text/*,application/json,${ACCEPT_ATTRIBUTE}`}
+              className="sr-only"
+              tabIndex={-1}
               aria-hidden
+              onChange={(e) => {
+                if (e.target.files) void addFiles(e.target.files);
+                e.target.value = ""; // allow picking the same file again
+              }}
             />
-          </IconButton>
+            <input
+              ref={imageInputRef}
+              type="file"
+              multiple
+              accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden
+              onChange={(e) => {
+                if (e.target.files) void addFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <AttachMenu
+              onPicture={() => imageInputRef.current?.click()}
+              onFile={() => fileInputRef.current?.click()}
+              onCreateImage={onOpenStudio}
+              pictureDisabled={images.length >= IMAGE_LIMITS.perMessage}
+              fileDisabled={files.length >= LIMITS.attachmentsMax}
+              pictureLimit={IMAGE_LIMITS.perMessage}
+              fileLimit={LIMITS.attachmentsMax}
+            />
+            <IconButton
+              label={listening ? "Stop voice input" : "Voice input"}
+              onClick={toggleListening}
+              pressed={listening}
+              className={cn(listening && "bg-red-500/15 text-red-500 hover:bg-red-500/20 hover:text-red-500")}
+            >
+              <Microphone
+                weight={listening ? "fill" : "bold"}
+                className={cn("size-5", listening && "animate-pulse")}
+                aria-hidden
+              />
+            </IconButton>
+          </div>
 
-          <span
-            id={counterId}
-            className={cn(
-              "ml-auto hidden px-2 font-mono text-[11px] font-bold tabular-nums transition-opacity duration-200 min-[380px]:inline",
-              length === 0 && "opacity-0",
-              length > WARN_AT ? "text-red-500" : "text-subtle",
-            )}
-            aria-live={length > WARN_AT ? "polite" : "off"}
-          >
-            <span className="sr-only">Characters used: </span>
-            {length}/{LIMITS.messageMax}
-          </span>
-
-          <span className="relative inline-grid size-11 place-items-center">
+          <span className="relative inline-grid size-11 shrink-0 place-items-center">
             <AnimatePresence initial={false} mode="popLayout">
               {streaming ? (
                 <m.button
@@ -624,7 +613,7 @@ export const Composer = memo(function Composer({
                   exit={{ opacity: 0, scale: 0.5, rotate: -90 }}
                   transition={SPRING.snappy}
                   whileTap={{ scale: 0.92 }}
-                  className="col-start-1 row-start-1 inline-flex size-11 items-center justify-center rounded-2xl bg-inverse text-on-inverse shadow-glow disabled:opacity-30"
+                  className="col-start-1 row-start-1 inline-flex size-11 items-center justify-center rounded-2xl bg-inverse text-on-inverse shadow-glow disabled:opacity-50 disabled:shadow-none"
                 >
                   <ArrowUp weight="bold" className="size-5" aria-hidden />
                 </m.button>
@@ -789,7 +778,7 @@ function IconButton({
       title={label}
       aria-pressed={pressed}
       className={cn(
-        "inline-flex tap items-center justify-center rounded-2xl text-muted",
+        "inline-flex tap shrink-0 items-center justify-center rounded-2xl text-muted",
         "transition-[color,background-color,transform] duration-200 hover:bg-surface-hover hover:text-fg active:scale-95 disabled:opacity-30",
         className,
       )}

@@ -46,6 +46,11 @@ describe("/settings page", () => {
   it("shows your profile, chat count and account", () => {
     renderView();
     expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
+    const logo = screen.getByRole("link", { name: "PROXIMA home" });
+    expect(logo.querySelector("span")).toHaveClass("hidden", "min-[480px]:inline");
+    const skillsLink = screen.getByRole("link", { name: "Open Skills marketplace" });
+    expect(skillsLink).toHaveAttribute("href", "/skills");
+    expect(skillsLink.querySelector("span")).toHaveClass("hidden", "min-[480px]:inline");
     expect(screen.getByLabelText("Your name")).toHaveValue("Sujan");
     expect(screen.getByLabelText("Age")).toHaveValue("21");
     expect(screen.getByText(/You have 3 saved chats/)).toBeInTheDocument();

@@ -1,6 +1,14 @@
 "use client";
 
-import { ArrowLeft, Check, MagnifyingGlass, ShieldCheck, Sparkle, XCircle } from "@phosphor-icons/react";
+import {
+  ArrowLeft,
+  Check,
+  GearSix,
+  MagnifyingGlass,
+  ShieldCheck,
+  Sparkle,
+  XCircle,
+} from "@phosphor-icons/react";
 import { useId, useMemo, useState } from "react";
 import { Logo } from "@/components/brand/logo";
 import { ButtonLink } from "@/components/ui/button";
@@ -90,15 +98,26 @@ function SkillsScreen({ initialSkills }: { initialSkills: SkillState[] }) {
 
   return (
     <div className="px-safe min-h-dvh pt-safe pb-safe">
-      <header className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
+      <header className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-4 sm:px-6">
         <Logo href="/app" />
-        <nav aria-label="Account navigation" className="flex items-center gap-1.5">
-          <ButtonLink href="/settings" variant="ghost" className="px-3 text-xs sm:text-sm">
-            Settings
+        <nav aria-label="Account navigation" className="flex shrink-0 items-center gap-1">
+          <ButtonLink
+            href="/settings"
+            variant="ghost"
+            className="shrink-0 px-2 text-xs sm:px-3 sm:text-sm"
+            aria-label="Settings"
+          >
+            <GearSix weight="bold" className="size-4" aria-hidden />
+            <span className="hidden min-[480px]:inline">Settings</span>
           </ButtonLink>
-          <ButtonLink href="/app" variant="secondary" className="px-3 text-xs sm:text-sm">
+          <ButtonLink
+            href="/app"
+            variant="secondary"
+            className="shrink-0 px-2 text-xs sm:px-3 sm:text-sm"
+            aria-label="Back to chat"
+          >
             <ArrowLeft weight="bold" className="size-4" aria-hidden />
-            <span>Back to chat</span>
+            <span className="hidden min-[480px]:inline">Back to chat</span>
           </ButtonLink>
         </nav>
       </header>
