@@ -75,7 +75,7 @@ A `401` means the key is wrong; a `404` means the model name is wrong.
 | `AI_PROVIDER`            | `nvidia`                                   | `nvidia`, `render` or `mock`                                |
 | `NVIDIA_API_KEY`         | —                                          | Your key. Server only.                                      |
 | `NVIDIA_MODEL`           | `nvidia/nemotron-3-ultra-550b-a55b`        | Which model answers                                         |
-| `NVIDIA_VISION_MODEL`    | `meta/llama-3.2-90b-vision-instruct`       | Reads attached pictures for a text-only main model. `off` disables |
+| `NVIDIA_VISION_MODEL`    | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | Reads attached pictures (OCR, screenshots, charts) for a text-only main model. `off` disables |
 | `NVIDIA_MAX_TOKENS`      | `8192`                                     | Ceiling for one answer, including reasoning                 |
 | `NVIDIA_ENABLE_THINKING` | `true`                                     | Let the model reason privately (`chat_template_kwargs`)     |
 | `NVIDIA_TIMEOUT_MS`      | `45000`                                    | Switch to Render if NVIDIA produces no first token in time; a live answer may run on |

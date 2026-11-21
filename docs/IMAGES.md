@@ -15,7 +15,7 @@ or attached to a message with **Use in chat**.
 There is nothing extra to configure: picture bytes are stored in Postgres in the
 `ImageAsset` table and served by `/api/images/:id` (owner only). That keeps the
 feature working on the free plan, with no S3/Cloudinary account to set up. The
-browser shrinks every upload to at most 1280 px / WebP before sending it, and an
+browser shrinks every upload to at most 1280 px / JPEG before sending it, and an
 account keeps its newest 120 pictures.
 
 ## Choose an engine
@@ -94,22 +94,27 @@ Keys are read on the server only, never logged, and never sent to the browser.
 
 ## Let the chat _see_ pictures
 
-Attached pictures always reach the AI. The default Nemotron model is text-only,
-so Proxima first has `meta/llama-3.2-90b-vision-instruct` read the picture and
-passes its description to the main model. No configuration is required.
+Attached pictures always reach the AI. The default answering model is text-only,
+so Proxima first has `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` read the
+picture — OCR, screenshots, UI state, charts and tables — and passes its
+description to the main model. The reader runs with private thinking **off** so
+the description arrives quickly and its token budget is spent on observations.
+No configuration is required.
 
 To change or disable the reader:
 
 ```bash
-# Faster, lighter OCR (less accurate on small text):
+# Older Llama vision reader (no reasoning model; can be slower on OCR):
+NVIDIA_VISION_MODEL="meta/llama-3.2-90b-vision-instruct"
+# Smaller/faster Llama reader (less accurate on small text):
 NVIDIA_VISION_MODEL="meta/llama-3.2-11b-vision-instruct"
 # Turn the reader off; the AI will honestly ask you to describe the picture:
 NVIDIA_VISION_MODEL="off"
 ```
 
 You can also put a vision model in `NVIDIA_MODEL` and the picture is sent to it
-directly. Add `NVIDIA_VISION="true"` only when that model's name does not say
-"vision", "vl", "llava" or similar.
+directly. Omni, "vision", "vl", "llava" and similar names are recognised
+automatically; add `NVIDIA_VISION="true"` for a model whose name does not say so.
 
 ## Limits
 

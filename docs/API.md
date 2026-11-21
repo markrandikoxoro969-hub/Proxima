@@ -93,7 +93,8 @@ event: error      data: {"code":"timeout","message":"The engine took too long to
   (nothing is stored on the server). Earlier turns are trimmed to 6,000 characters each rather than
   rejected, so one long reply can't make the next message fail.
 - **Pictures** are uploaded first (`POST /api/images`) and sent by id. A text-only chat model gets a
-  description from a vision model, so the main model can answer questions about what the picture shows.
+  description from the Omni vision reader (OCR, screenshots, charts), so the main model can answer
+  questions about what the picture shows.
 - **Fallback**: when `AI_PROVIDER=nvidia`, a failure _before any text_ is retried automatically on the
   Render API. You only see an `error` event if both fail.
 - **`retry: true`** is what the **Try again** button sends. If the last saved message in that chat is
@@ -200,7 +201,7 @@ is **signed in only** and rate limited to **6 AI pictures per minute**.
 
 Uploads accept **PNG, JPEG and WebP** only (SVG can run scripts, so it's refused),
 are re-checked by their first bytes, and must decode to **4 MB or less**. The
-browser shrinks a photo to 1280 px / WebP before uploading, so real requests are
+browser shrinks a photo to 1280 px / JPEG before uploading, so real requests are
 usually 100–400 KB.
 
 `generate` and `:id/edit` answer:

@@ -29,12 +29,14 @@ export const DEFAULT_NVIDIA_MODEL = "nvidia/nemotron-3-ultra-550b-a55b";
  */
 export const DEFAULT_NVIDIA_MAX_TOKENS = 8192;
 /**
- * Used only when someone attaches a picture and the main model is text-only.
- * It reads the picture (text, layout, objects) and hands a description to the
- * main model, so pictures work without changing NVIDIA_MODEL. Set
- * NVIDIA_VISION_MODEL to another vision id (or "off") to override.
+ * Used when someone attaches a picture and the main model is text-only.
+ * Nemotron 3 Nano Omni reads the picture (OCR, screenshots, charts, objects)
+ * and hands a description to the main model, so pictures work without changing
+ * NVIDIA_MODEL. It runs with thinking off here so the description arrives
+ * quickly and the small token budget is spent on observations, not reasoning.
+ * Set NVIDIA_VISION_MODEL to another vision id (or "off") to override.
  */
-export const DEFAULT_NVIDIA_VISION_MODEL = "meta/llama-3.2-90b-vision-instruct";
+export const DEFAULT_NVIDIA_VISION_MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning";
 
 /** The default provider when AI_PROVIDER is not set. */
 export const DEFAULT_AI_PROVIDER = "nvidia";
