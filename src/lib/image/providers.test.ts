@@ -4,7 +4,7 @@ import { createFallbackImageProvider } from "./providers/chain";
 import { createMockImageProvider, mockEditSvg, mockImageSvg, wrapPrompt } from "./providers/mock";
 import { createNvidiaImageProvider, snapNvidiaSize } from "./providers/nvidia";
 import { createOpenAiImageProvider, openAiSizeFor } from "./providers/openai";
-import { createPollinationsImageProvider } from "./providers/pollinations";
+import { nvidiaEditingKey, nvidiaGenerationKey } from "./settings";
 import { ImageProviderError, type ImageProvider } from "./types";
 
 const signal = () => new AbortController().signal;
@@ -105,20 +105,30 @@ describe("OpenAI engine", () => {
 });
 
 describe("NVIDIA engine", () => {
-  it("snaps sizes to multiples of 64 within SDXL's range", () => {
+  it("keeps the generation and editing keys separate", () => {
+    const env = { IMAGE_GENERATION: "gen-key", IMAGE_EDITING: "edit-key" };
+    expect(nvidiaGenerationKey(env)).toBe("gen-key");
+    expect(nvidiaEditingKey(env)).toBe("edit-key");
+    // One account: editing can reuse the creation key.
+    expect(nvidiaEditingKey({ IMAGE_GENERATION: "gen-key" })).toBe("gen-key");
+    // The text key is never silently sent to the image endpoint.
+    expect(nvidiaGenerationKey({ NVIDIA_API_KEY: "text-key" })).toBe("");
+  });
+
+  it("snaps sizes to multiples of 64 within FLUX's range", () => {
     expect(snapNvidiaSize(1000)).toBe(1024);
     expect(snapNvidiaSize(100)).toBe(512);
     expect(snapNvidiaSize(2000)).toBe(1344);
     expect(snapNvidiaSize(930)).toBe(960);
   });
 
-  it("posts the prompt and decodes the artifact", async () => {
+  it("creates with FLUX.1 dev and the IMAGE_GENERATION key", async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(Response.json({ artifacts: [{ base64: PNG_BASE64, finishReason: "SUCCESS" }] }));
     const provider = createNvidiaImageProvider({
-      apiKey: "nvapi-test",
-      model: "stabilityai/stable-diffusion-xl",
+      apiKey: "gen-key",
+      editApiKey: "",
       baseUrl: "https://example.test/v1/genai",
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
@@ -127,117 +137,51 @@ describe("NVIDIA engine", () => {
     expect(picture.mime).toBe("image/png");
 
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toBe("https://example.test/v1/genai/stabilityai/stable-diffusion-xl");
-    expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer nvapi-test" });
+    expect(url).toBe("https://example.test/v1/genai/black-forest-labs/flux.1-dev");
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer gen-key" });
     const body = JSON.parse(String((init as RequestInit).body));
-    expect(body.text_prompts[0].text).toBe("a lake");
-    expect(body.width).toBe(1024);
-    expect(body.height).toBe(640);
+    expect(body).toMatchObject({
+      prompt: "a lake",
+      mode: "base",
+      cfg_scale: 3.5,
+      width: 1024,
+      height: 640,
+      steps: 50,
+    });
   });
 
-  it("reports upstream failures without leaking the key", async () => {
+  it("edits with FLUX.1 Kontext and the IMAGE_EDITING key", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(Response.json({ artifacts: [{ base64: PNG_BASE64, finishReason: "SUCCESS" }] }));
     const provider = createNvidiaImageProvider({
-      apiKey: "nvapi-secret",
-      fetchImpl: vi.fn().mockResolvedValue(new Response("nope", { status: 402 })) as unknown as typeof fetch,
-    });
-    await expect(
-      provider.generate({ prompt: "x", width: 512, height: 512, signal: signal() }),
-    ).rejects.toMatchObject({ code: "upstream", status: 402 });
-    await expect(
-      provider.generate({ prompt: "x", width: 512, height: 512, signal: signal() }),
-    ).rejects.not.toThrow(/nvapi-secret/);
-  });
-});
-
-describe("Pollinations engine", () => {
-  it("requests an image for the prompt", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(new Response(pngBytes(), { headers: { "content-type": "image/png" } }));
-    const provider = createPollinationsImageProvider({
-      baseUrl: "https://images.test/prompt",
+      apiKey: "gen-key",
+      editApiKey: "edit-key",
+      baseUrl: "https://example.test/v1/genai",
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
-    const picture = await provider.generate({
-      prompt: "a fox in snow",
-      width: 768,
-      height: 512,
-      signal: signal(),
-    });
-    expect(picture.mime).toBe("image/png");
-    const url = String(fetchImpl.mock.calls[0][0]);
-    expect(url).toContain("https://images.test/prompt/a%20fox%20in%20snow");
-    expect(url).toContain("width=768");
-    expect(url).toContain("height=512");
-    // Clean (no watermark) and out of the public feed, on every request.
-    expect(url).toContain("nologo=true");
-    expect(url).toContain("private=true");
-    expect(url).toContain("model=flux");
-  });
 
-  it("sends the key when one is configured", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(new Response(pngBytes(), { headers: { "content-type": "image/png" } }));
-    const provider = createPollinationsImageProvider({
-      baseUrl: "https://gen.test/image",
-      apiKey: "sk_test_key",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
-    expect(provider.label).not.toContain("free");
-    await provider.generate({ prompt: "a fox", width: 512, height: 512, signal: signal() });
-    const init = fetchImpl.mock.calls[0][1] as RequestInit;
-    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sk_test_key");
-    expect(String(fetchImpl.mock.calls[0][0])).toContain("nologo=true");
-  });
-
-  it("edits with kontext using the signed source link", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(new Response(pngBytes(), { headers: { "content-type": "image/png" } }));
-    const provider = createPollinationsImageProvider({
-      baseUrl: "https://images.test/image",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
+    expect(provider.supportsEdit).toBe(true);
     await provider.edit!({
       prompt: "make it snowy",
       width: 640,
       height: 480,
       image: { bytes: pngBytes(), mime: "image/png", dataUrl: pngDataUrl() },
       strength: 0.5,
-      sourceUrl: "https://proxima.test/api/images/abc/source?exp=1&sig=xyz",
       signal: signal(),
     });
-    const url = new URL(String(fetchImpl.mock.calls[0][0]));
-    expect(url.pathname).toBe("/image/make%20it%20snowy");
-    expect(url.searchParams.get("model")).toBe("kontext");
-    expect(url.searchParams.get("image")).toBe("https://proxima.test/api/images/abc/source?exp=1&sig=xyz");
-    expect(url.searchParams.get("nologo")).toBe("true");
-    expect(url.searchParams.get("width")).toBe("640");
+
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://example.test/v1/genai/black-forest-labs/flux.1-kontext-dev");
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer edit-key" });
+    const body = JSON.parse(String((init as RequestInit).body));
+    expect(body.prompt).toBe("make it snowy");
+    expect(body.image).toBe(pngDataUrl());
   });
 
-  it("says plainly when it needs a key or credits", async () => {
-    const provider = createPollinationsImageProvider({
-      baseUrl: "https://images.test/image",
-      fetchImpl: vi.fn().mockResolvedValue(new Response("nope", { status: 402 })) as unknown as typeof fetch,
-    });
-    await expect(
-      provider.generate({ prompt: "x", width: 512, height: 512, signal: signal() }),
-    ).rejects.toMatchObject({ code: "unsupported", status: 402 });
-
-    const throttled = createPollinationsImageProvider({
-      baseUrl: "https://images.test/image",
-      fetchImpl: vi
-        .fn()
-        .mockResolvedValue(new Response("slow down", { status: 429 })) as unknown as typeof fetch,
-    });
-    await expect(
-      throttled.generate({ prompt: "x", width: 512, height: 512, signal: signal() }),
-    ).rejects.toMatchObject({ code: "upstream", status: 429 });
-  });
-
-  it("needs a public address to edit", async () => {
-    const provider = createPollinationsImageProvider({ fetchImpl: vi.fn() as unknown as typeof fetch });
+  it("does not advertise editing without IMAGE_EDITING", async () => {
+    const provider = createNvidiaImageProvider({ apiKey: "gen-key", editApiKey: "" });
+    expect(provider.supportsEdit).toBe(false);
     await expect(
       provider.edit!({
         prompt: "stormy",
@@ -247,20 +191,21 @@ describe("Pollinations engine", () => {
         strength: 0.5,
         signal: signal(),
       }),
-    ).rejects.toMatchObject({ code: "unsupported" });
+    ).rejects.toMatchObject({ code: "unavailable" });
   });
 
-  it("refuses answers that aren't pictures", async () => {
-    const provider = createPollinationsImageProvider({
-      fetchImpl: vi
-        .fn()
-        .mockResolvedValue(
-          new Response('{"error":"no"}', { headers: { "content-type": "application/json" } }),
-        ) as unknown as typeof fetch,
+  it("reports upstream failures without leaking the key", async () => {
+    const provider = createNvidiaImageProvider({
+      apiKey: "nvapi-secret",
+      editApiKey: "",
+      fetchImpl: vi.fn().mockResolvedValue(new Response("nope", { status: 402 })) as unknown as typeof fetch,
     });
     await expect(
       provider.generate({ prompt: "x", width: 512, height: 512, signal: signal() }),
-    ).rejects.toMatchObject({ code: "bad_response" });
+    ).rejects.toMatchObject({ code: "upstream", status: 402 });
+    await expect(
+      provider.generate({ prompt: "x", width: 512, height: 512, signal: signal() }),
+    ).rejects.not.toThrow(/nvapi-secret/);
   });
 });
 

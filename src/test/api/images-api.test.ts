@@ -284,31 +284,32 @@ describe("POST /api/images/:id/edit", () => {
   });
 });
 
-describe("editing through the free Pollinations engine", () => {
-  // Stands in for image.pollinations.ai: captures the request, answers a PNG.
+describe("editing through NVIDIA FLUX.1 Kontext", () => {
+  // Stands in for ai.api.nvidia.com: captures the request, answers an artifact.
   const realFetch = globalThis.fetch;
-  let calls: URL[] = [];
+  let calls: { url: URL; init?: RequestInit }[] = [];
 
   beforeEach(() => {
     calls = [];
-    process.env.IMAGE_PROVIDER = "pollinations";
-    process.env.NEXT_PUBLIC_SITE_URL = "https://proxima.test";
+    process.env.IMAGE_PROVIDER = "nvidia";
+    process.env.IMAGE_GENERATION = "gen-test-key";
+    process.env.IMAGE_EDITING = "edit-test-key";
     resetImageProviderCache();
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
-      calls.push(new URL(String(input)));
-      const bytes = Uint8Array.from(Buffer.from(PNG_BASE64, "base64"));
-      return new Response(bytes, { headers: { "content-type": "image/png" } });
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: new URL(String(input)), init });
+      return Response.json({ artifacts: [{ base64: PNG_BASE64, finishReason: "SUCCESS" }] });
     }) as typeof fetch;
   });
 
   afterAll(() => {
     globalThis.fetch = realFetch;
     process.env.IMAGE_PROVIDER = "mock";
-    delete process.env.NEXT_PUBLIC_SITE_URL;
+    delete process.env.IMAGE_GENERATION;
+    delete process.env.IMAGE_EDITING;
     resetImageProviderCache();
   });
 
-  it("hands the engine a signed link to the picture, not the private route", async () => {
+  it("sends the picture inline to Kontext with the editing key", async () => {
     const { image } = await (
       await upload(req("/api/images", { method: "POST", body: { dataUrl: pngDataUrl } }))
     ).json();
@@ -320,19 +321,15 @@ describe("editing through the free Pollinations engine", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     // The chain reports every engine it could fall back to, in order.
-    expect(body.engine.id.startsWith("pollinations")).toBe(true);
+    expect(body.engine.id.startsWith("nvidia")).toBe(true);
     expect(body.original).toBe(image.id);
 
     expect(calls).toHaveLength(1);
-    const url = calls[0];
-    expect(url.searchParams.get("model")).toBe("kontext");
-    const source = new URL(url.searchParams.get("image")!);
-    expect(source.origin).toBe("https://proxima.test");
-    expect(source.pathname).toBe(`/api/images/${image.id}/source`);
-    // The link is signed and expires, so the engine can read it without a login.
-    expect(source.searchParams.get("sig")).toBeTruthy();
-    expect(Number(source.searchParams.get("exp"))).toBeGreaterThan(Date.now());
-    expect(url.searchParams.get("nologo")).toBe("true");
+    expect(calls[0].url.pathname).toBe("/v1/genai/black-forest-labs/flux.1-kontext-dev");
+    expect((calls[0].init?.headers as Record<string, string>).Authorization).toBe("Bearer edit-test-key");
+    const payload = JSON.parse(String(calls[0].init?.body));
+    expect(payload.prompt).toContain("snowy");
+    expect(payload.image).toBe(pngDataUrl);
   });
 });
 

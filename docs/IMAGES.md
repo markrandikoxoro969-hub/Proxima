@@ -22,67 +22,43 @@ account keeps its newest 120 pictures.
 
 Set `IMAGE_PROVIDER` on the server (or in `.env.local`):
 
-| Value            | Engine                         | Create | Edit | Key needed       |
-| ---------------- | ------------------------------ | :----: | :--: | ---------------- |
-| `auto` (default) | best available, with fallbacks |   ✅   |  ✅  | —                |
-| `openai`         | OpenAI Images (`gpt-image-1`)  |   ✅   |  ✅  | `OPENAI_API_KEY` |
-| `nvidia`         | NVIDIA NIM / Stability SDXL    |   ✅   |  —   | `NVIDIA_API_KEY` |
-| `pollinations`   | Pollinations                   |   ✅   |  ✅  | free key (below) |
-| `mock`           | Offline preview (SVG card)     |   ✅   |  ✅  | —                |
+| Value            | Engine                             | Create | Edit | Key needed                          |
+| ---------------- | ---------------------------------- | :----: | :--: | ----------------------------------- |
+| `auto` (default) | best available, with fallbacks     |   ✅   |  ✅  | —                                   |
+| `nvidia`         | NVIDIA FLUX.1 dev + FLUX.1 Kontext |   ✅   |  ✅  | `IMAGE_GENERATION`, `IMAGE_EDITING` |
+| `openai`         | OpenAI Images (`gpt-image-1`)      |   ✅   |  ✅  | `OPENAI_API_KEY`                    |
+| `mock`           | Offline preview (SVG card)         |   ✅   |  ✅  | —                                   |
 
-Pollinations needs no account at all, so the studio works on the first deploy.
-Two things only become true once you add a **free key** (no card,
-[enter.pollinations.ai](https://enter.pollinations.ai) → API key):
+NVIDIA uses **two models**, each with its own key so they can live on different
+NVIDIA accounts:
 
-|                     | No key (anonymous)               | With `POLLINATIONS_API_KEY`      |
-| ------------------- | -------------------------------- | -------------------------------- |
-| Watermark           | a small logo is always added     | gone (`nologo=true` is honoured) |
-| Editing (`kontext`) | throttled, often refused         | reliable                         |
-| Speed               | about 1 picture every 15 seconds | normal limits                    |
+| Role   | Default model                          | Key                |
+| ------ | -------------------------------------- | ------------------ |
+| Create | `black-forest-labs/flux.1-dev`         | `IMAGE_GENERATION` |
+| Edit   | `black-forest-labs/flux.1-kontext-dev` | `IMAGE_EDITING`    |
 
-The studio always says which engine answered, and repeats the watermark note
-under the picture, so nobody is surprised by a branded image.
+The edit model takes the source picture inline as a `data:` URL, so nothing has
+to be publicly reachable. Leave `IMAGE_EDITING` empty to reuse
+`IMAGE_GENERATION` when both models are on one account. Override either model
+with `IMAGE_GENERATION_MODEL` / `IMAGE_EDITING_MODEL`.
 
-### How editing reaches your picture
-
-Image-to-image services fetch the source picture themselves, but
-`/api/images/:id` is owner-only — an engine can't log in. So before calling the
-engine the server signs a **temporary link**:
-
-```
-https://your-site/api/images/<id>/source?exp=<time>&sig=<hmac>
-```
-
-- signed with `AUTH_SECRET` (or `IMAGE_SIGNING_SECRET`), so it can't be pointed
-  at a different picture;
-- expires after **10 minutes**, then answers 404;
-- reveals nothing about the owner, and is marked `noindex, nofollow`.
-
-The address comes from `NEXT_PUBLIC_SITE_URL`, or from the request itself
-(`x-forwarded-host`) when that is unset, so a preview deployment works too. A
-`localhost` address can't be reached from the internet — editing then says so
-plainly instead of hanging.
-
-With `auto` the order is: **OpenAI → NVIDIA → Pollinations → offline preview**.
-If a key is wrong or a service is down, the next engine gets a turn, and the
-studio labels offline results honestly ("Offline preview — add a key for real
-art"). Nothing shows a dead button.
+With `auto` the order is: **NVIDIA → OpenAI → offline preview**. If a key is
+wrong or a service is down, the next engine gets a turn, and the studio labels
+offline results honestly ("Offline preview — add a key for real art"). Nothing
+shows a dead button.
 
 ### Adding the keys
 
 ```bash
-# OpenAI (create + edit, best quality)
+# NVIDIA FLUX — create and edit can be separate accounts
+IMAGE_GENERATION="nvapi-…"
+IMAGE_EDITING="nvapi-…"
+# IMAGE_GENERATION_MODEL="black-forest-labs/flux.1-dev"
+# IMAGE_EDITING_MODEL="black-forest-labs/flux.1-kontext-dev"
+
+# OpenAI (the other create + edit engine)
 OPENAI_API_KEY="sk-…"
 OPENAI_IMAGE_MODEL="gpt-image-1"
-
-# NVIDIA (create only). Any image model id from build.nvidia.com works.
-NVIDIA_API_KEY="nvapi-…"
-NVIDIA_IMAGE_MODEL="stabilityai/stable-diffusion-xl"
-
-# Pollinations: watermark-free + reliable editing (free, no card)
-POLLINATIONS_API_KEY="sk_…"
-POLLINATIONS_IMAGE_MODEL="flux"      # default
-POLLINATIONS_EDIT_MODEL="kontext"    # default
 
 # Optional
 IMAGE_PROVIDER="auto"
@@ -91,6 +67,14 @@ IMAGE_SIGNING_SECRET=""              # defaults to AUTH_SECRET
 ```
 
 Keys are read on the server only, never logged, and never sent to the browser.
+
+### How editing gets your picture
+
+NVIDIA FLUX.1 Kontext and OpenAI both receive the picture bytes directly
+(Kontext as an inline `data:` URL, OpenAI as an upload), so editing works
+without exposing `/api/images/:id` to the internet. A short-lived signed
+`/api/images/:id/source` link remains available for future engines that fetch
+the source by URL.
 
 ## Let the chat _see_ pictures
 
@@ -130,7 +114,7 @@ automatically; add `NVIDIA_VISION="true"` for a model whose name does not say so
 
 ## Adding another engine
 
-1. Copy `src/lib/image/providers/pollinations.ts` to `providers/my-engine.ts`.
+1. Copy `src/lib/image/providers/nvidia.ts` to `providers/my-engine.ts`.
 2. Return `{ bytes, mime, width, height }` from `generate` (and `edit` if the
    service supports it). Throw `ImageProviderError` with a `code` on failure.
 3. Register it in `src/lib/image/index.ts` and in `KNOWN_IMAGE_PROVIDERS`

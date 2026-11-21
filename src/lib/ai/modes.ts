@@ -83,7 +83,9 @@ export const MODE_CONFIG: Record<ChatMode, ModeConfig> = {
     thinking: true,
     temperature: 0.2,
     topP: 0.9,
-    maxTokens: 8192,
+    // A complete file plus its explanation no longer fits 8192 once the
+    // model's private reasoning shares the same budget.
+    maxTokens: 16_384,
     historyLimit: 16,
     guidance: [
       "Mode: Coding.",

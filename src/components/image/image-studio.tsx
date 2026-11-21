@@ -531,7 +531,7 @@ function StudioBody({
           <p>
             {engine
               ? engine.offline
-                ? `Offline preview (${engine.label}). Add OPENAI_API_KEY or NVIDIA_API_KEY on the server for real artwork — see docs/IMAGES.md.`
+                ? `Offline preview (${engine.label}). Add IMAGE_GENERATION or OPENAI_API_KEY on the server for real artwork — see docs/IMAGES.md.`
                 : `Made with ${engine.label}.`
               : "Pictures are private to your account. Older ones are removed automatically once you have 120."}
           </p>

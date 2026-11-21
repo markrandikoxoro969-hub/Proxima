@@ -6,10 +6,10 @@ import { verifyImageLink } from "@/lib/image/public-url";
 /**
  * GET /api/images/:id/source?exp=…&sig=…
  *
- * A temporary, signed read of one picture, used by image engines that fetch the
- * source themselves (Pollinations "kontext"). No login: the signature *is* the
- * permission. Links expire after a few minutes (see public-url.ts) and reveal
- * nothing about the owner.
+ * A temporary, signed read of one picture, for image engines that fetch the
+ * source themselves rather than accepting its bytes. No login: the signature
+ * *is* the permission. Links expire after a few minutes (see public-url.ts) and
+ * reveal nothing about the owner.
  *
  * Shared caches are told not to keep it — only the engine and the person's own
  * browser should hold the bytes, and the query changes on every request.

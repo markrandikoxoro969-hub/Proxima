@@ -1,24 +1,36 @@
 /**
- * Collects streamed text and hands it to React at most ONCE PER FRAME.
+ * Collects streamed text and hands it to React in small, steady pieces.
  *
- * The AI can send dozens of pieces per second. Re-rendering for each one
- * wastes battery and drops frames; batching to requestAnimationFrame keeps
- * the page at 60fps no matter how fast text arrives.
+ * The AI can send dozens of pieces per second, often in bursts. Re-rendering
+ * for every piece wastes battery and drops frames; passing a whole burst
+ * through at once makes the reply jump. This queue reveals at most a few
+ * characters every ~30ms, and speeds up when a large burst arrives, so the
+ * words flow steadily without ever falling far behind the model.
  */
+const TICK_MS = 30;
+/** Normal reveal rate: ~16 chars / 30ms = ~530 chars per second. */
+const NORMAL_CHARS = 16;
+/** A burst gets through faster, but still over several ticks (no jump). */
+const BUSY_CHARS = 40;
+const FLOOD_CHARS = 96;
+const BUSY_AT = 180;
+const FLOOD_AT = 600;
+
 export class FrameBatcher {
   private pending = "";
   private frame: number | null = null;
 
   constructor(
     private readonly onFlush: (text: string) => void,
-    private readonly schedule: (cb: () => void) => number = (cb) => requestAnimationFrame(cb),
-    private readonly cancel: (id: number) => void = (id) => cancelAnimationFrame(id),
+    private readonly schedule: (cb: () => void) => number = (cb) =>
+      setTimeout(cb, TICK_MS) as unknown as number,
+    private readonly cancel: (id: number) => void = (id) => clearTimeout(id),
   ) {}
 
   push(text: string) {
     if (!text) return;
     this.pending += text;
-    if (this.frame === null) this.frame = this.schedule(() => this.flush());
+    this.arm();
   }
 
   /** Sends anything waiting right now (call before "done"/"error"). */
@@ -37,5 +49,21 @@ export class FrameBatcher {
     if (this.frame !== null) this.cancel(this.frame);
     this.frame = null;
     this.pending = "";
+  }
+
+  private arm() {
+    if (this.frame !== null || !this.pending) return;
+    this.frame = this.schedule(() => this.tick());
+  }
+
+  private tick() {
+    this.frame = null;
+    if (!this.pending) return;
+    const size = this.pending.length;
+    const limit = size >= FLOOD_AT ? FLOOD_CHARS : size >= BUSY_AT ? BUSY_CHARS : NORMAL_CHARS;
+    const text = this.pending.slice(0, limit);
+    this.pending = this.pending.slice(limit);
+    this.onFlush(text);
+    this.arm();
   }
 }

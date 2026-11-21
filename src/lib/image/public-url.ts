@@ -4,9 +4,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 /**
  * A short-lived public address for one picture.
  *
- * AI engines that edit pictures fetch the source themselves (Pollinations
- * "kontext" takes an `image=` URL), so our owner-only /api/images/:id route is
- * useless to them. Instead the server signs a link:
+ * Some image engines fetch the source themselves instead of taking its bytes,
+ * so our owner-only /api/images/:id route would be useless to them. The server
+ * can sign a short-lived link:
  *
  *   /api/images/<id>/source?exp=<ms>&sig=<hmac>
  *

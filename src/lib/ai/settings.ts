@@ -25,10 +25,12 @@ export const DEFAULT_NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 export const DEFAULT_NVIDIA_MODEL = "nvidia/nemotron-3-ultra-550b-a55b";
 /**
  * Hard ceiling for one answer, including the model's private reasoning. It must
- * be at least the largest mode budget (Coding: 8192), otherwise a long answer
- * is cut off mid-sentence, mid-table or mid-code-block.
+ * be at least the largest mode budget (Coding: 16384), otherwise a long answer
+ * is cut off mid-sentence, mid-table or mid-code-block. Even when an env value
+ * is lower, the provider asks for a continuation instead of leaving half a file
+ * on screen (see providers/nvidia.ts).
  */
-export const DEFAULT_NVIDIA_MAX_TOKENS = 8192;
+export const DEFAULT_NVIDIA_MAX_TOKENS = 16_384;
 /**
  * Used when someone attaches a picture and the main model is text-only.
  * Nemotron 3 Nano Omni reads the picture (OCR, screenshots, charts, objects)
