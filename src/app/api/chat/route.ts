@@ -14,6 +14,7 @@ import { chatImageAttachment, loadChatImages } from "@/lib/image/store";
 import { cleanIdentityLeaks, getIdentityAnswer } from "@/lib/identity";
 import { memoryEnabled, memoryPrompt, relevantMemories, rememberMessage } from "@/lib/memory/store";
 import { enforceRateLimit, RATE_LIMITS, rateLimitHeaders } from "@/lib/rate-limit";
+import { resolveEnabledSkills, skillPromptSection } from "@/lib/skills/runtime";
 import { chatRequestSchema, LIMITS } from "@/lib/validation";
 
 /**
@@ -83,6 +84,10 @@ export const POST = withApi(async (request: Request) => {
         RATE_LIMITS.chatGuest,
         "Demo limit reached (5 messages per minute). Sign in for more, or wait a moment.",
       );
+
+  // Resolve only app-owned skills the signed-in user has installed and enabled.
+  // The request carries IDs, never skill instructions or code.
+  const skills = await resolveEnabledSkills(userId, input.skills ?? []);
 
   // ── Pictures belonging to this person ──
   // The browser only sends ids; the bytes (and the size) come from the database,
@@ -184,8 +189,9 @@ export const POST = withApi(async (request: Request) => {
   const memories = useMemory && !identityAnswer ? await relevantMemories(userId!, input.message) : [];
   const memorySection = memories.length ? memoryPrompt(memories) : "";
   // The mode's rules are appended last, so they win over the general prompt.
+  const skillSection = skillPromptSection(skills);
   const system = modeSystemPrompt(
-    memorySection ? `${SYSTEM_PROMPT}\n\n${memorySection}` : SYSTEM_PROMPT,
+    [SYSTEM_PROMPT, memorySection, skillSection].filter(Boolean).join("\n\n"),
     mode,
   );
 

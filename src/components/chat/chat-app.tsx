@@ -13,6 +13,7 @@ import {
   Moon,
   Plus,
   SlidersHorizontal,
+  Sparkle,
   SpeakerHigh,
 } from "@phosphor-icons/react";
 import { AnimatePresence, m } from "motion/react";
@@ -34,16 +35,46 @@ import { useVoiceOutput } from "@/lib/chat/client/use-voice-output";
 import type { VoiceChoice, VoiceEngine } from "@/lib/chat/client/voice";
 import { EASE } from "@/lib/motion/tokens";
 import type { EngineStatus, MessagesPage, Profile, SessionSummary } from "@/lib/chat/types";
+import type { EnabledSkillSummary } from "@/lib/skills/catalog";
 import type { ImageDTO } from "@/lib/image/types";
 import type { ThemePreference } from "@/lib/theme";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { ChatHeader } from "./chat-header";
 import type { Command } from "./command-palette";
-import { Composer } from "./composer";
 import { EmptyState } from "./empty-state";
-import { MessageList } from "./message-list";
-import { Sidebar } from "./sidebar";
 import { VoiceMenu } from "./voice-menu";
+
+const MessageList = dynamic(() => import("./message-list").then((module) => module.MessageList), {
+  loading: () => (
+    <div role="status" aria-label="Loading conversation" className="min-h-0 flex-1">
+      <span className="sr-only">Loading conversation…</span>
+    </div>
+  ),
+});
+const Composer = dynamic(() => import("./composer").then((module) => module.Composer), {
+  loading: () => (
+    <div role="status" aria-label="Loading message composer" className="shrink-0 px-4 pb-safe sm:px-6">
+      <span className="sr-only">Loading message composer…</span>
+      <div
+        aria-hidden
+        className="mx-auto h-24 max-w-3xl animate-pulse rounded-3xl border border-line bg-surface-solid motion-reduce:animate-none"
+      />
+    </div>
+  ),
+});
+const Sidebar = dynamic(() => import("./sidebar").then((module) => module.Sidebar), {
+  loading: () => (
+    <aside
+      aria-hidden
+      className="hidden h-full w-72 shrink-0 flex-col gap-4 border-r border-line px-5 py-6 lg:flex"
+    >
+      <div className="h-10 animate-pulse rounded-xl bg-surface-hover motion-reduce:animate-none" />
+      <div className="h-10 animate-pulse rounded-xl bg-surface-hover motion-reduce:animate-none" />
+      <div className="mt-4 h-4 w-24 animate-pulse rounded bg-surface-hover motion-reduce:animate-none" />
+      <div className="h-9 animate-pulse rounded-xl bg-surface-hover motion-reduce:animate-none" />
+    </aside>
+  ),
+});
 
 // Loaded only when needed (keeps the first load small and fast).
 const SettingsDialog = dynamic(() => import("./settings-dialog").then((m) => m.SettingsDialog));
@@ -60,6 +91,7 @@ export type ChatAppProps = {
   initialNextCursor: string | null;
   initialActiveId: string | null;
   initialActivePage: MessagesPage | null;
+  initialEnabledSkills: EnabledSkillSummary[];
 };
 
 export function ChatApp(props: ChatAppProps) {
@@ -78,6 +110,7 @@ function ChatScreen({
   initialNextCursor,
   initialActiveId,
   initialActivePage,
+  initialEnabledSkills,
 }: ChatAppProps) {
   const notify = useToast();
   const router = useRouter();
@@ -99,6 +132,8 @@ function ChatScreen({
   const [pinSignal, setPinSignal] = useState(0);
   const [focusSignal, setFocusSignal] = useState(0);
   const [hasSent, setHasSent] = useState(false);
+  const [enabledSkills, setEnabledSkills] = useState(initialEnabledSkills);
+  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [studioOpen, setStudioOpen] = useState(false);
   const [images, setImages] = useState<DraftImage[]>([]);
@@ -112,6 +147,7 @@ function ChatScreen({
     initialActivePage,
     notify,
     mode,
+    selectedSkills: selectedSkillIds,
   });
   const { state, active, newChat: startNewChat, send: sendMessage, select: selectChat } = chat;
   const shownName = profile.displayName ?? profile.name?.split(" ")[0] ?? "Explorer";
@@ -309,6 +345,29 @@ function ChatScreen({
   }, [notify, state.activeKey]);
 
   const openSettingsPage = useCallback(() => router.push("/settings"), [router]);
+  const openSkillsPage = useCallback(() => {
+    setSidebarOpen(false);
+    router.push("/skills");
+  }, [router]);
+  const refreshSkills = useCallback(async () => {
+    try {
+      const { skills } = await api.listSkills();
+      const enabled = skills
+        .filter((skill) => skill.installed && skill.enabled)
+        .map(({ id, displayName, description, category, icon }) => ({
+          id,
+          displayName,
+          description,
+          category,
+          icon,
+        }));
+      const enabledIds = new Set<string>(enabled.map((skill) => skill.id));
+      setEnabledSkills(enabled);
+      setSelectedSkillIds((selected) => selected.filter((id) => enabledIds.has(id)));
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not refresh your Skills list.", "error");
+    }
+  }, [notify]);
 
   const send = useCallback(
     (
@@ -319,9 +378,9 @@ function ChatScreen({
       stopVoice();
       setPinSignal((n) => n + 1);
       setHasSent(true);
-      return sendMessage(text, attachments, sendableImages);
+      return sendMessage(text, attachments, sendableImages, selectedSkillIds);
     },
-    [sendMessage, stopVoice],
+    [sendMessage, stopVoice, selectedSkillIds],
   );
 
   const quickAction = useCallback(
@@ -446,6 +505,13 @@ function ChatScreen({
         run: openStudio,
       },
       {
+        id: "skills",
+        label: "Browse and manage skills",
+        icon: <Sparkle weight="bold" className="size-4" />,
+        keywords: "marketplace install enabled assistant instructions",
+        run: openSkillsPage,
+      },
+      {
         id: "settings",
         label: "Open settings",
         icon: <GearSix weight="bold" className="size-4" />,
@@ -464,6 +530,7 @@ function ChatScreen({
       newChat,
       openSettings,
       openSettingsPage,
+      openSkillsPage,
       openStudio,
       resolved,
       setPreference,
@@ -615,6 +682,10 @@ function ChatScreen({
             mode={mode}
             onModeChange={setMode}
             voice={composerVoice}
+            skills={enabledSkills}
+            selectedSkills={selectedSkillIds}
+            onSkillsChange={setSelectedSkillIds}
+            onSkillsOpen={refreshSkills}
           />
         </main>
       </div>

@@ -14,6 +14,6 @@ const { auth } = NextAuth(authConfig);
 export const proxy = auth;
 
 export const config = {
-  // Only these paths run the proxy. The landing page stays fully static.
-  matcher: ["/app/:path*", "/settings/:path*", "/login"],
+  // Only protected paths run the proxy. The landing page stays fully static.
+  matcher: ["/app/:path*", "/settings/:path*", "/skills/:path*", "/login"],
 };

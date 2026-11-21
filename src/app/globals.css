@@ -35,18 +35,18 @@
 }
 
 html.dark {
-  --bg: #050505;
+  --bg: #0b0d12;
   --fg: #f8fafc;
   --muted: rgb(248 250 252 / 0.68); /* ~9:1 on --bg */
   --subtle: rgb(248 250 252 / 0.5); /* ~5:1 on --bg (AA) */
   --line: rgb(255 255 255 / 0.07);
   --line-strong: rgb(255 255 255 / 0.16);
   --surface: rgb(12 12 12 / 0.62);
-  --surface-solid: #0b0b0c;
+  --surface-solid: #11141b;
   --surface-hover: rgb(255 255 255 / 0.06);
   --glow: rgb(255 255 255 / 0.1);
   --inverse-bg: #ffffff;
-  --inverse-fg: #050505;
+  --inverse-fg: #0b0d12;
   --scrollbar: rgb(255 255 255 / 0.15);
   --accent: #a78bfa;
   --accent-soft: rgb(167 139 250 / 0.22);
@@ -622,7 +622,7 @@ html.dark {
   --tok-tag: #be123c;
 }
 html.dark {
-  --code-bg: #0b0b0c;
+  --code-bg: #11141b;
   --tok-comment: #6b7280;
   --tok-keyword: #c4b5fd;
   --tok-string: #86efac;

@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
     sessionId: string;
     history?: { role: string; content: string }[];
     showReasoning?: boolean;
+    system?: string;
   }[],
   reply: "Hello from the **fake** AI." as string | Error,
   stream: null as { type: "text" | "reasoning"; text: string }[] | null,
@@ -37,12 +38,14 @@ vi.mock("@/lib/ai", async (importOriginal) => {
         sessionId: string;
         history?: { role: string; content: string }[];
         showReasoning?: boolean;
+        system?: string;
       }) =>
         state.calls.push({
           message: request.message,
           sessionId: request.sessionId,
           history: request.history,
           showReasoning: request.showReasoning,
+          system: request.system,
         });
 
       const base = {
@@ -53,6 +56,7 @@ vi.mock("@/lib/ai", async (importOriginal) => {
           sessionId: string;
           history?: { role: string; content: string }[];
           showReasoning?: boolean;
+          system?: string;
         }) {
           record(request);
           if (state.reply instanceof Error) throw state.reply;
@@ -69,6 +73,7 @@ vi.mock("@/lib/ai", async (importOriginal) => {
           sessionId: string;
           history?: { role: string; content: string }[];
           showReasoning?: boolean;
+          system?: string;
         }) {
           record(request);
           for (const delta of state.stream ?? []) yield delta;
@@ -80,6 +85,7 @@ vi.mock("@/lib/ai", async (importOriginal) => {
 
 // Route handlers (imported after the mocks above)
 const { POST: chat } = await import("@/app/api/chat/route");
+const { GET: getSkills, POST: mutateSkill } = await import("@/app/api/skills/route");
 const sessions = await import("@/app/api/sessions/route");
 const session = await import("@/app/api/sessions/[id]/route");
 const { GET: exportOne } = await import("@/app/api/sessions/[id]/export/route");
@@ -108,6 +114,7 @@ beforeEach(async () => {
   state.reply = "Hello from the **fake** AI.";
   state.stream = null;
   await t.prisma.rateLimit.deleteMany();
+  await t.prisma.userSkill.deleteMany();
 });
 
 const send = (body: unknown, ip = freshIp()) =>
@@ -150,6 +157,26 @@ describe("POST /api/chat — signed in", () => {
     const events = await readSse(await send({ message: "And another thing", conversationId: convo.id }));
     expect(events.find((e) => e.event === "meta")!.data.conversationId).toBe(convo.id);
     expect(await t.prisma.message.count({ where: { conversationId: convo.id } })).toBe(2);
+  });
+
+  it("only adds trusted instructions for an installed, enabled skill", async () => {
+    state.userId = alice;
+    const installation = await t.prisma.userSkill.create({
+      data: { userId: alice, skillId: "coding-assistant", enabled: false },
+    });
+
+    const disabled = await send({ message: "Review this code", skills: ["coding-assistant"] });
+    expect(disabled.status).toBe(400);
+    expect((await disabled.json()).error.code).toBe("skill_not_enabled");
+    expect(state.calls).toHaveLength(0);
+
+    await t.prisma.userSkill.update({
+      where: { userId_skillId: { userId: installation.userId, skillId: installation.skillId } },
+      data: { enabled: true },
+    });
+    await readSse(await send({ message: "Review this code", skills: ["coding-assistant"] }));
+    expect(state.calls[0].system).toContain("Act as a careful coding partner");
+    expect(state.calls[0].system).toContain("No external tools are available to this skill.");
   });
 
   it("retry answers the saved question again without saving it twice", async () => {
@@ -272,7 +299,6 @@ describe("POST /api/chat — guest demo", () => {
     expect((await send({ message: "x", conversationId: "cm0000000000000000000000a" })).status).toBe(401);
   });
 });
-
 
 describe("POST /api/chat — context, reasoning and clean answers", () => {
   it("sends the last 20 messages of the conversation, not just the newest", async () => {
@@ -414,6 +440,51 @@ describe("when the database is down", () => {
       state.db = real;
       errorLog.mockRestore();
     }
+  });
+});
+
+// ── Skills marketplace ─────────────────────────────────────────────
+describe("/api/skills", () => {
+  const postSkill = (body: unknown) =>
+    mutateSkill(req("/api/skills", { method: "POST", body, ip: freshIp() }), undefined);
+
+  it("requires login for catalog and installation state", async () => {
+    expect((await getSkills(req("/api/skills"), undefined)).status).toBe(401);
+  });
+
+  it("returns the trusted catalog and persists install, enable, and uninstall state", async () => {
+    state.userId = alice;
+    const catalog = await (await getSkills(req("/api/skills"), undefined)).json();
+    expect(catalog.skills).toHaveLength(10);
+    expect(catalog.skills[0]).toMatchObject({ id: "coding-assistant", installed: false, enabled: false });
+    expect(catalog.skills[0]).not.toHaveProperty("instructions");
+
+    const installed = await postSkill({ action: "install", skillId: "coding-assistant" });
+    expect(await installed.json()).toMatchObject({
+      skillId: "coding-assistant",
+      installed: true,
+      enabled: true,
+    });
+
+    await postSkill({ action: "set-enabled", skillId: "coding-assistant", enabled: false });
+    // Repeated install is idempotent and must not re-enable a skill the user disabled.
+    const repeated = await (await postSkill({ action: "install", skillId: "coding-assistant" })).json();
+    expect(repeated).toMatchObject({ installed: true, enabled: false });
+
+    const stateAfter = await (await getSkills(req("/api/skills"), undefined)).json();
+    expect(stateAfter.skills[0]).toMatchObject({ installed: true, enabled: false });
+
+    const removed = await (await postSkill({ action: "uninstall", skillId: "coding-assistant" })).json();
+    expect(removed).toMatchObject({ installed: false, enabled: false });
+    expect(await t.prisma.userSkill.count({ where: { userId: alice } })).toBe(0);
+  });
+
+  it("rejects IDs that are not in the built-in catalog", async () => {
+    state.userId = alice;
+    const response = await postSkill({ action: "install", skillId: "remote-untrusted-skill" });
+    expect(response.status).toBe(400);
+    expect((await response.json()).error.code).toBe("validation_error");
+    expect(await t.prisma.userSkill.count({ where: { userId: alice } })).toBe(0);
   });
 });
 

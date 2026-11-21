@@ -26,6 +26,7 @@ describe("database migrations", () => {
       "Session",
       "User",
       "UserMemory",
+      "UserSkill",
       "VerificationToken",
     ]);
   });
@@ -41,6 +42,7 @@ describe("database migrations", () => {
         "Conversation_userId_updatedAt_idx",
         "Message_conversationId_createdAt_idx",
         "RateLimit_windowStart_idx",
+        "UserSkill_userId_enabled_idx",
         "Session_sessionToken_key",
       ]),
     );
@@ -89,11 +91,24 @@ describe("Prisma client ↔ schema", () => {
       data: { userId: user.id, messages: { create: { role: "user", content: "bye" } } },
     });
     await t.prisma.userMemory.create({
-      data: { userId: user.id, text: "training for a marathon", category: "fitness", key: "training for a marathon" },
+      data: {
+        userId: user.id,
+        text: "training for a marathon",
+        category: "fitness",
+        key: "training for a marathon",
+      },
+    });
+    await t.prisma.userSkill.create({
+      data: { userId: user.id, skillId: "coding-assistant", enabled: false },
     });
     await t.prisma.user.delete({ where: { id: user.id } });
     expect(await t.prisma.conversation.findUnique({ where: { id: convo.id } })).toBeNull();
     expect(await t.prisma.message.count({ where: { conversationId: convo.id } })).toBe(0);
+    expect(
+      await t.prisma.userSkill.findUnique({
+        where: { userId_skillId: { userId: user.id, skillId: "coding-assistant" } },
+      }),
+    ).toBeNull();
   });
 
   it("rejects a display name longer than 40 characters", async () => {

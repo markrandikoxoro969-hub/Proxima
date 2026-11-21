@@ -3,6 +3,7 @@ import { CHAT_MODES } from "./ai/modes";
 import { IMAGE_LIMITS, IMAGE_STYLES } from "./image/limits";
 import { LIMITS } from "./limits";
 import { CUSTOM_THEME_LIMIT, ThemeError, buildCustomTheme, type ThemeMode } from "./theme/palettes";
+import { skillSelectionSchema } from "./skills/validation";
 
 /**
  * Input rules shared by the server (enforced) and the browser (for nice
@@ -78,6 +79,8 @@ export const chatRequestSchema = z.object({
    * only ever sends a mode it knows about.
    */
   mode: z.enum(CHAT_MODES).optional(),
+  /** Opt-in installed skills; the server verifies ownership and enabled state. */
+  skills: skillSelectionSchema.optional(),
   /**
    * Temporary chat: nothing is written to the database and memory is neither
    * read nor written for this message.

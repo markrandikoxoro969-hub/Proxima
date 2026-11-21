@@ -208,6 +208,9 @@ describe("<Composer />", () => {
         onOpenStudio={() => {}}
         mode="thinking"
         onModeChange={() => {}}
+        skills={[]}
+        selectedSkills={[]}
+        onSkillsChange={() => {}}
         {...props}
       />,
     );

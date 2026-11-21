@@ -24,6 +24,7 @@ export function useChat({
   initialActivePage,
   notify,
   mode = "thinking",
+  selectedSkills = [],
 }: {
   initialSessions: SessionSummary[];
   initialNextCursor: string | null;
@@ -32,6 +33,8 @@ export function useChat({
   notify: Notify;
   /** Answer style chosen in the composer, applied to each new reply. */
   mode?: ChatMode;
+  /** Enabled catalog skills selected in the composer; included until selection changes. */
+  selectedSkills?: string[];
 }) {
   const [state, dispatch] = useReducer(
     chatReducer,
@@ -99,12 +102,14 @@ export function useChat({
       attachments,
       images,
       retryOf,
+      skills,
     }: {
       key: string;
       text: string;
       attachments: { name: string; content: string }[];
       images: { id: string; url: string; width: number; height: number; name: string }[];
       retryOf?: string;
+      skills?: string[];
     }) => {
       const now = new Date().toISOString();
       // Context for the AI: the most recent turns of this chat (max 20).
@@ -188,6 +193,7 @@ export function useChat({
           retry: retryOf ? true : undefined,
           showReasoning,
           mode: answerMode,
+          skills: skills?.length ? skills : undefined,
           temporary,
           // Signed-in chats are rebuilt from the database on the server.
           // Sending the same history from the browser made every request tens
@@ -252,13 +258,14 @@ export function useChat({
       text: string,
       attachments: { name: string; content: string }[] = [],
       images: { id: string; url: string; width: number; height: number; name: string }[] = [],
+      skills: string[] = selectedSkills,
     ) => {
       const trimmed = text.trim();
       if (!trimmed || stateRef.current.streamingKey) return false;
-      await run({ key: stateRef.current.activeKey, text: trimmed, attachments, images });
+      await run({ key: stateRef.current.activeKey, text: trimmed, attachments, images, skills });
       return true;
     },
-    [run],
+    [run, selectedSkills],
   );
 
   /** "Try again" on a failed or stopped reply. */
@@ -298,9 +305,10 @@ export function useChat({
           };
         }),
         retryOf: assistantId,
+        skills: selectedSkills,
       });
     },
-    [run],
+    [run, selectedSkills],
   );
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
