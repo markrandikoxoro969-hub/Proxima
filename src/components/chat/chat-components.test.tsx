@@ -97,6 +97,33 @@ describe("<MessageItem />", () => {
     expect(screen.getByText("Thought for 4s")).toBeInTheDocument();
   });
 
+  it("offers Continue when a reply ends inside a code block", async () => {
+    const onQuickAction = vi.fn();
+    render(
+      <MessageItem
+        message={msg({ content: "Here is the fix:\n\n```js\nconst a = 1;", mode: "coding" })}
+        onRetry={() => {}}
+        canRetry
+        onQuickAction={onQuickAction}
+      />,
+    );
+    expect(screen.getByText("This answer stopped in the middle of the code.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /continue/i }));
+    expect(onQuickAction).toHaveBeenCalledWith(expect.stringContaining("Continue exactly where it stopped"));
+  });
+
+  it("does not offer Continue for a complete code block", () => {
+    render(
+      <MessageItem
+        message={msg({ content: "```js\nconst a = 1;\n```", mode: "coding" })}
+        onRetry={() => {}}
+        canRetry
+        onQuickAction={() => {}}
+      />,
+    );
+    expect(screen.queryByText("This answer stopped in the middle of the code.")).toBeNull();
+  });
+
   it("shows a friendly error with Try again", async () => {
     const onRetry = vi.fn();
     render(

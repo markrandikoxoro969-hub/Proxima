@@ -46,6 +46,14 @@ describe("answer modes", () => {
     expect(modeModelSettings("coding").thinking).toBe(true);
   });
 
+  it("gives coding mode room for a complete file, not a snippet", () => {
+    // Private reasoning counts against max_tokens, so this is deliberately
+    // larger than a one-file snippet needs.
+    expect(modeModelSettings("coding").maxTokens).toBeGreaterThanOrEqual(8192);
+    expect(MODE_CONFIG.coding.guidance).toContain('no "…"');
+    expect(MODE_CONFIG.coding.guidance).toContain("every bracket closed");
+  });
+
   it("never exceeds the environment's token ceiling", () => {
     expect(modeModelSettings("coding", 2048).maxTokens).toBe(2048);
     expect(modeModelSettings("fast", 8000).maxTokens).toBe(1024);

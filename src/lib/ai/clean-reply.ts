@@ -48,6 +48,34 @@ export function stripLeadingFiller(input: string): string {
   return text;
 }
 
+/**
+ * Collapses the blank lines left behind by a removed preamble, but never inside
+ * a fenced code block: a run of blank lines can be part of a string literal or
+ * a template and must reach the user exactly as the model wrote it.
+ */
+function collapseBlankLinesOutsideCode(text: string): string {
+  const out: string[] = [];
+  let fence: string | null = null;
+  let blanks = 0;
+  for (const line of text.split("\n")) {
+    const marker = /^\s{0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    if (marker) {
+      if (fence === null) fence = marker;
+      else if (marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) {
+        fence = null;
+      }
+    }
+    if (fence === null && line.trim() === "") {
+      blanks += 1;
+      if (blanks <= 2) out.push(line);
+    } else {
+      blanks = 0;
+      out.push(line);
+    }
+  }
+  return out.join("\n");
+}
+
 export function stripFiller(input: string): string {
   let text = input.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").trim();
   // Repeat a few times: "Sure! Great question! …" has two preambles.
@@ -70,7 +98,7 @@ export function stripFiller(input: string): string {
     if (!changed) break;
   }
   // Collapse runs of blank lines left behind by a removed preamble.
-  return text.replace(/\n{3,}/g, "\n\n").trim();
+  return collapseBlankLinesOutsideCode(text).trim();
 }
 
 /**
