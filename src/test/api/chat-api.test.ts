@@ -174,6 +174,15 @@ describe("POST /api/chat — signed in", () => {
       where: { userId_skillId: { userId: installation.userId, skillId: installation.skillId } },
       data: { enabled: true },
     });
+    const unselected = await send({ message: "Review this code", skills: ["coding-assistant"] });
+    expect(unselected.status).toBe(400);
+    expect((await unselected.json()).error.code).toBe("skill_not_selected");
+    expect(state.calls).toHaveLength(0);
+
+    await t.prisma.userSkill.update({
+      where: { userId_skillId: { userId: installation.userId, skillId: installation.skillId } },
+      data: { selected: true },
+    });
     await readSse(await send({ message: "Review this code", skills: ["coding-assistant"] }));
     expect(state.calls[0].system).toContain("Act as a careful coding partner");
     expect(state.calls[0].system).toContain("No external tools are available to this skill.");
@@ -452,11 +461,16 @@ describe("/api/skills", () => {
     expect((await getSkills(req("/api/skills"), undefined)).status).toBe(401);
   });
 
-  it("returns the trusted catalog and persists install, enable, and uninstall state", async () => {
+  it("returns the trusted catalog and persists install, enable, selection, and uninstall state", async () => {
     state.userId = alice;
     const catalog = await (await getSkills(req("/api/skills"), undefined)).json();
     expect(catalog.skills).toHaveLength(10);
-    expect(catalog.skills[0]).toMatchObject({ id: "coding-assistant", installed: false, enabled: false });
+    expect(catalog.skills[0]).toMatchObject({
+      id: "coding-assistant",
+      installed: false,
+      enabled: false,
+      selected: false,
+    });
     expect(catalog.skills[0]).not.toHaveProperty("instructions");
 
     const installed = await postSkill({ action: "install", skillId: "coding-assistant" });
@@ -464,19 +478,52 @@ describe("/api/skills", () => {
       skillId: "coding-assistant",
       installed: true,
       enabled: true,
+      selected: false,
     });
 
+    const selected = await (
+      await postSkill({
+        action: "set-selected",
+        skillId: "coding-assistant",
+        selected: true,
+      })
+    ).json();
+    expect(selected).toMatchObject({ enabled: true, selected: true });
+
     await postSkill({ action: "set-enabled", skillId: "coding-assistant", enabled: false });
+    const disabledSelection = await postSkill({
+      action: "set-selected",
+      skillId: "coding-assistant",
+      selected: true,
+    });
+    expect(disabledSelection.status).toBe(400);
     // Repeated install is idempotent and must not re-enable a skill the user disabled.
     const repeated = await (await postSkill({ action: "install", skillId: "coding-assistant" })).json();
     expect(repeated).toMatchObject({ installed: true, enabled: false });
 
     const stateAfter = await (await getSkills(req("/api/skills"), undefined)).json();
-    expect(stateAfter.skills[0]).toMatchObject({ installed: true, enabled: false });
+    expect(stateAfter.skills[0]).toMatchObject({ installed: true, enabled: false, selected: false });
 
     const removed = await (await postSkill({ action: "uninstall", skillId: "coding-assistant" })).json();
-    expect(removed).toMatchObject({ installed: false, enabled: false });
+    expect(removed).toMatchObject({ installed: false, enabled: false, selected: false });
     expect(await t.prisma.userSkill.count({ where: { userId: alice } })).toBe(0);
+  });
+
+  it("only selects enabled installations and enforces the three-skill Settings limit", async () => {
+    state.userId = alice;
+    const ids = ["coding-assistant", "writing-assistant", "mathematics", "productivity"];
+    await t.prisma.userSkill.createMany({
+      data: ids.map((skillId) => ({ userId: alice, skillId, enabled: true, selected: false })),
+    });
+
+    for (const skillId of ids.slice(0, 3)) {
+      const response = await postSkill({ action: "set-selected", skillId, selected: true });
+      expect(response.status).toBe(200);
+    }
+    const overLimit = await postSkill({ action: "set-selected", skillId: ids[3], selected: true });
+    expect(overLimit.status).toBe(400);
+    expect((await overLimit.json()).error).toMatchObject({ code: "bad_request" });
+    expect(await t.prisma.userSkill.count({ where: { userId: alice, selected: true } })).toBe(3);
   });
 
   it("rejects IDs that are not in the built-in catalog", async () => {

@@ -14,6 +14,7 @@ export const ChatHeader = memo(function ChatHeader({
   isDesktop,
   onOpenSidebar,
   onNewChat,
+  voiceInput,
   voiceMenu,
 }: {
   title: string | null;
@@ -22,6 +23,8 @@ export const ChatHeader = memo(function ChatHeader({
   isDesktop: boolean;
   onOpenSidebar: () => void;
   onNewChat: () => void;
+  /** Speech-input trigger, rendered beside the voice-mode trigger. */
+  voiceInput?: ReactNode;
   /** Voice-mode trigger, rendered at the right edge of the toolbar. */
   voiceMenu?: ReactNode;
 }) {
@@ -66,11 +69,11 @@ export const ChatHeader = memo(function ChatHeader({
         <NotePencil weight="bold" className="size-5" aria-hidden />
       </button>
       <ThemeMenu />
-      {/* On the narrowest phones the Export button (rarely needed there) yields
-          its place to Voice mode; New chat stays reachable from the sidebar. */}
-      <div className="hidden min-[370px]:block">
+      {/* Export yields its place to the two voice controls on narrower phones. */}
+      <div className="hidden min-[430px]:block">
         <ExportMenu activeId={activeId} />
       </div>
+      {voiceInput}
       {voiceMenu}
     </header>
   );

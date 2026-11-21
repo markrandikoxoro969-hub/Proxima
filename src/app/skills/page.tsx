@@ -14,7 +14,7 @@ export default async function SkillsPage() {
   const user = await requireUser("/skills");
   const installations = await db.userSkill.findMany({
     where: { userId: user.id },
-    select: { skillId: true, enabled: true },
+    select: { skillId: true, enabled: true, selected: true },
   });
 
   return <SkillsMarketplace initialSkills={buildSkillState(installations)} />;

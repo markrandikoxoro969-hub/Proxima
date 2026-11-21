@@ -208,14 +208,24 @@ describe("<Composer />", () => {
         onOpenStudio={() => {}}
         mode="thinking"
         onModeChange={() => {}}
-        skills={[]}
-        selectedSkills={[]}
-        onSkillsChange={() => {}}
         {...props}
       />,
     );
     return { onSend, input: screen.getByLabelText("Message Proxima") as HTMLTextAreaElement };
   };
+
+  it("publishes speech controls for the header instead of rendering a mic in the composer", async () => {
+    const onVoiceInputChange = vi.fn();
+    setup({ onVoiceInputChange });
+
+    await waitFor(() =>
+      expect(onVoiceInputChange).toHaveBeenCalledWith(
+        expect.objectContaining({ listening: false, supported: false, toggle: expect.any(Function) }),
+      ),
+    );
+    expect(screen.queryByRole("button", { name: "Voice input" })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Message actions" })).not.toHaveTextContent("Skills");
+  });
 
   it("Enter sends, Shift+Enter adds a new line", async () => {
     const { onSend, input } = setup();

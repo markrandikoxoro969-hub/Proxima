@@ -98,12 +98,14 @@ export function SwitchRow({
   hint,
   checked,
   onChange,
+  disabled = false,
 }: {
   id: string;
   title: string;
   hint: string;
   checked: boolean;
   onChange: (value: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-line px-4 py-3">
@@ -117,9 +119,11 @@ export function SwitchRow({
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
+        disabled={disabled}
         className={cn(
           "relative inline-flex tap shrink-0 items-center justify-center rounded-full",
           "before:absolute before:h-7 before:w-12 before:rounded-full before:border before:border-line before:transition-colors before:duration-300",
+          "disabled:cursor-not-allowed disabled:opacity-45",
           checked ? "before:bg-inverse" : "before:bg-surface-hover",
         )}
       >

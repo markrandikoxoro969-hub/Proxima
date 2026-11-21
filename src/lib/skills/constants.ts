@@ -1,2 +1,2 @@
-/** Maximum number of installed skills that may guide one chat request. */
-export const MAX_SKILLS_PER_MESSAGE = 3;
+/** Maximum number of enabled skills a user can select in Settings for chat replies. */
+export const MAX_SELECTED_SKILLS = 3;

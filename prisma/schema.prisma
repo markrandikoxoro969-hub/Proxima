@@ -65,12 +65,13 @@ model User {
   skills        UserSkill[]
 }
 
-/// A user's installation and enabled state for a built-in, app-authored skill.
+/// A user's installation, enabled state, and default chat selection for a built-in skill.
 /// Skill instructions remain in the application catalog, never in the database.
 model UserSkill {
   userId      String
   skillId     String   @db.VarChar(48)
   enabled     Boolean  @default(true)
+  selected    Boolean  @default(false)
   installedAt DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

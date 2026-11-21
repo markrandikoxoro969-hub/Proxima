@@ -10,6 +10,7 @@ import {
   GearSix,
   ImageSquare,
   Lightning,
+  Microphone,
   Moon,
   Plus,
   SlidersHorizontal,
@@ -25,6 +26,7 @@ import { useTheme } from "@/components/theme/theme-provider";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { ToastProvider, useToast } from "@/components/ui/toast";
 import { api } from "@/lib/chat/client/api";
+import { cn } from "@/lib/cn";
 import { DRAFT } from "@/lib/chat/client/chat-state";
 import { draftFromImage, type DraftImage } from "@/lib/chat/client/images";
 import { useChat } from "@/lib/chat/client/use-chat";
@@ -35,7 +37,7 @@ import { useVoiceOutput } from "@/lib/chat/client/use-voice-output";
 import type { VoiceChoice, VoiceEngine } from "@/lib/chat/client/voice";
 import { EASE } from "@/lib/motion/tokens";
 import type { EngineStatus, MessagesPage, Profile, SessionSummary } from "@/lib/chat/types";
-import type { EnabledSkillSummary } from "@/lib/skills/catalog";
+import type { SelectedSkillSummary } from "@/lib/skills/catalog";
 import type { ImageDTO } from "@/lib/image/types";
 import type { ThemePreference } from "@/lib/theme";
 import { useMediaQuery } from "@/lib/use-media-query";
@@ -85,13 +87,19 @@ const Particles = dynamic(() => import("./particles"), { ssr: false });
 
 const VOICE_SAMPLE = "Hi, I'm Proxima. This is how I'll read your answers aloud.";
 
+type SpeechInputControl = {
+  listening: boolean;
+  supported: boolean;
+  toggle: () => void;
+};
+
 export type ChatAppProps = {
   profile: Profile;
   initialSessions: SessionSummary[];
   initialNextCursor: string | null;
   initialActiveId: string | null;
   initialActivePage: MessagesPage | null;
-  initialEnabledSkills: EnabledSkillSummary[];
+  initialSelectedSkills: SelectedSkillSummary[];
 };
 
 export function ChatApp(props: ChatAppProps) {
@@ -110,7 +118,7 @@ function ChatScreen({
   initialNextCursor,
   initialActiveId,
   initialActivePage,
-  initialEnabledSkills,
+  initialSelectedSkills,
 }: ChatAppProps) {
   const notify = useToast();
   const router = useRouter();
@@ -132,8 +140,11 @@ function ChatScreen({
   const [pinSignal, setPinSignal] = useState(0);
   const [focusSignal, setFocusSignal] = useState(0);
   const [hasSent, setHasSent] = useState(false);
-  const [enabledSkills, setEnabledSkills] = useState(initialEnabledSkills);
-  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+  const [speechInput, setSpeechInput] = useState<SpeechInputControl | null>(null);
+  const selectedSkillIds = useMemo(
+    () => initialSelectedSkills.map((skill) => skill.id),
+    [initialSelectedSkills],
+  );
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [studioOpen, setStudioOpen] = useState(false);
   const [images, setImages] = useState<DraftImage[]>([]);
@@ -345,29 +356,10 @@ function ChatScreen({
   }, [notify, state.activeKey]);
 
   const openSettingsPage = useCallback(() => router.push("/settings"), [router]);
-  const openSkillsPage = useCallback(() => {
+  const openSkillsSettings = useCallback(() => {
     setSidebarOpen(false);
-    router.push("/skills");
+    router.push("/settings#settings-skills");
   }, [router]);
-  const refreshSkills = useCallback(async () => {
-    try {
-      const { skills } = await api.listSkills();
-      const enabled = skills
-        .filter((skill) => skill.installed && skill.enabled)
-        .map(({ id, displayName, description, category, icon }) => ({
-          id,
-          displayName,
-          description,
-          category,
-          icon,
-        }));
-      const enabledIds = new Set<string>(enabled.map((skill) => skill.id));
-      setEnabledSkills(enabled);
-      setSelectedSkillIds((selected) => selected.filter((id) => enabledIds.has(id)));
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not refresh your Skills list.", "error");
-    }
-  }, [notify]);
 
   const send = useCallback(
     (
@@ -378,9 +370,9 @@ function ChatScreen({
       stopVoice();
       setPinSignal((n) => n + 1);
       setHasSent(true);
-      return sendMessage(text, attachments, sendableImages, selectedSkillIds);
+      return sendMessage(text, attachments, sendableImages);
     },
-    [sendMessage, stopVoice, selectedSkillIds],
+    [sendMessage, stopVoice],
   );
 
   const quickAction = useCallback(
@@ -506,10 +498,10 @@ function ChatScreen({
       },
       {
         id: "skills",
-        label: "Browse and manage skills",
+        label: "Choose skills for every reply",
         icon: <Sparkle weight="bold" className="size-4" />,
-        keywords: "marketplace install enabled assistant instructions",
-        run: openSkillsPage,
+        keywords: "skills settings default select install enabled assistant instructions",
+        run: openSkillsSettings,
       },
       {
         id: "settings",
@@ -530,7 +522,7 @@ function ChatScreen({
       newChat,
       openSettings,
       openSettingsPage,
-      openSkillsPage,
+      openSkillsSettings,
       openStudio,
       resolved,
       setPreference,
@@ -559,6 +551,39 @@ function ChatScreen({
     }),
     [voice.enabled, voice.handsFree, voiceSpeaking, listenSignal, stopVoice],
   );
+
+  const headerVoiceInput = useMemo(() => {
+    const listening = speechInput?.listening ?? false;
+    const supported = speechInput?.supported ?? false;
+    const label = listening ? "Stop voice input" : "Voice input";
+    return (
+      <button
+        type="button"
+        onClick={speechInput?.toggle}
+        disabled={!supported}
+        aria-label={label}
+        aria-pressed={listening}
+        title={
+          !speechInput
+            ? "Voice input is loading"
+            : supported
+              ? label
+              : "Voice input isn't supported in this browser"
+        }
+        className={cn(
+          "inline-flex size-11 tap shrink-0 items-center justify-center rounded-xl text-muted transition-colors duration-200",
+          "hover:bg-surface-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-40",
+          listening && "bg-red-500/15 text-red-500 hover:bg-red-500/20 hover:text-red-500",
+        )}
+      >
+        <Microphone
+          weight={listening ? "fill" : "bold"}
+          className={cn("size-5", listening && "animate-pulse")}
+          aria-hidden
+        />
+      </button>
+    );
+  }, [speechInput]);
 
   const headerVoiceMenu = useMemo(
     () => (
@@ -626,6 +651,7 @@ function ChatScreen({
             isDesktop={isDesktop}
             onOpenSidebar={openSidebar}
             onNewChat={newChat}
+            voiceInput={headerVoiceInput}
             voiceMenu={headerVoiceMenu}
           />
 
@@ -682,10 +708,7 @@ function ChatScreen({
             mode={mode}
             onModeChange={setMode}
             voice={composerVoice}
-            skills={enabledSkills}
-            selectedSkills={selectedSkillIds}
-            onSkillsChange={setSelectedSkillIds}
-            onSkillsOpen={refreshSkills}
+            onVoiceInputChange={setSpeechInput}
           />
         </main>
       </div>
