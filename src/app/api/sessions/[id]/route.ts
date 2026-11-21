@@ -24,29 +24,29 @@ const pageSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(100),
 });
 
-async function ownedSessionId(ctx: Ctx, userId: string): Promise<string> {
+async function ownedSession(ctx: Ctx, userId: string) {
   const parsed = idSchema.safeParse((await ctx.params).id);
   if (!parsed.success) throw apiErrors.notFound("Conversation not found");
-  const found = await db.conversation.findFirst({ where: { id: parsed.data, userId }, select: { id: true } });
+  // Fetch the metadata here too: opening a chat used to need three queries
+  // (ownership, metadata, messages). Now it needs two.
+  const found = await db.conversation.findFirst({
+    where: { id: parsed.data, userId },
+    select: { id: true, title: true, createdAt: true, updatedAt: true },
+  });
   if (!found) throw apiErrors.notFound("Conversation not found");
-  return found.id;
+  return found;
 }
 
 export const GET = withApi(async (request: Request, ctx: Ctx) => {
   const userId = await requireApiUserId();
-  const id = await ownedSessionId(ctx, userId);
+  const session = await ownedSession(ctx, userId);
   const params = new URL(request.url).searchParams;
   const page = pageSchema.parse({
     before: params.get("before") ?? undefined,
     limit: params.get("limit") ?? undefined,
   });
 
-  const session = await db.conversation.findUniqueOrThrow({
-    where: { id },
-    select: { id: true, title: true, createdAt: true, updatedAt: true },
-  });
-
-  const { messages, hasMore, nextBefore } = await getMessagesPage(id, page);
+  const { messages, hasMore, nextBefore } = await getMessagesPage(session.id, page);
   return json({ session, messages, hasMore, nextBefore });
 });
 
@@ -54,7 +54,7 @@ export const PATCH = withApi(async (request: Request, ctx: Ctx) => {
   assertSameOrigin(request);
   const userId = await requireApiUserId();
   await enforceRateLimit(`api:user:${userId}`, RATE_LIMITS.api);
-  const id = await ownedSessionId(ctx, userId);
+  const { id } = await ownedSession(ctx, userId);
   const { title } = renameSessionSchema.parse(await readJson(request));
 
   const session = await db.conversation.update({
@@ -68,7 +68,7 @@ export const PATCH = withApi(async (request: Request, ctx: Ctx) => {
 export const DELETE = withApi(async (request: Request, ctx: Ctx) => {
   assertSameOrigin(request);
   const userId = await requireApiUserId();
-  const id = await ownedSessionId(ctx, userId);
+  const { id } = await ownedSession(ctx, userId);
   await db.conversation.delete({ where: { id } });
   return new Response(null, { status: 204 });
 });

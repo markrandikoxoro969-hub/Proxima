@@ -90,6 +90,7 @@ function UserMessage({ message }: { message: UiMessage }) {
                     width={picture.width ?? 512}
                     height={picture.height ?? 512}
                     loading="lazy"
+                    decoding="async"
                     className="max-h-56 w-auto max-w-[min(18rem,70vw)] object-cover"
                   />
                 </a>

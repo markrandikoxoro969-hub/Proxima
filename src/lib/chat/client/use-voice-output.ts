@@ -34,6 +34,15 @@ const AUDIO_CACHE_MAX = 24;
 /** A normal piece arrives in 1–3 s; never leave the listener in silence. */
 const SPEECH_FETCH_TIMEOUT_MS = 10_000;
 
+/**
+ * A 50 ms silent WAV. Mobile browsers (iOS Safari especially) only allow
+ * programmatic audio after a real user gesture. Playing this once, on the
+ * first tap/keypress, unlocks the audio element we reuse for every reply.
+ * (A Blob URL rather than a data: URL because our CSP allows blob: media.)
+ */
+const SILENT_WAV_BASE64 =
+  "UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
+
 function cacheKey(text: string, voice: VoiceChoice, speed: number) {
   return `${voice}|${speed}|${text}`;
 }
@@ -114,6 +123,9 @@ export function useVoiceOutput({
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const generation = useRef(0);
   const alive = useRef(true);
+  // ONE audio element for the whole page: mobile browsers unlock a specific
+  // element during a gesture, so creating a new Audio() for each chunk would
+  // put the first tap to waste.
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const endRef = useRef(onEnd);
@@ -123,6 +135,66 @@ export function useVoiceOutput({
     endRef.current = onEnd;
     errorRef.current = onError;
   });
+
+  const ensureAudio = useCallback(() => {
+    if (!canPlayAudio()) return null;
+    if (!audioRef.current) {
+      const audio = new Audio();
+      audio.preload = "auto";
+      audio.setAttribute("playsinline", "");
+      audioRef.current = audio;
+    }
+    return audioRef.current;
+  }, []);
+
+  // Unlock playback on the first real gesture, before a reply needs it.
+  useEffect(() => {
+    if (!canPlayAudio()) return;
+    let unlocked = false;
+    let silentUrl: string | null = null;
+
+    const removeListeners = () => {
+      document.removeEventListener("pointerdown", unlock, { capture: true });
+      document.removeEventListener("keydown", unlock, { capture: true });
+      document.removeEventListener("click", unlock, { capture: true });
+    };
+
+    const unlock = () => {
+      if (unlocked) return;
+      unlocked = true;
+      removeListeners();
+      const audio = ensureAudio();
+      if (!audio || !audio.paused) return; // never interrupt real speech
+      try {
+        const binary = atob(SILENT_WAV_BASE64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        silentUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+        audio.src = silentUrl;
+        void audio
+          .play()
+          .then(() => {
+            if (audio.src === silentUrl) {
+              audio.pause();
+              audio.currentTime = 0;
+            }
+          })
+          .catch(() => {
+            /* the next real play() will report the failure honestly */
+          });
+      } catch {
+        /* unlocking is best-effort */
+      }
+    };
+
+    document.addEventListener("pointerdown", unlock, { capture: true, passive: true });
+    document.addEventListener("keydown", unlock, { capture: true });
+    document.addEventListener("click", unlock, { capture: true });
+    return () => {
+      removeListeners();
+      if (silentUrl) URL.revokeObjectURL(silentUrl);
+    };
+  }, [ensureAudio]);
 
   useEffect(() => {
     alive.current = true;
@@ -172,10 +244,11 @@ export function useVoiceOutput({
       audio.onerror = null;
       try {
         audio.pause();
+        audio.currentTime = 0;
       } catch {
         /* already stopped */
       }
-      audioRef.current = null;
+      // Keep the element: it is already unlocked on this phone.
     }
     if (canSpeakDevice()) window.speechSynthesis.cancel();
     setSpeaking(false);
@@ -224,11 +297,13 @@ export function useVoiceOutput({
             resolve(false);
             return;
           }
+          const audio = ensureAudio();
           let url: string;
-          let audio: HTMLAudioElement;
           try {
+            if (!audio) throw new Error("No audio element");
             url = URL.createObjectURL(blob);
-            audio = new Audio(url);
+            audio.src = url;
+            audio.load();
           } catch {
             resolve(false);
             return;
@@ -239,7 +314,12 @@ export function useVoiceOutput({
             signal.removeEventListener("abort", onAbort);
             audio.onended = null;
             audio.onerror = null;
-            if (audioRef.current === audio) audioRef.current = null;
+            try {
+              audio.pause();
+            } catch {
+              /* already stopped */
+            }
+            if (audio.src === url) audio.removeAttribute("src");
             URL.revokeObjectURL(url);
           };
           const settle = (ok: boolean) => {
@@ -260,7 +340,6 @@ export function useVoiceOutput({
           signal.addEventListener("abort", onAbort, { once: true });
           audio.onended = () => settle(true);
           audio.onerror = () => settle(false);
-          audioRef.current = audio;
           try {
             void audio.play().catch(() => settle(false));
           } catch {
@@ -367,7 +446,7 @@ export function useVoiceOutput({
       );
       return false;
     },
-    [stopCurrent],
+    [ensureAudio, stopCurrent],
   );
 
   return { supported, voices, speaking, activeEngine, speak, stop };

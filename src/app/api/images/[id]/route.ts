@@ -17,17 +17,17 @@ type Ctx = { params: Promise<{ id: string }> };
 
 const idSchema = z.cuid();
 
-async function ownedId(ctx: Ctx, userId: string): Promise<string> {
+async function imageId(ctx: Ctx): Promise<string> {
   const parsed = idSchema.safeParse((await ctx.params).id);
   if (!parsed.success) throw apiErrors.notFound("Image");
-  const row = await loadOwnedImage(userId, parsed.data);
-  if (!row) throw apiErrors.notFound("Image");
-  return row.id;
+  return parsed.data;
 }
 
 export const GET = withApi(async (_request: Request, ctx: Ctx) => {
   const userId = await requireApiUserId();
-  const id = await ownedId(ctx, userId);
+  const id = await imageId(ctx);
+  // One read: this row already contains the bytes we are about to serve.
+  // (It used to be loaded once to prove ownership and again to get the bytes.)
   const row = await loadOwnedImage(userId, id);
   if (!row) throw apiErrors.notFound("Image");
 
@@ -50,7 +50,10 @@ export const GET = withApi(async (_request: Request, ctx: Ctx) => {
 export const DELETE = withApi(async (request: Request, ctx: Ctx) => {
   assertSameOrigin(request);
   const userId = await requireApiUserId();
-  const id = await ownedId(ctx, userId);
-  await deleteOwnedImage(userId, id);
+  const id = await imageId(ctx);
+  // Delete directly: there is no need to read the full bytes (or even the row)
+  // just to remove it. `false` means it wasn't this person's picture.
+  const removed = await deleteOwnedImage(userId, id);
+  if (!removed) throw apiErrors.notFound("Image");
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 });

@@ -1,8 +1,7 @@
 "use client";
 
 import { CheckCircle, Info, WarningCircle, X } from "@phosphor-icons/react";
-import { AnimatePresence, m } from "motion/react";
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -31,6 +30,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     timers.current.delete(id);
   }, []);
 
+  // Never leave a timer behind if the page unmounts with toasts on screen.
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      pending.forEach((timer) => clearTimeout(timer));
+      pending.clear();
+    };
+  }, []);
+
   const notify = useCallback<Notify>(
     (message, kind = "info") => {
       const id = nextId.current++;
@@ -56,45 +64,39 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         className="pointer-events-none fixed inset-x-0 top-0 z-[150] flex flex-col items-center gap-2 px-4 pt-[max(1rem,env(safe-area-inset-top))] sm:items-end sm:pr-6"
         aria-live="polite"
       >
-        <AnimatePresence initial={false}>
-          {toasts.map((toast) => {
-            const Icon = ICONS[toast.kind];
-            return (
-              <m.div
-                key={toast.id}
-                role={toast.kind === "error" ? "alert" : "status"}
-                initial={{ opacity: 0, y: -12, filter: "blur(6px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                exit={{ opacity: 0, scale: 0.96, filter: "blur(6px)" }}
-                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        {toasts.map((toast) => {
+          const Icon = ICONS[toast.kind];
+          return (
+            <div
+              key={toast.id}
+              role={toast.kind === "error" ? "alert" : "status"}
+              className={cn(
+                "toast-in pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl glass-solid py-3 pr-2 pl-4 text-sm font-semibold",
+                toast.kind === "error" && "border-red-500/30",
+              )}
+            >
+              <Icon
+                weight="fill"
+                aria-hidden
                 className={cn(
-                  "pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl glass-solid py-3 pr-2 pl-4 text-sm font-semibold",
-                  toast.kind === "error" && "border-red-500/30",
+                  "mt-0.5 size-5 shrink-0",
+                  toast.kind === "error" && "text-red-500",
+                  toast.kind === "success" && "text-emerald-500",
+                  toast.kind === "info" && "text-muted",
                 )}
+              />
+              <p className="min-w-0 flex-1 py-0.5 break-words">{toast.message}</p>
+              <button
+                type="button"
+                onClick={() => dismiss(toast.id)}
+                aria-label="Dismiss notification"
+                className="-my-1 inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-subtle transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
               >
-                <Icon
-                  weight="fill"
-                  aria-hidden
-                  className={cn(
-                    "mt-0.5 size-5 shrink-0",
-                    toast.kind === "error" && "text-red-500",
-                    toast.kind === "success" && "text-emerald-500",
-                    toast.kind === "info" && "text-muted",
-                  )}
-                />
-                <p className="min-w-0 flex-1 py-0.5 break-words">{toast.message}</p>
-                <button
-                  type="button"
-                  onClick={() => dismiss(toast.id)}
-                  aria-label="Dismiss notification"
-                  className="-my-1 inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-subtle transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
-                >
-                  <X weight="bold" className="size-4" aria-hidden />
-                </button>
-              </m.div>
-            );
-          })}
-        </AnimatePresence>
+                <X weight="bold" className="size-4" aria-hidden />
+              </button>
+            </div>
+          );
+        })}
       </div>
     </ToastContext>
   );

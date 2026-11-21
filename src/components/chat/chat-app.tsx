@@ -291,15 +291,22 @@ function ChatScreen({
     return () => window.removeEventListener("keydown", onKey);
   }, [newChat]);
 
+  // Keep the latest messages in a ref: the command palette should not be
+  // rebuilt (and its icons re-created) on every streamed token.
+  const conversationsRef = useRef(state.conversations);
+  useEffect(() => {
+    conversationsRef.current = state.conversations;
+  }, [state.conversations]);
+
   const copyLastReply = useCallback(() => {
-    const messages = state.conversations[state.activeKey]?.messages ?? [];
+    const messages = conversationsRef.current[state.activeKey]?.messages ?? [];
     const last = [...messages].reverse().find((m) => m.role === "assistant" && m.content);
     if (!last) return notify("No reply to copy yet.", "info");
     void navigator.clipboard.writeText(last.content).then(
       () => notify("Reply copied.", "success"),
       () => notify("Could not copy. Select the text instead.", "error"),
     );
-  }, [notify, state.activeKey, state.conversations]);
+  }, [notify, state.activeKey]);
 
   const openSettingsPage = useCallback(() => router.push("/settings"), [router]);
 
@@ -471,6 +478,35 @@ function ChatScreen({
   );
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  const closePalette = useCallback(() => setPaletteOpen(false), []);
+
+  // New objects here would defeat the memo() on Composer and ChatHeader, which
+  // made both re-render for every streamed token.
+  const composerVoice = useMemo(
+    () => ({
+      enabled: voice.enabled,
+      handsFree: voice.handsFree,
+      speaking: voiceSpeaking,
+      listenSignal,
+      onStopSpeaking: stopVoice,
+    }),
+    [voice.enabled, voice.handsFree, voiceSpeaking, listenSignal, stopVoice],
+  );
+
+  const headerVoiceMenu = useMemo(
+    () => (
+      <VoiceMenu
+        supported={voiceSupported}
+        settings={voice}
+        speaking={voiceSpeaking}
+        activeEngine={voiceEngine}
+        onChange={setVoice}
+        onStop={stopVoice}
+        onSample={sampleVoice}
+      />
+    ),
+    [voiceSupported, voice, voiceSpeaking, voiceEngine, setVoice, stopVoice, sampleVoice],
+  );
 
   const onOnboarded = useCallback(
     (saved: Profile) => {
@@ -523,17 +559,7 @@ function ChatScreen({
             isDesktop={isDesktop}
             onOpenSidebar={openSidebar}
             onNewChat={newChat}
-            voiceMenu={
-              <VoiceMenu
-                supported={voiceSupported}
-                settings={voice}
-                speaking={voiceSpeaking}
-                activeEngine={voiceEngine}
-                onChange={setVoice}
-                onStop={stopVoice}
-                onSample={sampleVoice}
-              />
-            }
+            voiceMenu={headerVoiceMenu}
           />
 
           <AnimatePresence mode="wait" initial={false}>
@@ -588,13 +614,7 @@ function ChatScreen({
             onTemporaryChange={newChat}
             mode={mode}
             onModeChange={setMode}
-            voice={{
-              enabled: voice.enabled,
-              handsFree: voice.handsFree,
-              speaking: voiceSpeaking,
-              listenSignal,
-              onStopSpeaking: stopVoice,
-            }}
+            voice={composerVoice}
           />
         </main>
       </div>
@@ -603,7 +623,7 @@ function ChatScreen({
         {announcement}
       </p>
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
+      <CommandPalette open={paletteOpen} onClose={closePalette} commands={commands} />
 
       {studioOpen && (
         <ImageStudio
