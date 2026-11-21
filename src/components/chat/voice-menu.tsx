@@ -109,7 +109,7 @@ export function VoiceMenu({
             ? `Voice mode on, ${profile.label.toLowerCase()}. Change voice settings`
             : "Turn on voice mode so Proxima reads answers aloud"
         }
-        title={settings.enabled ? `Voice mode · ${profile.label}` : "Voice mode"}
+        title={settings.enabled ? "Voice mode on" : "Voice mode"}
         className={cn(
           "relative inline-flex tap items-center justify-center rounded-xl px-3 transition-colors duration-200",
           "hover:bg-surface-hover hover:text-fg",

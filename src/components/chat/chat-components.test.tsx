@@ -232,13 +232,12 @@ describe("<Composer />", () => {
       voice: {
         enabled: true,
         handsFree: false,
-        label: "Girl voice",
         speaking: true,
         listenSignal: 0,
         onStopSpeaking,
       },
     });
-    expect(screen.getByText("Speaking · Girl voice")).toBeInTheDocument();
+    expect(screen.getByText("Speaking")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Stop reading" }));
     expect(onStopSpeaking).toHaveBeenCalled();
   });
