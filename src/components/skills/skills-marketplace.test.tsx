@@ -15,6 +15,19 @@ function renderMarketplace(installed: { skillId: string; enabled: boolean }[] = 
 beforeEach(() => vi.clearAllMocks());
 
 describe("Skills marketplace", () => {
+  it("keeps account navigation compact and accessible on narrow screens", () => {
+    renderMarketplace();
+
+    const logo = screen.getByRole("link", { name: "PROXIMA home" });
+    const settingsLink = screen.getByRole("link", { name: "Settings" });
+    const chatLink = screen.getByRole("link", { name: "Back to chat" });
+    expect(logo.querySelector("span")).toHaveClass("hidden", "min-[480px]:inline");
+    expect(settingsLink).toHaveAttribute("href", "/settings");
+    expect(settingsLink.querySelector("span")).toHaveClass("hidden", "min-[480px]:inline");
+    expect(chatLink).toHaveAttribute("href", "/app");
+    expect(chatLink.querySelector("span")).toHaveClass("hidden", "min-[480px]:inline");
+  });
+
   it("searches and filters by skill category", async () => {
     renderMarketplace();
     const search = screen.getByRole("searchbox", { name: "Search skills or capabilities" });

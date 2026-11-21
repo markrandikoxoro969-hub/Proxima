@@ -107,7 +107,7 @@ export const SkillPicker = memo(function SkillPicker({
           role="dialog"
           aria-label="Skills for this message"
           aria-busy={refreshing}
-          className="absolute bottom-full left-0 z-40 mb-2 w-[min(22rem,calc(100vw-1.5rem))] origin-bottom-left animate-scale-in rounded-2xl border border-line bg-surface-solid p-3 shadow-panel"
+          className="absolute bottom-full left-0 z-40 mb-2 w-[min(22rem,calc(100vw-5rem))] origin-bottom-left animate-scale-in rounded-2xl border border-line bg-surface-solid p-3 shadow-panel"
         >
           <div className="mb-2 flex items-start justify-between gap-3 px-1">
             <div>

@@ -234,11 +234,19 @@ describe("<Composer />", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
-  it("counts characters and turns red near the 4000 limit", () => {
+  it("does not show a message character count", () => {
     const { input } = setup();
-    fireEvent.change(input, { target: { value: "a".repeat(3950) } });
-    const counter = screen.getByText(/3950\/4000/);
-    expect(counter.className).toContain("text-red-500");
+    fireEvent.change(input, { target: { value: "a".repeat(200) } });
+    expect(screen.queryByText(/200\/4000/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the send button fixed while mobile message actions can wrap", () => {
+    setup();
+    const actions = screen.getByRole("group", { name: "Message actions" });
+    const send = screen.getByRole("button", { name: "Send message" });
+
+    expect(actions.firstElementChild).toHaveClass("flex-wrap");
+    expect(send.parentElement).toHaveClass("shrink-0");
   });
 
   it("shows Stop while a reply is streaming", async () => {
