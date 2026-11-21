@@ -7,7 +7,7 @@ import { readChatStream, type ChatStreamEvent } from "./sse";
  * Sends a message to POST /api/chat and reports what happens, step by step.
  * Used by /app now and by the landing-page demo in Phase 5.
  *
- * Text arrives through `onText` at most once per animation frame.
+ * Text arrives through `onText` in small, steady pieces (see FrameBatcher).
  */
 export type ChatRequestBody = {
   message: string;

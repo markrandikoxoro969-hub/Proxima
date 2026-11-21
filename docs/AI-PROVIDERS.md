@@ -77,7 +77,7 @@ A `401` means the key is wrong; a `404` means the model name is wrong.
 | `NVIDIA_VISION_API_KEY`  | —                                          | Optional: the picture reader's key on a second account.     |
 | `NVIDIA_MODEL`           | `nvidia/nemotron-3-ultra-550b-a55b`        | Which model answers                                         |
 | `NVIDIA_VISION_MODEL`    | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | Reads attached pictures (OCR, screenshots, charts) for a text-only main model. `off` disables |
-| `NVIDIA_MAX_TOKENS`      | `8192`                                     | Ceiling for one answer, including reasoning                 |
+| `NVIDIA_MAX_TOKENS`      | `16384`                                    | Ceiling for one answer, including reasoning                 |
 | `NVIDIA_ENABLE_THINKING` | `true`                                     | Let the model reason privately (`chat_template_kwargs`)     |
 | `NVIDIA_TIMEOUT_MS`      | `45000`                                    | Switch to Render if NVIDIA produces no first token in time; a live answer may run on |
 | `AI_API_URL`             | `https://sujancoreapi.onrender.com/chat`   | Render fallback address                                     |
@@ -86,6 +86,10 @@ A `401` means the key is wrong; a `404` means the model name is wrong.
 Request shape (`src/lib/ai/providers/nvidia.ts`): `stream: true`; `temperature`,
 `top_p` and `max_tokens` come from the selected answer mode (Thinking, Fast,
 Coding, Analyze — see `src/lib/ai/modes.ts`), capped by `NVIDIA_MAX_TOKENS`.
+Coding gets 16 384 tokens; if the model still reports `finish_reason: "length"`,
+the provider automatically asks it to continue from the exact character where it
+stopped (up to two follow-ups, thinking off), so a long file is not left with an
+unclosed code fence.
 
 ### The two-model setup (default)
 

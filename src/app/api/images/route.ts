@@ -24,8 +24,7 @@ export const maxDuration = 60;
 
 export const GET = withApi(async () => {
   const userId = await requireApiUserId();
-  // `engine` lets the studio warn about the free tier (watermark) before the
-  // person spends a turn discovering it.
+  // `engine` tells the studio which engine (and honest note) is in use.
   return json({ images: await listImages(userId), engine: imageEngineInfo(getImageProvider()) });
 });
 

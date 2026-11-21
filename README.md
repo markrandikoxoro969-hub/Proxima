@@ -395,7 +395,7 @@ This was a prior simulated-device snapshot, not a repeatable local Chrome measur
       (sidebar pill, theme tabs), `AnimatePresence` view/panel transitions, magnetic buttons,
       parallax, velocity blur, mobile sheet drag, send → stop morph.
 - [x] **Chat UX:** gradient-mesh empty state with film grain, shimmer skeletons, ⌘K palette,
-      copy/regenerate, jump-to-latest, per-chunk token fade.
+      copy/regenerate, jump-to-latest, steady token reveal with a fading growing edge.
 
 ### Voice mode (November 2026)
 
@@ -421,10 +421,9 @@ This was a prior simulated-device snapshot, not a repeatable local Chrome measur
 - [x] **Upload:** attach up to 4 pictures to a message; the browser shrinks them to ≤1280 px JPEG,
       the server re-checks the real type and size, and the chat shows the actual picture.
 - [x] **Image studio:** create a picture from a prompt (style + shape presets) and edit one with
-      AI. Swappable engines with automatic fallbacks — OpenAI, NVIDIA, a free keyless service and
-      an offline preview — so it always returns something and labels offline results honestly.
-      Results are watermark-free once any real key is present (a free Pollinations key is
-      enough); without one the studio labels the free tier honestly. See
+      AI. NVIDIA FLUX.1 dev creates and FLUX.1 Kontext edits, each with its own key
+      (`IMAGE_GENERATION` / `IMAGE_EDITING`); OpenAI and an offline preview are the fallbacks, so
+      it always returns something and labels offline results honestly. See
       [docs/IMAGES.md](docs/IMAGES.md).
 
 ---
@@ -440,7 +439,7 @@ These are incremental upgrades to the existing PROXIMA app; the default face sta
 | Landing cursor | 2 transform writes and up to 4 attribute toggles per `pointermove`; style invalidation could happen at raw pointer rate | pointer events only update refs; transform writes are coalesced in one `requestAnimationFrame`; hover/text attributes only change when their state changes; there is no React state update | Source-level work count, **not** an FPS measurement |
 | Scroll reveals | Hero/footer could re-rasterise `filter: blur(...)` on scroll | velocity blur removed; reveal animates opacity/transform, not filter | Removes a repeated full-layer blur pass |
 | Glass surfaces | blur radius was 20px; up to 4 surfaces could stack | 12px desktop, 8px phone; dialogs, toasts and cards use solid glass; active blurred surfaces are budgeted at 3 or fewer | CSS design limits, not a GPU trace |
-| Long/streaming chat | Each message can update independently | existing `MessageItem` memo + virtual list + `FrameBatcher` (at most one text callback/frame) retained; chat scroll has `data-lenis-prevent` | Protects older rows and prevents Lenis from taking chat scrolling |
+| Long/streaming chat | Each message can update independently | existing `MessageItem` memo + virtual list + `FrameBatcher` (one small text callback per ~30ms tick) retained; chat scroll has `data-lenis-prevent` | Protects older rows and prevents Lenis from taking chat scrolling |
 | Motion when not visible | background tabs could continue CSS animation | `PerfGuards` pauses CSS animations while hidden; reduced-motion/low-core devices get still theme scenes | Browser CSS behavior; verify on your device |
 | Background particles | a 60fps full-screen canvas on every screen, 60 dots on desktop / 28 on phones | the canvas is **desktop-only**, 42 dots, **30fps**, and still pauses off-screen / on a hidden tab | Cuts the canvas work by ~half and removes it entirely on phones |
 | Theme scenes | four promoted layers (`will-change` on each); phone clouds animated `background-position` = full-layer repaint every frame | no forced `will-change`; the drift is a transform again; phones freeze the busy detail layer and drop the far layer | Removes a per-frame full-screen repaint |

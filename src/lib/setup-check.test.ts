@@ -4,7 +4,7 @@ const count = vi.fn();
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db", () => ({ db: { user: { count: () => count() } } }));
 
-const { pictureReaderStatus, runSetupCheck } = await import("./setup-check");
+const { imageEngineStatus, pictureReaderStatus, runSetupCheck } = await import("./setup-check");
 
 const GOOD = {
   AUTH_SECRET: "x".repeat(44),
@@ -129,5 +129,31 @@ describe("pictureReaderStatus", () => {
     ).toContain("Off");
     expect(pictureReaderStatus({ AI_PROVIDER: "render" }).detail).toContain("Not used");
     expect(pictureReaderStatus({ AI_PROVIDER: "nvidia" }).detail).toContain("NVIDIA_API_KEY");
+  });
+});
+
+describe("imageEngineStatus", () => {
+  it("names both models without printing either key", () => {
+    const check = imageEngineStatus({
+      IMAGE_GENERATION: "gen-secret-value",
+      IMAGE_EDITING: "edit-secret-value",
+    });
+    expect(check.ok).toBe(true);
+    expect(check.detail).toContain("black-forest-labs/flux.1-dev");
+    expect(check.detail).toContain("black-forest-labs/flux.1-kontext-dev");
+    expect(check.detail).not.toContain("gen-secret-value");
+    expect(check.detail).not.toContain("edit-secret-value");
+  });
+
+  it("explains how to enable the studio when it is offline", () => {
+    const check = imageEngineStatus({});
+    expect(check.ok).toBe(true);
+    expect(check.detail).toContain("IMAGE_GENERATION");
+    expect(check.detail).toContain("IMAGE_EDITING");
+  });
+
+  it("reuses the generation key for editing when IMAGE_EDITING is empty", () => {
+    const check = imageEngineStatus({ IMAGE_GENERATION: "gen" });
+    expect(check.detail).toContain("black-forest-labs/flux.1-kontext-dev");
   });
 });

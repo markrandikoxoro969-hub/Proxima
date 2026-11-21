@@ -306,6 +306,22 @@ html.dark {
   }
 }
 
+/* Each new paragraph/list/code block fades in once, while the block is still
+   growing. Keyed by position, not by token, so it never restarts per frame. */
+.markdown.is-streaming > :last-child {
+  animation: stream-block-in 260ms var(--ease-premium) both;
+}
+@keyframes stream-block-in {
+  from {
+    opacity: 0;
+    filter: blur(1.5px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
 /* Blinking block caret at the end of a streaming reply. */
 .stream-caret {
   display: inline-block;
@@ -315,14 +331,18 @@ html.dark {
   vertical-align: text-bottom;
   border-radius: 2px;
   background: var(--fg);
-  animation: caret 1s steps(1) infinite;
+  animation: caret 1.1s ease-in-out infinite;
 }
 .caret-blink {
   animation: caret 1s steps(1) infinite;
 }
 @keyframes caret {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
   50% {
-    opacity: 0;
+    opacity: 1;
   }
 }
 

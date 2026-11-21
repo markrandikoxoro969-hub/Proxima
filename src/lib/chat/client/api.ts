@@ -5,7 +5,7 @@ import type { ChatMessageDTO, EngineStatus, MessagesPage, Profile, SessionSummar
 export type ImageEngineInfo = {
   id: string;
   label: string;
-  /** e.g. "the free service adds a small watermark — add a key to remove it". */
+  /** An honest note about the image engine (never a key). */
   note?: string | null;
 };
 

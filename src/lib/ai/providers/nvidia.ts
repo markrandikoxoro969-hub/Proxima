@@ -1,5 +1,6 @@
 import "server-only";
 import OpenAI from "openai";
+import { hasUnclosedCodeFence } from "@/lib/chat/client/markdown-blocks";
 import { modeModelSettings, resolveChatMode } from "../modes";
 import { buildMessages, SYSTEM_PROMPT } from "../prompt";
 import { resolveNvidiaSettings, type NvidiaSettings } from "../settings";
@@ -69,6 +70,17 @@ export function supportsVision(
     model,
   );
 }
+
+/** One follow-up request is usually enough; a second covers a very long file. */
+const MAX_CONTINUATIONS = 2;
+
+/** Sent to the model as the newest user turn after a `length` finish. */
+const CONTINUE_INSTRUCTION = [
+  "Your previous answer stopped because it reached the length limit.",
+  "Continue from the exact character where it stopped.",
+  "Do not repeat anything already written, do not reopen a code block that is still open,",
+  "and finish it with the closing fence.",
+].join(" ");
 
 export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
   const settings = { ...resolveNvidiaSettings(), ...options.settings };
@@ -150,55 +162,89 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
     const thinkingCapable = /(nemotron|omni)/i.test(model);
     const useThinking = settings.enableThinking && tuning.thinking && (!directVision || thinkingCapable);
 
-    const body = {
-      model,
-      messages: buildMessages({
-        message,
-        history: request.history,
-        system: request.system ?? SYSTEM_PROMPT,
-        images: promptImages,
-        attachImages: directVision,
-        historyLimit: tuning.historyLimit,
-      }),
-      temperature: tuning.temperature,
-      top_p: tuning.topP,
-      max_tokens: tuning.maxTokens,
-      stream: true,
-      // NVIDIA-specific: let the model reason privately first. Behind a flag so
-      // it can be switched off without a code change.
-      ...(useThinking
-        ? ({ chat_template_kwargs: { enable_thinking: true } } satisfies ChatTemplateKwargs)
-        : {}),
-    };
+    const baseMessages = buildMessages({
+      message,
+      history: request.history,
+      system: request.system ?? SYSTEM_PROMPT,
+      images: promptImages,
+      attachImages: directVision,
+      historyLimit: tuning.historyLimit,
+    });
+    let attemptMessages = baseMessages;
+    let partialAnswer = "";
+    let continuations = 0;
 
-    let iterable: AsyncIterable<unknown>;
-    try {
-      iterable = await createStream(getClient(), body, request.signal);
-    } catch (error) {
-      throw toProviderError(error, request.signal);
-    }
+    // A single answer can hit max_tokens halfway through a file. Rather than
+    // show half a function, ask the model to continue from the exact point it
+    // stopped. Continuations run with private thinking off: the thinking is
+    // already done, so the whole budget goes to the remaining code.
+    for (;;) {
+      const attemptThinking = useThinking && continuations === 0;
+      const body = {
+        model,
+        messages: attemptMessages,
+        temperature: tuning.temperature,
+        top_p: tuning.topP,
+        max_tokens: tuning.maxTokens,
+        stream: true,
+        // NVIDIA-specific: let the model reason privately first. Behind a flag so
+        // it can be switched off without a code change.
+        ...(attemptThinking
+          ? ({ chat_template_kwargs: { enable_thinking: true } } satisfies ChatTemplateKwargs)
+          : {}),
+      };
 
-    try {
-      for await (const raw of iterable) {
-        if (request.signal.aborted) return;
-        const delta = readDelta(raw);
-        if (!delta) continue;
-        if (delta.reasoning_content) {
-          yield { type: "reasoning", text: delta.reasoning_content };
-        }
-        if (delta.content) {
-          yield { type: "text", text: delta.content };
-        }
+      let iterable: AsyncIterable<unknown>;
+      try {
+        iterable = await createStream(getClient(), body, request.signal);
+      } catch (error) {
+        // A failed continuation must not replace the long answer already
+        // streamed; end it and let the UI offer "Continue" if a fence is open.
+        if (continuations > 0) return;
+        throw toProviderError(error, request.signal);
       }
-    } catch (error) {
-      if (request.signal.aborted) {
-        const reason = request.signal.reason as { name?: string } | undefined;
-        if (reason?.name === "TimeoutError") {
-          throw new AiProviderError("NVIDIA request timed out", "timeout");
+
+      let finishReason: string | null = null;
+      let wroteText = false;
+
+      try {
+        for await (const raw of iterable) {
+          if (request.signal.aborted) return;
+          const delta = readDelta(raw);
+          if (!delta) continue;
+          if (delta.finishReason) finishReason = delta.finishReason;
+          if (delta.reasoning_content) {
+            yield { type: "reasoning", text: delta.reasoning_content };
+          }
+          if (delta.content) {
+            wroteText = true;
+            partialAnswer += delta.content;
+            yield { type: "text", text: delta.content };
+          }
         }
-        throw new AiProviderError("Request was cancelled", "aborted");
+      } catch (error) {
+        if (request.signal.aborted) {
+          const reason = request.signal.reason as { name?: string } | undefined;
+          if (reason?.name === "TimeoutError") {
+            throw new AiProviderError("NVIDIA request timed out", "timeout");
+          }
+          throw new AiProviderError("Request was cancelled", "aborted");
+        }
+        if (continuations > 0) return;
+        throw toProviderError(error, request.signal);
       }
-      throw toProviderError(error, request.signal);
+
+      // `length` is the usual reason, but a dropped final chunk can leave an
+      // open code fence without it. Treat that as cut off too.
+      const cutOff = finishReason === "length" || (wroteText && hasUnclosedCodeFence(partialAnswer));
+      if (!cutOff || !wroteText || request.signal.aborted) return;
+      if (continuations >= MAX_CONTINUATIONS) return;
+      continuations += 1;
+      attemptMessages = [
+        ...baseMessages,
+        { role: "assistant", content: partialAnswer },
+        { role: "user", content: CONTINUE_INSTRUCTION },
+      ];
     }
   }
 
@@ -220,18 +266,25 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
   };
 }
 
-type StreamDelta = { content?: string | null; reasoning_content?: string | null };
+type StreamDelta = {
+  content?: string | null;
+  reasoning_content?: string | null;
+  finishReason?: string;
+};
 
-/** Pulls {content, reasoning_content} out of one stream chunk, defensively. */
+/** Pulls {content, reasoning_content, finish_reason} out of one chunk, defensively. */
 function readDelta(raw: unknown): StreamDelta | null {
   if (!raw || typeof raw !== "object") return null;
   const choices = (raw as { choices?: unknown }).choices;
   if (!Array.isArray(choices) || choices.length === 0) return null;
-  const delta = (choices[0] as { delta?: unknown })?.delta;
-  if (!delta || typeof delta !== "object") return null;
-  const d = delta as StreamDelta;
-  if (!d.content && !d.reasoning_content) return null;
-  return d;
+  const choice = choices[0] as { delta?: unknown; finish_reason?: unknown };
+  const finishReason =
+    typeof choice.finish_reason === "string" && choice.finish_reason ? choice.finish_reason : undefined;
+  const delta = choice.delta;
+  if (!delta || typeof delta !== "object") return finishReason ? { finishReason } : null;
+  const d = delta as Omit<StreamDelta, "finishReason">;
+  if (!d.content && !d.reasoning_content && !finishReason) return null;
+  return finishReason ? { ...d, finishReason } : d;
 }
 
 /** Turns SDK/network failures into the small set of codes the UI understands. */

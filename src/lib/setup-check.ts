@@ -1,6 +1,15 @@
 import "server-only";
 import { AiProviderError, getAiProvider, resolveAiSettings } from "@/lib/ai";
 import { resolveNvidiaSettings } from "@/lib/ai/settings";
+import {
+  nvidiaEditingKey,
+  nvidiaGenerationKey,
+  nvidiaImageEditModel,
+  nvidiaImageModel,
+  openaiImageConfigured,
+  openaiImageModel,
+  resolveImageSettings,
+} from "@/lib/image/settings";
 import { db } from "@/lib/db";
 
 /**
@@ -101,6 +110,7 @@ export async function runSetupCheck(origin: string): Promise<{ ok: boolean; chec
 
   checks.push(await checkAi());
   checks.push(pictureReaderStatus(env));
+  checks.push(imageEngineStatus(env));
 
   checks.push({
     name: "Google redirect URI to add",
@@ -109,6 +119,50 @@ export async function runSetupCheck(origin: string): Promise<{ ok: boolean; chec
   });
 
   return { ok: checks.every((check) => check.ok), checks };
+}
+
+/**
+ * Reports the image studio's create/edit models without a network call. Keys
+ * are only named ("set"/"missing"), never printed.
+ */
+export function imageEngineStatus(env: Record<string, string | undefined> = process.env): SetupCheck {
+  const name = "Image studio";
+  const choice = resolveImageSettings(env);
+  const generation = Boolean(nvidiaGenerationKey(env));
+  const editing = Boolean(nvidiaEditingKey(env));
+  const openai = openaiImageConfigured(env);
+  const nvidia = `Using ${nvidiaImageModel(env)} to create`;
+  const nvidiaEdit = editing ? `and ${nvidiaImageEditModel(env)} to edit` : "only; set IMAGE_EDITING to edit";
+
+  if (choice.id === "mock") {
+    return { name, ok: true, detail: "Offline preview (IMAGE_PROVIDER=mock)." };
+  }
+  if (choice.id === "openai") {
+    return {
+      name,
+      ok: true,
+      detail: openai
+        ? `Using OpenAI ${openaiImageModel(env)} for create and edit.`
+        : "OPENAI_API_KEY is not set, so the offline preview answers.",
+    };
+  }
+  if (choice.id === "nvidia") {
+    return {
+      name,
+      ok: true,
+      detail: generation
+        ? `${nvidia} ${nvidiaEdit}.`
+        : "IMAGE_GENERATION is not set, so the offline preview answers.",
+    };
+  }
+  if (generation) return { name, ok: true, detail: `${nvidia} ${nvidiaEdit}.` };
+  if (openai) return { name, ok: true, detail: `Using OpenAI ${openaiImageModel(env)} for create and edit.` };
+  return {
+    name,
+    ok: true,
+    detail:
+      "Offline preview. Set IMAGE_GENERATION (FLUX.1 dev) and IMAGE_EDITING (FLUX.1 Kontext) on Vercel, then Redeploy.",
+  };
 }
 
 /**

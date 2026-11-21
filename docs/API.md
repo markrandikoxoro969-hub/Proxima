@@ -97,6 +97,8 @@ event: error      data: {"code":"timeout","message":"The engine took too long to
   questions about what the picture shows.
 - **Fallback**: when `AI_PROVIDER=nvidia`, a failure _before any text_ is retried automatically on the
   Render API. You only see an `error` event if both fail.
+- **Long code**: if the model reaches its token limit, the server asks it to continue from the exact
+  character where it stopped (up to twice) instead of leaving an unclosed code block.
 - **`retry: true`** is what the **Try again** button sends. If the last saved message in that chat is
   your same question, the server reuses it instead of saving it twice (`meta.userMessageId` is the old
   message). If the text is different, it's saved as a normal new message.
@@ -217,9 +219,9 @@ usually 100–400 KB.
     "prompt": "a red boat. photorealistic, …"
   },
   "engine": {
-    "id": "pollinations",
-    "label": "Pollinations (free)",
-    "note": "The free image service adds a small watermark … add POLLINATIONS_API_KEY …"
+    "id": "nvidia",
+    "label": "NVIDIA flux.1-dev",
+    "note": null
   },
   "offline": false
 }
