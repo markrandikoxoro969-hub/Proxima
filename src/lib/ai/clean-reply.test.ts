@@ -33,6 +33,19 @@ describe("stripFiller", () => {
     expect(stripFiller(code)).toBe(code);
     expect(stripFiller("No, the answer is 42.")).toBe("No, the answer is 42.");
   });
+
+  it("never rewrites blank lines inside a code block", () => {
+    // A string literal can contain three or more newlines; collapsing them
+    // would silently change what the generated program prints.
+    const code = "```javascript\nconst message = `a\n\n\n\nb`;\nconsole.log(message);\n```";
+    expect(stripFiller(code)).toBe(code);
+  });
+
+  it("still tidies extra blank lines in the prose around code", () => {
+    expect(stripFiller("Great question!\n\n\n\nRun this:\n\n```js\nconst a = 1;\n```")).toBe(
+      "Run this:\n\n```js\nconst a = 1;\n```",
+    );
+  });
 });
 
 describe("LeadingCleanGate", () => {

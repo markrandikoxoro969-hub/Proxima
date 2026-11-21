@@ -296,7 +296,7 @@ The landing page is plain, fast HTML. Sections just carry **labels**, and one sm
   | --- | --- | --- | --- |
   | **Thinking** (default) | Reasons before answering; checks edge cases | On | 4096 |
   | **Fast** | One to three sentences, no private thinking | Off | 1024 |
-  | **Coding** | Complete, runnable code with the right language tag | On | 6144 |
+  | **Coding** | Complete, runnable code with the right language tag | On | 8192 |
   | **Analyze** | Known vs assumed, a comparison, then a recommendation | On | 6144 |
 
   Each mode swaps the system-prompt section **and** the model settings (temperature, top_p,

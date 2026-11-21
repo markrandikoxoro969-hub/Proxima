@@ -11,7 +11,11 @@ import { AiProviderError, type AiDelta, type AiProvider, type AiRequest } from "
  * contradicts itself.
  *
  * The primary also gets its own short deadline (first-token timeout), so a
- * silent NVIDIA request can't eat the whole request budget.
+ * silent NVIDIA request can't eat the whole request budget. The deadline is
+ * cleared as soon as the model produces anything — reasoning counts, because
+ * it proves the request is alive. Without this, a long coding answer (or a
+ * model that thinks for a while) was killed mid-stream at 45 seconds even
+ * though it was working perfectly.
  */
 export function createFallbackProvider({
   primary,
@@ -31,12 +35,26 @@ export function createFallbackProvider({
 
     async *stream(request: AiRequest): AsyncGenerator<AiDelta> {
       let emitted = false;
+      let live = false;
 
       // Per-attempt deadline. It only aborts this attempt, not the whole request.
-      const attemptSignal = AbortSignal.any([request.signal, AbortSignal.timeout(primaryTimeoutMs)]);
+      // A plain AbortSignal.timeout() cannot be cleared, so use a controller and
+      // clear the timer on the first delta: this is a time-to-first-token limit,
+      // not a cap on how long a good answer may take.
+      const attempt = new AbortController();
+      const timer = setTimeout(() => {
+        attempt.abort(
+          Object.assign(new Error("No first token within the deadline"), { name: "TimeoutError" }),
+        );
+      }, primaryTimeoutMs);
+      const attemptSignal = AbortSignal.any([request.signal, attempt.signal]);
 
       try {
         for await (const delta of generateReply(primary, { ...request, signal: attemptSignal })) {
+          if (!live) {
+            live = true;
+            clearTimeout(timer);
+          }
           // Reasoning alone is not an answer: we can still fall back safely.
           if (delta.type === "text") emitted = true;
           yield delta;
@@ -48,6 +66,8 @@ export function createFallbackProvider({
         const code = error instanceof AiProviderError ? error.code : "unavailable";
         onFallback?.(`${primary.id} failed (${code})`);
         console.warn(`[ai] ${primary.id} failed (${code}); switching to ${fallback.id}`);
+      } finally {
+        clearTimeout(timer);
       }
 
       // Fresh budget for the fallback: only the outer request signal applies.

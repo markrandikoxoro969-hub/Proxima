@@ -18,6 +18,7 @@ import dynamic from "next/dynamic";
 import { memo, useEffect, useState } from "react";
 import { MODE_CONFIG } from "@/lib/ai/modes";
 import type { UiMessage } from "@/lib/chat/client/chat-state";
+import { hasUnclosedCodeFence } from "@/lib/chat/client/markdown-blocks";
 import { formatBytes } from "@/lib/chat/client/files";
 import { cn } from "@/lib/cn";
 import { EASE } from "@/lib/motion/tokens";
@@ -140,6 +141,9 @@ function AssistantMessage({
   const waiting = streaming && !message.content;
   const { copied, copy } = useCopy();
   const done = !message.status && Boolean(message.content);
+  // A reply that ends inside a fence was cut off. Offer the one action that
+  // actually helps, instead of leaving half a file on screen.
+  const cutOffCode = done && hasUnclosedCodeFence(message.content);
 
   return (
     <m.div
@@ -177,6 +181,27 @@ function AssistantMessage({
         )}
 
         {streaming && message.content && <span className="stream-caret" aria-hidden />}
+
+        {cutOffCode && (
+          <div
+            role="status"
+            className="mt-3 flex flex-col gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4 text-sm sm:flex-row sm:items-center"
+          >
+            <WarningCircle weight="fill" className="size-5 shrink-0 text-amber-500" aria-hidden />
+            <p className="flex-1 font-semibold">This answer stopped in the middle of the code.</p>
+            {onQuickAction && (
+              <ActionButton
+                onClick={() =>
+                  onQuickAction(
+                    "Your previous answer stopped in the middle of a code block. Continue exactly where it stopped, do not repeat any code already written, and finish the code block.",
+                  )
+                }
+                disabled={!canRetry}
+                label="Continue"
+              />
+            )}
+          </div>
+        )}
 
         {message.usedMemory?.length ? <MemoryUsed memories={message.usedMemory} /> : null}
 

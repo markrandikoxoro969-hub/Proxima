@@ -76,3 +76,21 @@ export function mergeListBlocks(blocks: string[]): string[] {
 }
 
 export const toBlocks = (markdown: string) => mergeListBlocks(splitMarkdownBlocks(markdown));
+
+/**
+ * True when the reply ends inside a fenced code block. That almost always means
+ * the answer was cut off (token limit, dropped connection, Stop) — the UI can
+ * then offer to continue instead of leaving the person with half a file.
+ */
+export function hasUnclosedCodeFence(markdown: string): boolean {
+  let fence: string | null = null;
+  for (const line of markdown.replace(/\r\n?/g, "\n").split("\n")) {
+    const marker = /^\s{0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    if (!marker) continue;
+    if (fence === null) fence = marker;
+    else if (marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) {
+      fence = null;
+    }
+  }
+  return fence !== null;
+}

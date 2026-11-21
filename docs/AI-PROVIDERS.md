@@ -78,7 +78,7 @@ A `401` means the key is wrong; a `404` means the model name is wrong.
 | `NVIDIA_VISION_MODEL`    | `meta/llama-3.2-90b-vision-instruct`       | Reads attached pictures for a text-only main model. `off` disables |
 | `NVIDIA_MAX_TOKENS`      | `8192`                                     | Ceiling for one answer, including reasoning                 |
 | `NVIDIA_ENABLE_THINKING` | `true`                                     | Let the model reason privately (`chat_template_kwargs`)     |
-| `NVIDIA_TIMEOUT_MS`      | `45000`                                    | Switch to Render if NVIDIA hasn't answered by then          |
+| `NVIDIA_TIMEOUT_MS`      | `45000`                                    | Switch to Render if NVIDIA produces no first token in time; a live answer may run on |
 | `AI_API_URL`             | `https://sujancoreapi.onrender.com/chat`   | Render fallback address                                     |
 | `AI_TIMEOUT_MS`          | `110000`                                   | Total budget (route limit: 120 s)                           |
 

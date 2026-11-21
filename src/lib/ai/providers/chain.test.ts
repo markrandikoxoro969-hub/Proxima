@@ -100,6 +100,61 @@ describe("createFallbackProvider", () => {
     warn.mockRestore();
   });
 
+  it("does not cut off an answer that keeps streaming past the first-token deadline", async () => {
+    const primary: AiProvider = {
+      id: "nvidia",
+      label: "nvidia",
+      async *stream({ signal }) {
+        yield { type: "text", text: "long " };
+        // A real model can spend a while between tokens on a big code block.
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 80);
+          signal.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(timer);
+              reject(signal.reason ?? new Error("aborted"));
+            },
+            { once: true },
+          );
+        });
+        yield { type: "text", text: "answer" };
+      },
+    };
+    const chain = createFallbackProvider({
+      primary,
+      fallback: provider("render", "complete-ok"),
+      primaryTimeoutMs: 20,
+    });
+    const deltas = await collect(chain.stream!(request));
+    expect(deltas.map((d) => d.text).join("")).toBe("long answer");
+  });
+
+  it("still falls back when the primary is silent past the first-token deadline", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const onFallback = vi.fn();
+    const primary: AiProvider = {
+      id: "nvidia",
+      label: "nvidia",
+      async *stream({ signal }) {
+        await new Promise<never>((_, reject) => {
+          if (signal.aborted) reject(signal.reason);
+          signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+        });
+      },
+    };
+    const chain = createFallbackProvider({
+      primary,
+      fallback: provider("render", "complete-ok"),
+      primaryTimeoutMs: 20,
+      onFallback,
+    });
+    const deltas = await collect(chain.stream!(request));
+    expect(deltas.map((d) => d.text).join("")).toBe("whole reply");
+    expect(onFallback).toHaveBeenCalledWith("nvidia failed (unavailable)");
+    warn.mockRestore();
+  });
+
   it("does not fall back when the user pressed Stop", async () => {
     const controller = new AbortController();
     controller.abort();

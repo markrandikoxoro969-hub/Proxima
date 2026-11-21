@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitMarkdownBlocks, toBlocks } from "./markdown-blocks";
+import { hasUnclosedCodeFence, splitMarkdownBlocks, toBlocks } from "./markdown-blocks";
 
 describe("splitMarkdownBlocks", () => {
   it("splits paragraphs at blank lines", () => {
@@ -48,5 +48,21 @@ describe("toBlocks", () => {
       "1. First\n\n2. Second\n\n   more about second",
       "Done",
     ]);
+  });
+});
+
+describe("hasUnclosedCodeFence", () => {
+  it("is false for a complete block and true for a cut-off one", () => {
+    expect(hasUnclosedCodeFence("```js\nconst a = 1;\n```")).toBe(false);
+    expect(hasUnclosedCodeFence("Here is the fix:\n\n```js\nconst a = 1;")).toBe(true);
+  });
+
+  it("understands longer fences and tildes", () => {
+    expect(hasUnclosedCodeFence("````md\n```js\nx\n```\n````")).toBe(false);
+    expect(hasUnclosedCodeFence("~~~python\nprint(1)\n~~~")).toBe(false);
+  });
+
+  it("ignores fences inside inline text", () => {
+    expect(hasUnclosedCodeFence("Use `npm test` before shipping.")).toBe(false);
   });
 });
