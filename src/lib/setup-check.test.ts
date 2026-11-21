@@ -4,7 +4,7 @@ const count = vi.fn();
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db", () => ({ db: { user: { count: () => count() } } }));
 
-const { runSetupCheck } = await import("./setup-check");
+const { pictureReaderStatus, runSetupCheck } = await import("./setup-check");
 
 const GOOD = {
   AUTH_SECRET: "x".repeat(44),
@@ -94,5 +94,30 @@ describe("runSetupCheck", () => {
     const mock = byName((await runSetupCheck("https://a.b")).checks, "AI engine");
     expect(mock.ok).toBe(false);
     expect(mock.detail).toContain("FAKE");
+  });
+});
+
+describe("pictureReaderStatus", () => {
+  it("shows both NVIDIA models in the setup report", () => {
+    const check = pictureReaderStatus({
+      AI_PROVIDER: "nvidia",
+      NVIDIA_API_KEY: "nvapi-test",
+    });
+    expect(check.ok).toBe(true);
+    expect(check.detail).toContain("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning");
+    expect(check.detail).toContain("nvidia/nemotron-3-ultra-550b-a55b");
+    expect(check.detail).toContain("thinking off");
+  });
+
+  it("explains when the reader is off, unused, or has no key", () => {
+    expect(
+      pictureReaderStatus({
+        AI_PROVIDER: "nvidia",
+        NVIDIA_API_KEY: "nvapi-test",
+        NVIDIA_VISION_MODEL: "off",
+      }).detail,
+    ).toContain("Off");
+    expect(pictureReaderStatus({ AI_PROVIDER: "render" }).detail).toContain("Not used");
+    expect(pictureReaderStatus({ AI_PROVIDER: "nvidia" }).detail).toContain("NVIDIA_API_KEY");
   });
 });
