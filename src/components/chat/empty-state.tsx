@@ -1,23 +1,21 @@
 "use client";
 
+import { Sparkle } from "@phosphor-icons/react";
 import { m } from "motion/react";
 import { Headline } from "@/components/motion/primitives";
 import { EASE } from "@/lib/motion/tokens";
 
-/**
- * The first thing you see in a new chat.
- *
- * One headline, one line of guidance, one gradient-mesh light source and a
- * 3% noise layer. No cards, no example buttons, no "How can I help?" — the
- * message box below is the call to action.
- */
+/** The first thing in a new chat: a quiet welcome and a clear prompt to begin. */
 export function EmptyState({ name }: { name: string }) {
   return (
     <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-5 py-10">
-      <div aria-hidden className="ai-mesh" />
-      <div aria-hidden className="noise-layer" />
-
-      <div className="relative w-full max-w-xl text-center">
+      <div className="w-full max-w-xl text-center">
+        <span
+          aria-hidden
+          className="mx-auto mb-5 grid size-11 place-items-center rounded-2xl border border-line bg-surface-hover text-[var(--accent-text)]"
+        >
+          <Sparkle weight="duotone" className="size-5" />
+        </span>
         <m.p
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -29,8 +27,8 @@ export function EmptyState({ name }: { name: string }) {
 
         <Headline
           as="h2"
-          text="What are we building?"
-          className="mt-3 text-[clamp(2.25rem,9vw,3.75rem)] leading-[1.02] font-black tracking-tight text-glow"
+          text="What would you like to work on?"
+          className="mt-3 text-[clamp(2rem,7vw,3.25rem)] leading-[1.08] font-black tracking-tight"
         />
 
         <m.p
@@ -39,7 +37,7 @@ export function EmptyState({ name }: { name: string }) {
           transition={{ duration: 0.6, ease: EASE, delay: 0.25 }}
           className="mx-auto mt-4 max-w-sm text-pretty text-muted"
         >
-          Ask a question, paste an error, or attach a file.
+          Ask a question, explore an idea, paste an error, or attach a file.
         </m.p>
 
         <m.p

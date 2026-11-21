@@ -189,20 +189,20 @@ export const THEME_FONT_STACKS: Record<ThemeDisplay, string> = {
 /**
  * The themes that ship with PROXIMA.
  *
- * `proxima` and `daylight` are the original look (the values below mirror the
- * design system in globals.css), so existing accounts see no change.
+ * `proxima` and `daylight` are the default product palettes. The global CSS
+ * values are fallbacks; this palette remains the source of truth when selected.
  */
 export const THEME_PALETTES: readonly ThemePalette[] = [
   theme(
     "proxima",
     "Proxima",
-    "The original: deep black with a violet light.",
+    "Quiet charcoal with a soft violet accent.",
     "dark",
     {
-      bg: "#050505",
-      fg: "#f8fafc",
-      accent: "#a78bfa",
-      solid: "#0b0b0c",
+      bg: "#0b0d12",
+      fg: "#f4f6fa",
+      accent: "#9b8cff",
+      solid: "#11141b",
     },
     "daylight",
   ),

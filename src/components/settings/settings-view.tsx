@@ -7,6 +7,7 @@ import {
   FileText,
   Info,
   SignOut,
+  Sparkle,
   Trash,
   UserCircle,
   WarningCircle,
@@ -53,6 +54,15 @@ function SettingsScreen({
       <header className="mx-auto flex max-w-2xl items-center justify-between gap-2 px-4 py-4 sm:px-6">
         <Logo />
         <div className="flex items-center gap-1">
+          <ButtonLink
+            href="/skills"
+            variant="ghost"
+            className="px-3 whitespace-nowrap"
+            aria-label="Open Skills marketplace"
+          >
+            <Sparkle weight="bold" className="size-4" aria-hidden />
+            <span className="hidden min-[420px]:inline">Skills</span>
+          </ButtonLink>
           <ButtonLink
             href="/app"
             variant="ghost"

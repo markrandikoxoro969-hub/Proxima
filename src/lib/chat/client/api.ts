@@ -1,5 +1,7 @@
 import type { ImageDTO } from "@/lib/image/types";
 import type { ChatMessageDTO, EngineStatus, MessagesPage, Profile, SessionSummary } from "../types";
+import type { SkillState } from "@/lib/skills/catalog";
+import type { SkillMutation } from "@/lib/skills/validation";
 
 /** Which engine answered, and anything honest to say about the result. */
 export type ImageEngineInfo = {
@@ -107,6 +109,14 @@ export const api = {
     request<{ ai: { status: Exclude<EngineStatus, "checking">; latencyMs: number | null }; version: string }>(
       `/api/status`,
     ),
+  /** Discover the app-owned catalog and this account's installation state. */
+  listSkills: () => request<{ skills: SkillState[] }>("/api/skills"),
+  /** Install/uninstall a skill or change its enabled state. */
+  updateSkill: (input: SkillMutation) =>
+    request<{ skillId: string; installed: boolean; enabled: boolean }>("/api/skills", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 
   /* ── Pictures ── */
   listImages: () => request<{ images: ImageDTO[]; engine?: ImageEngineInfo }>("/api/images"),

@@ -30,6 +30,8 @@ import { cn } from "@/lib/cn";
 import { IMAGE_LIMITS } from "@/lib/image/limits";
 import { LIMITS } from "@/lib/limits";
 import { SPRING } from "@/lib/motion/tokens";
+import type { EnabledSkillSummary } from "@/lib/skills/catalog";
+import { SkillPicker } from "@/components/skills/skill-picker";
 import { ModeMenu } from "./mode-menu";
 
 const MAX_HEIGHT = 200;
@@ -57,6 +59,10 @@ export const Composer = memo(function Composer({
   mode,
   onModeChange,
   voice,
+  skills,
+  selectedSkills,
+  onSkillsChange,
+  onSkillsOpen,
 }: {
   onSend: (
     text: string,
@@ -78,6 +84,12 @@ export const Composer = memo(function Composer({
   /** Answer style (fast / thinking / coding / analyze). */
   mode: ChatMode;
   onModeChange: (mode: ChatMode) => void;
+  /** Installed, enabled skills the person can select for this message. */
+  skills: EnabledSkillSummary[];
+  selectedSkills: string[];
+  onSkillsChange: (ids: string[]) => void;
+  /** Refresh installation state when the picker opens. */
+  onSkillsOpen?: () => Promise<void>;
   /** Voice mode status/controls. Absent when voice mode is off. */
   voice?: {
     enabled: boolean;
@@ -492,8 +504,14 @@ export const Composer = memo(function Composer({
         )}
 
         <div className="flex items-center gap-1 px-2 pb-2">
-          {/* Answer mode first: it is the choice people change most often. */}
+          {/* Answer style and optional installed skills guide replies while selected. */}
           <ModeMenu mode={mode} onChange={onModeChange} />
+          <SkillPicker
+            skills={skills}
+            selected={selectedSkills}
+            onChange={onSkillsChange}
+            onOpen={onSkillsOpen}
+          />
 
           <button
             type="button"

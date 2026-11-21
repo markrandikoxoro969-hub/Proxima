@@ -38,7 +38,7 @@ export const DEFAULT_THEME: ThemePreference = "dark";
 
 /** Status-bar colours for the original themes (used before any theme is applied). */
 export const THEME_COLORS: Record<ResolvedTheme, string> = {
-  dark: "#050505",
+  dark: "#0b0d12",
   light: "#f8fafc",
 };
 
@@ -166,6 +166,6 @@ if(scenes[t.id])d.setAttribute("data-scene",scenes[t.id]);else d.removeAttribute
 for(var k in vars)d.style.removeProperty(vars[k]);
 var color=null;
 if(t.tokens&&t.mode===mode){for(var k2 in vars){var v=t.tokens[k2];if(typeof v==="string")d.style.setProperty(vars[k2],v)}color=typeof t.tokens.bg==="string"?t.tokens.bg:null}
-if(!color){var s=getComputedStyle(d).getPropertyValue("--bg");color=s&&s.trim()?s.trim():(mode==="dark"?"#050505":"#f8fafc")}
+if(!color){var s=getComputedStyle(d).getPropertyValue("--bg");color=s&&s.trim()?s.trim():(mode==="dark"?"#0b0d12":"#f8fafc")}
 var meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.setAttribute("content",color);
 }catch(e){document.documentElement.classList.add("dark")}})();`;

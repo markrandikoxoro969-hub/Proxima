@@ -3,7 +3,7 @@ import { Faq } from "@/components/landing/faq";
 import { DeferredLiveDemo } from "@/components/landing/deferred-live-demo";
 import { Hero } from "@/components/landing/hero";
 import { HowItWorks } from "@/components/landing/how-it-works";
-import { LandingEffects } from "@/components/landing/landing-effects";
+import { DeferredLandingEffects } from "@/components/landing/deferred-landing-effects";
 import { SectionHeading } from "@/components/landing/magnetic";
 import { ScrollFx } from "@/components/landing/scroll-fx";
 import { MotionProvider } from "@/components/motion/motion-provider";
@@ -68,7 +68,7 @@ export default function Home() {
           <Faq />
         </main>
         <SiteFooter />
-        <LandingEffects />
+        <DeferredLandingEffects />
         <ScrollFx />
       </div>
     </MotionProvider>

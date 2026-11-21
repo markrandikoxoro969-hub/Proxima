@@ -7,21 +7,21 @@ Every error has the same shape, so the app can show a friendly toast:
 { "error": { "code": "rate_limited", "message": "You're sending messages quickly — please wait a moment." } }
 ```
 
-| Code                     | HTTP | Meaning                                                          |
-| ------------------------ | ---- | ---------------------------------------------------------------- |
-| `validation_error`       | 400  | Input broke a rule (message empty or too long, file too big…)    |
-| `bad_request`            | 400  | Broken JSON, missing `?confirm=all`, …                           |
-| `unauthorized`           | 401  | You need to sign in                                              |
-| `sign_in_required`       | 401  | Feature needs login (e.g. attaching files in the demo)           |
-| `forbidden`              | 403  | Request came from another website (blocked)                      |
-| `not_found`              | 404  | Doesn't exist **or isn't yours** (we don't say which)            |
-| `too_large`              | 413  | Request body too big                                             |
-| `unsupported_media_type` | 415  | Body must be JSON                                                |
-| `rate_limited`           | 429  | Too many requests; see the `Retry-After` header (seconds)        |
-| `service_unavailable`    | 503  | Database not reachable right now                                 |
-| `speech_unavailable`     | 503  | Natural voice is off or no engine could speak                    |
+| Code                     | HTTP | Meaning                                                           |
+| ------------------------ | ---- | ----------------------------------------------------------------- |
+| `validation_error`       | 400  | Input broke a rule (message empty or too long, file too big…)     |
+| `bad_request`            | 400  | Broken JSON, missing `?confirm=all`, …                            |
+| `unauthorized`           | 401  | You need to sign in                                               |
+| `sign_in_required`       | 401  | Feature needs login (e.g. attaching files in the demo)            |
+| `forbidden`              | 403  | Request came from another website (blocked)                       |
+| `not_found`              | 404  | Doesn't exist **or isn't yours** (we don't say which)             |
+| `too_large`              | 413  | Request body too big                                              |
+| `unsupported_media_type` | 415  | Body must be JSON                                                 |
+| `rate_limited`           | 429  | Too many requests; see the `Retry-After` header (seconds)         |
+| `service_unavailable`    | 503  | Database not reachable right now                                  |
+| `speech_unavailable`     | 503  | Natural voice is off or no engine could speak                     |
 | `speech_timeout`         | 504  | The voice service took too long; the client uses the device voice |
-| `internal_error`         | 500  | Bug on our side; the message includes a `ref` to find it in logs |
+| `internal_error`         | 500  | Bug on our side; the message includes a `ref` to find it in logs  |
 
 **Security on every endpoint:**
 
@@ -46,6 +46,7 @@ Every error has the same shape, so the app can show a friendly toast:
   "demoSessionId": "uuid", // optional: guest demo memory
   "retry": true, // optional: "Try again" after a failed reply (see below)
   "mode": "thinking", // optional: "thinking" | "fast" | "coding" | "analyze" (default: thinking)
+  "skills": ["coding-assistant"], // optional: up to 3 installed, enabled skill IDs
   "showReasoning": true, // optional, default false: also stream the model's private reasoning
   "history": [{ "role": "user", "content": "…" }] // optional, guest demo only (max 20)
 }
@@ -85,6 +86,9 @@ event: error      data: {"code":"timeout","message":"The engine took too long to
   top_p, token budget, history length) — see `src/lib/ai/modes.ts`. Unknown values are rejected with
   `validation_error`; old clients that omit `mode` get `thinking`. The mode the server actually used
   comes back as `meta.answerMode` and `done.mode`.
+- **Skills** (`skills`): the server accepts catalog IDs only, then verifies that each belongs to the signed-in
+  user's enabled installations before loading app-owned instructions. Up to three unique skills apply to
+  that answer. Guests cannot select skills; no skill code or client-provided instructions are executed.
 - **Reasoning** (`reasoning_content` from the model) is never stored and is not sent at all unless the
   request asks for it. `done.text` is the final, cleaned answer — the client swaps it in if trailing
   filler ("I hope this helps") was removed after streaming.
@@ -103,6 +107,15 @@ event: error      data: {"code":"timeout","message":"The engine took too long to
   your same question, the server reuses it instead of saving it twice (`meta.userMessageId` is the old
   message). If the text is different, it's saved as a normal new message.
 
+## Skills marketplace
+
+- `GET /api/skills` — returns the built-in catalog and the signed-in account's install/enabled states. It does not return runtime instructions.
+- `POST /api/skills` — accepts `{ "action": "install" | "uninstall", "skillId": "…" }` or
+  `{ "action": "set-enabled", "skillId": "…", "enabled": true }`. IDs are checked against the static catalog; changes are scoped to the current account.
+- Skill instructions are static, server-only text. This endpoint does not import remote skill sources, evaluate code, or expose executable tools.
+
+More detail: [SKILLS.md](SKILLS.md).
+
 ## `POST /api/speech`: speak one piece of a reply
 
 **Body**
@@ -118,10 +131,10 @@ event: error      data: {"code":"timeout","message":"The engine took too long to
 **Reply:** raw `audio/mpeg` bytes, **not JSON**. The browser splits long answers at sentence
 boundaries (900 characters) and caches each returned blob, so replay is instant.
 
-| Who          | Limit             | Notes                                              |
-| ------------ | ----------------- | -------------------------------------------------- |
-| Signed in    | 90 pieces/minute  | Fails open if the database is down                 |
-| Guest (demo) | 20 pieces/minute  | The landing demo uses the same route              |
+| Who          | Limit            | Notes                                |
+| ------------ | ---------------- | ------------------------------------ |
+| Signed in    | 90 pieces/minute | Fails open if the database is down   |
+| Guest (demo) | 20 pieces/minute | The landing demo uses the same route |
 
 - The same-origin rule applies: another website gets `403`.
 - `SPEECH_PROVIDER` chooses the engine: `auto` (OpenAI → Pollinations → free Edge), `openai`,

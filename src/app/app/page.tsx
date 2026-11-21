@@ -5,6 +5,7 @@ import { requireUser, toProfile } from "@/lib/auth/session";
 import { getMessagesPage, listSessions } from "@/lib/chat/queries";
 import type { MessagesPage } from "@/lib/chat/types";
 import { db } from "@/lib/db";
+import { getEnabledSkillSummaries } from "@/lib/skills/catalog";
 
 export const metadata: Metadata = { title: "Chat", robots: { index: false, follow: false } };
 
@@ -18,9 +19,13 @@ export default async function AppPage({ searchParams }: PageProps<"/app">) {
   const { c } = await searchParams;
   const requestedId = z.cuid().safeParse(typeof c === "string" ? c : undefined);
 
-  const [{ sessions, nextCursor }, activePage] = await Promise.all([
+  const [{ sessions, nextCursor }, activePage, enabledSkills] = await Promise.all([
     listSessions(user.id),
     requestedId.success ? loadOwnedConversation(user.id, requestedId.data) : Promise.resolve(null),
+    db.userSkill.findMany({
+      where: { userId: user.id, enabled: true },
+      select: { skillId: true, enabled: true },
+    }),
   ]);
 
   const profile = toProfile(user);
@@ -32,6 +37,7 @@ export default async function AppPage({ searchParams }: PageProps<"/app">) {
       initialNextCursor={nextCursor}
       initialActiveId={activePage ? requestedId.data! : null}
       initialActivePage={activePage}
+      initialEnabledSkills={getEnabledSkillSummaries(enabledSkills)}
     />
   );
 }

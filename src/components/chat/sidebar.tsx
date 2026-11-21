@@ -7,11 +7,13 @@ import {
   PencilSimple,
   Planet,
   Plus,
+  Sparkle,
   Trash,
   X,
 } from "@phosphor-icons/react";
 import { m, useDragControls } from "motion/react";
 import Image from "next/image";
+import Link from "next/link";
 import { memo, useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import type { ThemePreference } from "@/lib/theme";
@@ -100,7 +102,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
           // Phones: a bottom sheet, dragged down to dismiss.
           "fixed inset-x-0 bottom-0 z-50 flex h-[86dvh] flex-col rounded-t-3xl border-t border-line bg-surface-solid pb-safe",
           // Desktop: the normal sidebar.
-          "lg:static lg:z-auto lg:h-auto lg:w-72 lg:shrink-0 lg:translate-y-0 lg:rounded-none lg:border-t-0 lg:border-r lg:bg-transparent lg:shadow-none lg:backdrop-blur-none lg:glass lg:pb-0",
+          "lg:static lg:z-auto lg:h-auto lg:w-72 lg:shrink-0 lg:translate-y-0 lg:rounded-none lg:border-t-0 lg:border-r lg:glass lg:bg-transparent lg:pb-0 lg:shadow-none lg:backdrop-blur-none",
         )}
       >
         {/* Drag handle: only this strip starts the dismiss gesture, so the
@@ -225,6 +227,14 @@ function SidebarContent({
           Dev Facebook
           <span className="sr-only">(opens in a new tab)</span>
         </a>
+        <Link
+          href="/skills"
+          onClick={onClose}
+          className="flex tap items-center gap-3 rounded-xl px-3 text-xs font-bold tracking-[0.15em] text-muted uppercase transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+        >
+          <Sparkle weight="bold" className="size-5" aria-hidden />
+          Skills
+        </Link>
         <button
           type="button"
           onClick={onOpenSettings}
@@ -247,7 +257,7 @@ function SidebarContent({
           )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-extrabold">{shownName}</p>
-            <p className="text-[10px] font-bold tracking-[0.2em] text-subtle uppercase">Premium Access</p>
+            <p className="text-[10px] font-bold tracking-[0.2em] text-subtle uppercase">Personal account</p>
           </div>
           <ThemeToggle onToggled={onThemeChange} />
         </div>
