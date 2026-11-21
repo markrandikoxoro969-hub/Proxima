@@ -33,7 +33,7 @@ export function useChat({
   notify: Notify;
   /** Answer style chosen in the composer, applied to each new reply. */
   mode?: ChatMode;
-  /** Enabled catalog skills selected in the composer; included until selection changes. */
+  /** Enabled catalog skills selected in Settings and applied to every new reply. */
   selectedSkills?: string[];
 }) {
   const [state, dispatch] = useReducer(

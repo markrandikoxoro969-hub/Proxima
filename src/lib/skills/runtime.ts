@@ -54,8 +54,8 @@ const INSTRUCTIONS: Record<SkillId, string> = {
 
 export type LoadedSkill = SkillCatalogItem & { instructions: string };
 
-/** Resolve only catalogued skills that are currently installed AND enabled. */
-export async function resolveEnabledSkills(
+/** Resolve only catalogued skills selected in Settings and currently installed AND enabled. */
+export async function resolveSelectedSkills(
   userId: string | null,
   ids: readonly SkillId[],
 ): Promise<LoadedSkill[]> {
@@ -64,14 +64,22 @@ export async function resolveEnabledSkills(
 
   const installed = await db.userSkill.findMany({
     where: { userId, skillId: { in: [...ids] }, enabled: true },
-    select: { skillId: true },
+    select: { skillId: true, selected: true },
   });
   const enabledIds = new Set(installed.map((item) => item.skillId));
   if (enabledIds.size !== ids.length) {
     throw new ApiError(
       400,
       "skill_not_enabled",
-      "One or more selected skills are not installed and enabled. Refresh your Skills list and try again.",
+      "One or more selected skills are not installed and enabled. Refresh your Skills settings and try again.",
+    );
+  }
+  const selectedIds = new Set(installed.filter((item) => item.selected).map((item) => item.skillId));
+  if (selectedIds.size !== ids.length) {
+    throw new ApiError(
+      400,
+      "skill_not_selected",
+      "One or more skills are no longer selected in Settings. Refresh your chat and try again.",
     );
   }
 

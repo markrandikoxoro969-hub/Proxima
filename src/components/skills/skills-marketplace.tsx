@@ -70,7 +70,7 @@ function SkillsScreen({ initialSkills }: { initialSkills: SkillState[] }) {
       setSkills((current) =>
         current.map((skill) =>
           skill.id === result.skillId
-            ? { ...skill, installed: result.installed, enabled: result.enabled }
+            ? { ...skill, installed: result.installed, enabled: result.enabled, selected: result.selected }
             : skill,
         ),
       );
@@ -79,12 +79,21 @@ function SkillsScreen({ initialSkills }: { initialSkills: SkillState[] }) {
       if (input.action === "install") {
         notify(
           result.enabled
-            ? `${name} installed and enabled.`
+            ? `${name} installed and enabled. Choose it in Settings to use it in replies.`
             : `${name} is installed but remains disabled. Turn it on when you're ready.`,
           result.enabled ? "success" : "info",
         );
       } else if (input.action === "uninstall") notify(`${name} uninstalled.`, "success");
-      else notify(`${name} ${input.enabled ? "enabled" : "disabled"}.`, "success");
+      else if (input.action === "set-enabled") {
+        notify(
+          input.enabled
+            ? `${name} enabled. Choose it in Settings to use it in replies.`
+            : `${name} disabled and removed from chat selections.`,
+          "success",
+        );
+      } else {
+        notify(`${name} ${input.selected ? "selected for" : "removed from"} chat replies.`, "success");
+      }
     } catch (error) {
       notify((error as Error).message || "Could not update this skill.", "error");
     } finally {
@@ -102,10 +111,10 @@ function SkillsScreen({ initialSkills }: { initialSkills: SkillState[] }) {
         <Logo href="/app" />
         <nav aria-label="Account navigation" className="flex shrink-0 items-center gap-1">
           <ButtonLink
-            href="/settings"
+            href="/settings#settings-skills"
             variant="ghost"
             className="shrink-0 px-2 text-xs sm:px-3 sm:text-sm"
-            aria-label="Settings"
+            aria-label="Choose skills in Settings"
           >
             <GearSix weight="bold" className="size-4" aria-hidden />
             <span className="hidden min-[480px]:inline">Settings</span>
@@ -134,8 +143,8 @@ function SkillsScreen({ initialSkills }: { initialSkills: SkillState[] }) {
                 A little more focused.
               </h1>
               <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted sm:text-base">
-                Add a skill when you want a particular kind of help. You choose which installed skills guide
-                each reply.
+                Install and enable skills here, then choose up to three in Settings. Your selections guide
+                every new reply.
               </p>
             </div>
             <div
@@ -269,8 +278,9 @@ function SkillsScreen({ initialSkills }: { initialSkills: SkillState[] }) {
           <div>
             <h2 className="text-sm font-extrabold">Built-in, permission-limited skills</h2>
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
-              Skills add trusted instructions to a reply only after you install, enable, and select them. They
-              do not download or run code, browse the web, or access anything beyond the conversation and
+              Skills add trusted instructions to replies only after you install and enable them, then select
+              them in Settings. Up to three selected skills apply automatically to every new reply. They do
+              not download or run code, browse the web, or access anything beyond the conversation and
               attachments described on each skill.
             </p>
           </div>
@@ -313,8 +323,14 @@ function SkillCard({
           </h2>
         </div>
         {skill.installed && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line px-2 py-1 text-[10px] font-bold text-muted">
-            <Check weight="bold" className="size-3 text-emerald-500" aria-hidden /> Installed
+          <span
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1 rounded-full border border-line px-2 py-1 text-[10px] font-bold",
+              skill.selected ? "text-[var(--accent-text)]" : "text-muted",
+            )}
+          >
+            <Check weight="bold" className="size-3 text-emerald-500" aria-hidden />
+            {skill.selected ? "Selected in Settings" : "Installed"}
           </span>
         )}
       </div>

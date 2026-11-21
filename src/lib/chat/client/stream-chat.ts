@@ -21,7 +21,7 @@ export type ChatRequestBody = {
   showReasoning?: boolean;
   /** Answer style: fast / thinking / coding / analyze. */
   mode?: ChatMode;
-  /** IDs of enabled, installed skills selected for this message. */
+  /** IDs of enabled, installed skills selected in Settings for chat replies. */
   skills?: string[];
   /** Temporary chat: nothing is saved and memory is not used. */
   temporary?: boolean;

@@ -8,7 +8,7 @@ vi.mock("@/lib/chat/client/api", () => ({ api: mocks.api }));
 
 const { SkillsMarketplace } = await import("./skills-marketplace");
 
-function renderMarketplace(installed: { skillId: string; enabled: boolean }[] = []) {
+function renderMarketplace(installed: { skillId: string; enabled: boolean; selected?: boolean }[] = []) {
   return render(<SkillsMarketplace initialSkills={buildSkillState(installed)} />);
 }
 
@@ -19,10 +19,10 @@ describe("Skills marketplace", () => {
     renderMarketplace();
 
     const logo = screen.getByRole("link", { name: "PROXIMA home" });
-    const settingsLink = screen.getByRole("link", { name: "Settings" });
+    const settingsLink = screen.getByRole("link", { name: "Choose skills in Settings" });
     const chatLink = screen.getByRole("link", { name: "Back to chat" });
     expect(logo.querySelector("span")).toHaveClass("hidden", "min-[480px]:inline");
-    expect(settingsLink).toHaveAttribute("href", "/settings");
+    expect(settingsLink).toHaveAttribute("href", "/settings#settings-skills");
     expect(settingsLink.querySelector("span")).toHaveClass("hidden", "min-[480px]:inline");
     expect(chatLink).toHaveAttribute("href", "/app");
     expect(chatLink.querySelector("span")).toHaveClass("hidden", "min-[480px]:inline");
@@ -47,6 +47,7 @@ describe("Skills marketplace", () => {
       skillId: "coding-assistant",
       installed: true,
       enabled: true,
+      selected: false,
     });
     renderMarketplace();
     const card = screen.getByRole("article", { name: /Coding assistant/ });
@@ -57,7 +58,11 @@ describe("Skills marketplace", () => {
       "aria-checked",
       "true",
     );
-    expect(await screen.findByText("Coding assistant installed and enabled.")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Coding assistant installed and enabled. Choose it in Settings to use it in replies.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("does not claim an idempotently installed skill was enabled", async () => {
@@ -65,6 +70,7 @@ describe("Skills marketplace", () => {
       skillId: "coding-assistant",
       installed: true,
       enabled: false,
+      selected: false,
     });
     renderMarketplace();
     const card = screen.getByRole("article", { name: /Coding assistant/ });
@@ -84,8 +90,18 @@ describe("Skills marketplace", () => {
 
   it("enables, disables, and uninstalls an installed skill", async () => {
     mocks.api.updateSkill
-      .mockResolvedValueOnce({ skillId: "coding-assistant", installed: true, enabled: false })
-      .mockResolvedValueOnce({ skillId: "coding-assistant", installed: false, enabled: false });
+      .mockResolvedValueOnce({
+        skillId: "coding-assistant",
+        installed: true,
+        enabled: false,
+        selected: false,
+      })
+      .mockResolvedValueOnce({
+        skillId: "coding-assistant",
+        installed: false,
+        enabled: false,
+        selected: false,
+      });
     renderMarketplace([{ skillId: "coding-assistant", enabled: true }]);
     const card = screen.getByRole("article", { name: /Coding assistant/ });
 

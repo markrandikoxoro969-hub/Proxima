@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SKILL_CATALOG, SKILL_CATEGORIES, buildSkillState, getEnabledSkillSummaries } from "./catalog";
+import { SKILL_CATALOG, SKILL_CATEGORIES, buildSkillState, getSelectedSkillSummaries } from "./catalog";
 import { skillSelectionSchema } from "./validation";
 
 describe("built-in skill catalog", () => {
@@ -23,24 +23,39 @@ describe("built-in skill catalog", () => {
 
   it("derives installed and enabled states from each user's own rows", () => {
     const skills = buildSkillState([
-      { skillId: "coding-assistant", enabled: false },
-      { skillId: "not-in-catalog", enabled: true },
+      { skillId: "coding-assistant", enabled: false, selected: true },
+      { skillId: "web-research", enabled: true, selected: true },
+      { skillId: "writing-assistant", enabled: true, selected: false },
+      { skillId: "not-in-catalog", enabled: true, selected: true },
     ]);
 
     expect(skills.find((skill) => skill.id === "coding-assistant")).toMatchObject({
       installed: true,
       enabled: false,
+      selected: false,
     });
     expect(skills.find((skill) => skill.id === "web-research")).toMatchObject({
+      installed: true,
+      enabled: true,
+      selected: true,
+    });
+    expect(skills.find((skill) => skill.id === "mathematics")).toMatchObject({
       installed: false,
       enabled: false,
+      selected: false,
     });
-    expect(getEnabledSkillSummaries([{ skillId: "coding-assistant", enabled: false }])).toEqual([]);
+    expect(
+      getSelectedSkillSummaries([
+        { skillId: "coding-assistant", enabled: true, selected: false },
+        { skillId: "web-research", enabled: true, selected: true },
+        { skillId: "writing-assistant", enabled: false, selected: true },
+      ]),
+    ).toMatchObject([{ id: "web-research" }]);
   });
 });
 
 describe("skill selection validation", () => {
-  it("accepts only unique, catalogued skill ids within the per-message limit", () => {
+  it("accepts only unique, catalogued skill ids within the Settings selection limit", () => {
     expect(skillSelectionSchema.safeParse(["coding-assistant", "writing-assistant"]).success).toBe(true);
     expect(skillSelectionSchema.safeParse(["coding-assistant", "coding-assistant"]).success).toBe(false);
     expect(skillSelectionSchema.safeParse(["unknown-skill"]).success).toBe(false);

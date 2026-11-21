@@ -230,6 +230,7 @@ export type SkillState = Omit<SkillCatalogItem, "id"> & {
   id: SkillId;
   installed: boolean;
   enabled: boolean;
+  selected: boolean;
 };
 
 export const SKILL_IDS = SKILL_CATALOG.map((skill) => skill.id) as [SkillId, ...SkillId[]];
@@ -240,15 +241,23 @@ export function getSkillById(id: string): SkillCatalogItem | undefined {
   return SKILL_BY_ID.get(id);
 }
 
-export function buildSkillState(installed: readonly { skillId: string; enabled: boolean }[]): SkillState[] {
-  const statusById = new Map(installed.map((item) => [item.skillId, item.enabled]));
+export function buildSkillState(
+  installed: readonly { skillId: string; enabled: boolean; selected?: boolean }[],
+): SkillState[] {
+  const statusById = new Map(installed.map((item) => [item.skillId, item]));
   return SKILL_CATALOG.map((skill) => {
-    const hasSkill = statusById.has(skill.id);
-    return { ...skill, installed: hasSkill, enabled: hasSkill && statusById.get(skill.id) === true };
+    const status = statusById.get(skill.id);
+    const enabled = status?.enabled === true;
+    return {
+      ...skill,
+      installed: status !== undefined,
+      enabled,
+      selected: enabled && status?.selected === true,
+    };
   });
 }
 
-export type EnabledSkillSummary = {
+export type SelectedSkillSummary = {
   id: SkillId;
   displayName: string;
   description: string;
@@ -256,11 +265,13 @@ export type EnabledSkillSummary = {
   icon: SkillCatalogItem["icon"];
 };
 
-export function getEnabledSkillSummaries(
-  installed: readonly { skillId: string; enabled: boolean }[],
-): EnabledSkillSummary[] {
-  const enabledIds = new Set(installed.filter((item) => item.enabled).map((item) => item.skillId));
-  return SKILL_CATALOG.filter((skill) => enabledIds.has(skill.id)).map(
+export function getSelectedSkillSummaries(
+  installed: readonly { skillId: string; enabled: boolean; selected?: boolean }[],
+): SelectedSkillSummary[] {
+  const selectedIds = new Set(
+    installed.filter((item) => item.enabled && item.selected).map((item) => item.skillId),
+  );
+  return SKILL_CATALOG.filter((skill) => selectedIds.has(skill.id)).map(
     ({ id, displayName, description, category, icon }) => ({
       id,
       displayName,

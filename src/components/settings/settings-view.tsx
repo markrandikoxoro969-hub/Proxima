@@ -25,16 +25,26 @@ import { ToastProvider, useToast } from "@/components/ui/toast";
 import { api } from "@/lib/chat/client/api";
 import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
 import type { Profile } from "@/lib/chat/types";
+import type { SkillState } from "@/lib/skills/catalog";
 import { site } from "@/lib/site";
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { customThemePayload } from "@/lib/theme/palettes";
 import { NameAgeFields, SwitchRow, validateProfile } from "./fields";
+import { SkillPreferences } from "./skill-preferences";
 
 /** The full /settings page. Everything is saved to your account (works on every device). */
-export function SettingsView({ profile, chatCount }: { profile: Profile; chatCount: number }) {
+export function SettingsView({
+  profile,
+  chatCount,
+  initialSkills,
+}: {
+  profile: Profile;
+  chatCount: number;
+  initialSkills: SkillState[];
+}) {
   return (
     <ToastProvider>
-      <SettingsScreen initialProfile={profile} initialChatCount={chatCount} />
+      <SettingsScreen initialProfile={profile} initialChatCount={chatCount} initialSkills={initialSkills} />
     </ToastProvider>
   );
 }
@@ -42,9 +52,11 @@ export function SettingsView({ profile, chatCount }: { profile: Profile; chatCou
 function SettingsScreen({
   initialProfile,
   initialChatCount,
+  initialSkills,
 }: {
   initialProfile: Profile;
   initialChatCount: number;
+  initialSkills: SkillState[];
 }) {
   const [profile, setProfile] = useState(initialProfile);
   const [chatCount, setChatCount] = useState(initialChatCount);
@@ -55,10 +67,10 @@ function SettingsScreen({
         <Logo />
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
           <ButtonLink
-            href="/skills"
+            href="/settings#settings-skills"
             variant="ghost"
             className="shrink-0 px-2 whitespace-nowrap sm:px-3"
-            aria-label="Open Skills marketplace"
+            aria-label="Open skill settings"
           >
             <Sparkle weight="bold" className="size-4" aria-hidden />
             <span className="hidden min-[480px]:inline">Skills</span>
@@ -85,6 +97,7 @@ function SettingsScreen({
         </div>
 
         <ProfileSection profile={profile} onSaved={setProfile} />
+        <SkillPreferences initialSkills={initialSkills} />
         <MemorySection profile={profile} onSaved={setProfile} />
         <DataSection chatCount={chatCount} onCleared={() => setChatCount(0)} />
         <AccountSection profile={profile} />

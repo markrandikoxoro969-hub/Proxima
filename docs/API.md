@@ -46,7 +46,7 @@ Every error has the same shape, so the app can show a friendly toast:
   "demoSessionId": "uuid", // optional: guest demo memory
   "retry": true, // optional: "Try again" after a failed reply (see below)
   "mode": "thinking", // optional: "thinking" | "fast" | "coding" | "analyze" (default: thinking)
-  "skills": ["coding-assistant"], // optional: up to 3 installed, enabled skill IDs
+  "skills": ["coding-assistant"], // optional: up to 3 enabled skill IDs selected in Settings
   "showReasoning": true, // optional, default false: also stream the model's private reasoning
   "history": [{ "role": "user", "content": "…" }] // optional, guest demo only (max 20)
 }
@@ -86,9 +86,10 @@ event: error      data: {"code":"timeout","message":"The engine took too long to
   top_p, token budget, history length) — see `src/lib/ai/modes.ts`. Unknown values are rejected with
   `validation_error`; old clients that omit `mode` get `thinking`. The mode the server actually used
   comes back as `meta.answerMode` and `done.mode`.
-- **Skills** (`skills`): the server accepts catalog IDs only, then verifies that each belongs to the signed-in
-  user's enabled installations before loading app-owned instructions. Up to three unique skills apply to
-  that answer. Guests cannot select skills; no skill code or client-provided instructions are executed.
+- **Skills** (`skills`): the app sends the user's Settings selection automatically; the server accepts catalog
+  IDs only, then verifies that each belongs to the signed-in user's enabled and selected installations before
+  loading app-owned instructions. Up to three unique skills guide every new reply. Guests cannot select skills;
+  no skill code or client-provided instructions are executed.
 - **Reasoning** (`reasoning_content` from the model) is never stored and is not sent at all unless the
   request asks for it. `done.text` is the final, cleaned answer — the client swaps it in if trailing
   filler ("I hope this helps") was removed after streaming.
@@ -109,9 +110,10 @@ event: error      data: {"code":"timeout","message":"The engine took too long to
 
 ## Skills marketplace
 
-- `GET /api/skills` — returns the built-in catalog and the signed-in account's install/enabled states. It does not return runtime instructions.
-- `POST /api/skills` — accepts `{ "action": "install" | "uninstall", "skillId": "…" }` or
-  `{ "action": "set-enabled", "skillId": "…", "enabled": true }`. IDs are checked against the static catalog; changes are scoped to the current account.
+- `GET /api/skills` — returns the built-in catalog and the signed-in account's install/enabled/selected states. It does not return runtime instructions.
+- `POST /api/skills` — accepts `{ "action": "install" | "uninstall", "skillId": "…" }`,
+  `{ "action": "set-enabled", "skillId": "…", "enabled": true }`, or
+  `{ "action": "set-selected", "skillId": "…", "selected": true }`. IDs are checked against the static catalog; changes are scoped to the current account. Only installed, enabled skills can be selected, and Settings allows up to three.
 - Skill instructions are static, server-only text. This endpoint does not import remote skill sources, evaluate code, or expose executable tools.
 
 More detail: [SKILLS.md](SKILLS.md).

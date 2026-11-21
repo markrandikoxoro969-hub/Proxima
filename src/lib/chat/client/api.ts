@@ -109,11 +109,11 @@ export const api = {
     request<{ ai: { status: Exclude<EngineStatus, "checking">; latencyMs: number | null }; version: string }>(
       `/api/status`,
     ),
-  /** Discover the app-owned catalog and this account's installation state. */
+  /** Discover the app-owned catalog and this account's install/selection state. */
   listSkills: () => request<{ skills: SkillState[] }>("/api/skills"),
-  /** Install/uninstall a skill or change its enabled state. */
+  /** Install/uninstall a skill, change its enabled state, or select it in Settings. */
   updateSkill: (input: SkillMutation) =>
-    request<{ skillId: string; installed: boolean; enabled: boolean }>("/api/skills", {
+    request<{ skillId: string; installed: boolean; enabled: boolean; selected: boolean }>("/api/skills", {
       method: "POST",
       body: JSON.stringify(input),
     }),

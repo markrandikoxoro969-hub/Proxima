@@ -30,8 +30,6 @@ import { cn } from "@/lib/cn";
 import { IMAGE_LIMITS } from "@/lib/image/limits";
 import { LIMITS } from "@/lib/limits";
 import { SPRING } from "@/lib/motion/tokens";
-import type { EnabledSkillSummary } from "@/lib/skills/catalog";
-import { SkillPicker } from "@/components/skills/skill-picker";
 import { ModeMenu } from "./mode-menu";
 
 const MAX_HEIGHT = 200;
@@ -58,10 +56,7 @@ export const Composer = memo(function Composer({
   mode,
   onModeChange,
   voice,
-  skills,
-  selectedSkills,
-  onSkillsChange,
-  onSkillsOpen,
+  onVoiceInputChange,
 }: {
   onSend: (
     text: string,
@@ -83,12 +78,10 @@ export const Composer = memo(function Composer({
   /** Answer style (fast / thinking / coding / analyze). */
   mode: ChatMode;
   onModeChange: (mode: ChatMode) => void;
-  /** Installed, enabled skills the person can select for this message. */
-  skills: EnabledSkillSummary[];
-  selectedSkills: string[];
-  onSkillsChange: (ids: string[]) => void;
-  /** Refresh installation state when the picker opens. */
-  onSkillsOpen?: () => Promise<void>;
+  /** Publishes speech-recognition controls to the chat header. */
+  onVoiceInputChange?: (
+    control: { listening: boolean; supported: boolean; toggle: () => void } | null,
+  ) => void;
   /** Voice mode status/controls. Absent when voice mode is off. */
   voice?: {
     enabled: boolean;
@@ -187,6 +180,12 @@ export const Composer = memo(function Composer({
     stop: stopListening,
     toggle: toggleListening,
   } = speech;
+
+  useEffect(() => {
+    onVoiceInputChange?.({ listening, supported: speechSupported, toggle: toggleListening });
+  }, [listening, speechSupported, toggleListening, onVoiceInputChange]);
+
+  useEffect(() => () => onVoiceInputChange?.(null), [onVoiceInputChange]);
 
   // Grow with the text, up to MAX_HEIGHT, then scroll inside.
   useLayoutEffect(() => {
@@ -503,16 +502,7 @@ export const Composer = memo(function Composer({
 
         <div role="group" aria-label="Message actions" className="flex items-center gap-1 px-2 pb-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-            {/* Answer style and optional installed skills guide replies while selected. */}
             <ModeMenu mode={mode} onChange={onModeChange} className="shrink-0" />
-            <div className="shrink-0">
-              <SkillPicker
-                skills={skills}
-                selected={selectedSkills}
-                onChange={onSkillsChange}
-                onOpen={onSkillsOpen}
-              />
-            </div>
 
             <button
               type="button"
@@ -571,18 +561,6 @@ export const Composer = memo(function Composer({
               pictureLimit={IMAGE_LIMITS.perMessage}
               fileLimit={LIMITS.attachmentsMax}
             />
-            <IconButton
-              label={listening ? "Stop voice input" : "Voice input"}
-              onClick={toggleListening}
-              pressed={listening}
-              className={cn(listening && "bg-red-500/15 text-red-500 hover:bg-red-500/20 hover:text-red-500")}
-            >
-              <Microphone
-                weight={listening ? "fill" : "bold"}
-                className={cn("size-5", listening && "animate-pulse")}
-                aria-hidden
-              />
-            </IconButton>
           </div>
 
           <span className="relative inline-grid size-11 shrink-0 place-items-center">

@@ -79,7 +79,7 @@ export const chatRequestSchema = z.object({
    * only ever sends a mode it knows about.
    */
   mode: z.enum(CHAT_MODES).optional(),
-  /** Opt-in installed skills; the server verifies ownership and enabled state. */
+  /** Settings-selected skills; the server verifies catalog, ownership, enabled, and selected state. */
   skills: skillSelectionSchema.optional(),
   /**
    * Temporary chat: nothing is written to the database and memory is neither
