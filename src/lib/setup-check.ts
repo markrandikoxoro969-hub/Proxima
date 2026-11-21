@@ -142,10 +142,11 @@ export function pictureReaderStatus(env: Record<string, string | undefined> = pr
       detail: `Off (NVIDIA_VISION_MODEL=off). Normal answers still use ${nvidia.model}.`,
     };
   }
+  const keyNote = (env.NVIDIA_VISION_API_KEY ?? "").trim() ? "separate vision key" : "NVIDIA_API_KEY";
   return {
     name,
     ok: true,
-    detail: `Using ${nvidia.visionModel} for pictures (thinking off); normal answers use ${nvidia.model}.`,
+    detail: `Using ${nvidia.visionModel} for pictures (thinking off, ${keyNote}); normal answers use ${nvidia.model}.`,
   };
 }
 

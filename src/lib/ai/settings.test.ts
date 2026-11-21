@@ -47,6 +47,21 @@ describe("resolveNvidiaSettings", () => {
     expect(settings.baseURL).toBe("https://integrate.api.nvidia.com/v1");
     expect(settings.firstTokenTimeoutMs).toBe(45_000);
     expect(settings.visionModel).toBe(DEFAULT_NVIDIA_VISION_MODEL);
+    // One key normally covers both models.
+    expect(settings.visionApiKey).toBe("nvapi-abc");
+  });
+
+  it("can use a different key for the picture reader", () => {
+    const separate = resolveNvidiaSettings({
+      NVIDIA_API_KEY: "nvapi-normal",
+      NVIDIA_VISION_API_KEY: "nvapi-vision",
+    });
+    expect(separate.apiKey).toBe("nvapi-normal");
+    expect(separate.visionApiKey).toBe("nvapi-vision");
+    // An empty/whitespace vision key falls back to the normal key.
+    expect(
+      resolveNvidiaSettings({ NVIDIA_API_KEY: "nvapi-normal", NVIDIA_VISION_API_KEY: " " }).visionApiKey,
+    ).toBe("nvapi-normal");
   });
 
   it("can read pictures with a different vision model, or turn the reader off", () => {

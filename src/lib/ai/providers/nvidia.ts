@@ -35,6 +35,8 @@ export type VisionRead = {
 export type NvidiaOptions = {
   /** Pass a pre-configured client (tests) or a partial settings override. */
   client?: OpenAI;
+  /** Separate client for the picture reader (tests, or a different account). */
+  visionClient?: OpenAI;
   settings?: Partial<NvidiaSettings>;
   /** Injected in tests so no network call is made. */
   createStream?: (client: OpenAI, body: unknown, signal: AbortSignal) => Promise<AsyncIterable<unknown>>;
@@ -85,6 +87,20 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
     return client;
   };
 
+  // The normal and vision models may use different NVIDIA accounts/keys. Use
+  // options.client when a test injects one; otherwise create a client with the
+  // separate vision key (which falls back to the main key when not set).
+  let visionClient = options.visionClient ?? options.client;
+  const getVisionClient = () => {
+    visionClient ??= new OpenAI({
+      apiKey: settings.visionApiKey,
+      baseURL: settings.baseURL,
+      timeout: 90_000,
+      maxRetries: 0,
+    });
+    return visionClient;
+  };
+
   const createStream =
     options.createStream ??
     ((c: OpenAI, body: unknown, signal: AbortSignal) =>
@@ -114,7 +130,7 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
      */
     if (pictures.length > 0 && !directVision && settings.visionModel && settings.visionModel !== model) {
       try {
-        const description = await describeImages(getClient(), {
+        const description = await describeImages(getVisionClient(), {
           images: pictures,
           question: request.message,
           model: settings.visionModel,
@@ -264,7 +280,8 @@ const VISION_SYSTEM = [
 
 /**
  * Asks a vision model to read the pictures. Kept separate (and injectable) so
- * tests never need a network call. Uses the same NVIDIA key as the main model.
+ * tests never need a network call. Uses NVIDIA_VISION_API_KEY when set, or the
+ * main key when the two models share one account.
  */
 async function describeImagesWithModel(
   client: OpenAI,

@@ -107,6 +107,16 @@ describe("pictureReaderStatus", () => {
     expect(check.detail).toContain("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning");
     expect(check.detail).toContain("nvidia/nemotron-3-ultra-550b-a55b");
     expect(check.detail).toContain("thinking off");
+    expect(check.detail).toContain("NVIDIA_API_KEY");
+  });
+
+  it("says when the reader has its own key", () => {
+    const check = pictureReaderStatus({
+      AI_PROVIDER: "nvidia",
+      NVIDIA_API_KEY: "nvapi-normal",
+      NVIDIA_VISION_API_KEY: "nvapi-vision",
+    });
+    expect(check.detail).toContain("separate vision key");
   });
 
   it("explains when the reader is off, unused, or has no key", () => {

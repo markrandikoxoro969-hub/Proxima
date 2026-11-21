@@ -74,6 +74,7 @@ A `401` means the key is wrong; a `404` means the model name is wrong.
 | ------------------------ | ------------------------------------------ | ----------------------------------------------------------- |
 | `AI_PROVIDER`            | `nvidia`                                   | `nvidia`, `render` or `mock`                                |
 | `NVIDIA_API_KEY`         | —                                          | Your key. Server only.                                      |
+| `NVIDIA_VISION_API_KEY`  | —                                          | Optional: the picture reader's key on a second account.     |
 | `NVIDIA_MODEL`           | `nvidia/nemotron-3-ultra-550b-a55b`        | Which model answers                                         |
 | `NVIDIA_VISION_MODEL`    | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | Reads attached pictures (OCR, screenshots, charts) for a text-only main model. `off` disables |
 | `NVIDIA_MAX_TOKENS`      | `8192`                                     | Ceiling for one answer, including reasoning                 |
@@ -100,6 +101,13 @@ calls the Omni reader first (thinking off, 2048-token observation), then the
 normal model answers with that observation. `/api/status?setup=1` now shows a
 **Picture reader** line with both model ids, so you can confirm the deployment
 without sending a picture.
+
+The two models can sit on different NVIDIA accounts. Set
+`NVIDIA_VISION_API_KEY` to the reader's key; `NVIDIA_API_KEY` keeps answering
+text. Leave it empty (or unset) and both roles share `NVIDIA_API_KEY`, so a
+single-account setup needs no change. The setup check reports
+`separate vision key` when the second key is in use; keys themselves are never
+returned, logged, or cached.
 
 ## 4. Reasoning is private
 
