@@ -86,6 +86,21 @@ Request shape (`src/lib/ai/providers/nvidia.ts`): `stream: true`; `temperature`,
 `top_p` and `max_tokens` come from the selected answer mode (Thinking, Fast,
 Coding, Analyze — see `src/lib/ai/modes.ts`), capped by `NVIDIA_MAX_TOKENS`.
 
+### The two-model setup (default)
+
+Proxima uses two NVIDIA models, automatically:
+
+| Role | Default model | Setting |
+| --- | --- | --- |
+| Normal answers (text, code, analysis) | `nvidia/nemotron-3-ultra-550b-a55b` | `NVIDIA_MODEL` |
+| Reading attached pictures (OCR, screenshots, charts) | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | `NVIDIA_VISION_MODEL` |
+
+A text-only message never calls the vision model. A message with a picture
+calls the Omni reader first (thinking off, 2048-token observation), then the
+normal model answers with that observation. `/api/status?setup=1` now shows a
+**Picture reader** line with both model ids, so you can confirm the deployment
+without sending a picture.
+
 ## 4. Reasoning is private
 
 Nemotron streams two things:

@@ -1,5 +1,6 @@
 import "server-only";
 import { AiProviderError, getAiProvider, resolveAiSettings } from "@/lib/ai";
+import { resolveNvidiaSettings } from "@/lib/ai/settings";
 import { db } from "@/lib/db";
 
 /**
@@ -99,6 +100,7 @@ export async function runSetupCheck(origin: string): Promise<{ ok: boolean; chec
   }
 
   checks.push(await checkAi());
+  checks.push(pictureReaderStatus(env));
 
   checks.push({
     name: "Google redirect URI to add",
@@ -107,6 +109,44 @@ export async function runSetupCheck(origin: string): Promise<{ ok: boolean; chec
   });
 
   return { ok: checks.every((check) => check.ok), checks };
+}
+
+/**
+ * Makes the two-model setup visible in `/api/status?setup=1`: normal answers
+ * use NVIDIA_MODEL; attached pictures use NVIDIA_VISION_MODEL. This is a
+ * configuration report, not another network request.
+ */
+export function pictureReaderStatus(env: Record<string, string | undefined> = process.env): SetupCheck {
+  const provider = resolveAiSettings(env);
+  const nvidia = resolveNvidiaSettings(env);
+  const name = "Picture reader";
+
+  if (provider.id !== "nvidia") {
+    return {
+      name,
+      ok: true,
+      detail: `Not used: AI_PROVIDER is "${provider.id}", so the text-only Render fallback answers.`,
+    };
+  }
+  if (!nvidia.apiKey) {
+    return {
+      name,
+      ok: true,
+      detail: "NVIDIA_API_KEY is not set, so the Render fallback answers and attached pictures are not read.",
+    };
+  }
+  if (!nvidia.visionModel) {
+    return {
+      name,
+      ok: true,
+      detail: `Off (NVIDIA_VISION_MODEL=off). Normal answers still use ${nvidia.model}.`,
+    };
+  }
+  return {
+    name,
+    ok: true,
+    detail: `Using ${nvidia.visionModel} for pictures (thinking off); normal answers use ${nvidia.model}.`,
+  };
 }
 
 const AI_TEST_TIMEOUT_MS = 20_000;
@@ -139,7 +179,11 @@ async function checkAi(): Promise<SetupCheck> {
         if (delta.type === "text" && delta.text.trim()) break;
       }
     }
-    return { name, ok: true, detail: `Using ${provider.label}. Replied in ${((Date.now() - started) / 1000).toFixed(1)} s.${tip}` };
+    return {
+      name,
+      ok: true,
+      detail: `Using ${provider.label}. Replied in ${((Date.now() - started) / 1000).toFixed(1)} s.${tip}`,
+    };
   } catch (error) {
     const code = error instanceof AiProviderError ? error.code : undefined;
     const host = new URL(settings.url).origin;
