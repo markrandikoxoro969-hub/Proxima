@@ -5,8 +5,10 @@ import { api } from "./api";
  * Pictures in the chat composer.
  *
  * Picking a photo never sends the file as-is: the browser shrinks it to at
- * most 1280 px and re-encodes it as WebP (or JPEG where WebP is missing). A
- * 6 MB phone photo becomes ~150 KB, which is what makes uploading practical.
+ * most 1280 px and re-encodes it as JPEG. A 6 MB phone photo becomes a few
+ * hundred KB, which makes uploading practical — and JPEG is on the documented
+ * input list of every vision model we use. (Canvas WebP is smaller, but some
+ * NVIDIA image endpoints only list PNG/JPEG, so the chat never depends on it.)
  */
 
 export type DraftImage = {
@@ -76,18 +78,14 @@ async function loadImage(file: File | Blob): Promise<Loaded> {
   }
 }
 
-function encodeCanvas(canvas: HTMLCanvasElement): string {
-  const webp = canvas.toDataURL("image/webp", 0.92);
-  if (webp.startsWith("data:image/webp")) return webp;
-  return canvas.toDataURL("image/jpeg", 0.92);
-}
-
 /**
  * Shrinks a picture for upload. Returns a data URL small enough for the
  * server (under 4 MB decoded) and its real size.
  */
 export async function shrinkImageFile(
   file: File,
+  /** Chat sends JPEG (the vision endpoints document it); the studio keeps WebP. */
+  format: "jpeg" | "webp" = "jpeg",
 ): Promise<{ dataUrl: string; width: number; height: number; bytes: number }> {
   const source = await loadImage(file);
   const scale = Math.min(1, IMAGE_LIMITS.uploadEdgeMax / Math.max(source.width, source.height));
@@ -105,13 +103,15 @@ export async function shrinkImageFile(
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Your browser couldn't prepare that picture.");
     context.imageSmoothingQuality = "high";
+    if (format === "jpeg") {
+      // JPEG has no alpha; white is safer than the canvas's transparent black.
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, width, height);
+    }
     source.draw(context, width, height);
 
     for (const quality of qualities) {
-      const dataUrl =
-        quality === qualities[0]
-          ? encodeCanvas(canvas)
-          : canvas.toDataURL(quality >= 0.8 ? "image/jpeg" : "image/webp", quality);
+      const dataUrl = canvas.toDataURL(format === "webp" ? "image/webp" : "image/jpeg", quality);
       const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
       const bytes = Math.floor((base64.length * 3) / 4);
       best = { dataUrl, width, height, bytes };

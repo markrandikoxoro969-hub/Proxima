@@ -183,7 +183,7 @@ function StudioBody({
     setUploading(true);
     setError(null);
     try {
-      const shrunk = await shrinkImageFile(file);
+      const shrunk = await shrinkImageFile(file, "webp");
       const { image } = await api.uploadImage(shrunk.dataUrl, file.name);
       addRecent(image);
       setSource(image);

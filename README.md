@@ -418,7 +418,7 @@ This was a prior simulated-device snapshot, not a repeatable local Chrome measur
       colours. Colours are derived (and contrast-checked) from those three, synced to the account,
       and painted before the first frame — no flash. The sun/moon button keeps a theme's character
       (Midnight ⇄ Ocean).
-- [x] **Upload:** attach up to 4 pictures to a message; the browser shrinks them to ≤1280 px WebP,
+- [x] **Upload:** attach up to 4 pictures to a message; the browser shrinks them to ≤1280 px JPEG,
       the server re-checks the real type and size, and the chat shows the actual picture.
 - [x] **Image studio:** create a picture from a prompt (style + shape presets) and edit one with
       AI. Swappable engines with automatic fallbacks — OpenAI, NVIDIA, a free keyless service and
