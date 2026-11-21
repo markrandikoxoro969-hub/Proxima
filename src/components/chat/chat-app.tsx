@@ -418,11 +418,6 @@ function ChatScreen({
       {
         id: "voice",
         label: voice.enabled ? "Turn off voice mode" : "Turn on voice mode",
-        hint: voice.enabled
-          ? `${voice.voice === "girl" ? "Girl voice" : "Boy voice"} · ${
-              voice.engine === "natural" ? "Natural" : "Device"
-            }`
-          : undefined,
         icon: <SpeakerHigh weight={voice.enabled ? "fill" : "bold"} className="size-4" />,
         keywords: "speak read aloud voice girl boy hands free listen",
         run: () => {
@@ -470,8 +465,6 @@ function ChatScreen({
       showReasoning,
       setShowReasoning,
       voice.enabled,
-      voice.voice,
-      voice.engine,
       setVoice,
       stopVoice,
     ],
@@ -598,7 +591,6 @@ function ChatScreen({
             voice={{
               enabled: voice.enabled,
               handsFree: voice.handsFree,
-              label: voice.voice === "girl" ? "Girl voice" : "Boy voice",
               speaking: voiceSpeaking,
               listenSignal,
               onStopSpeaking: stopVoice,

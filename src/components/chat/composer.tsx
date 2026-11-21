@@ -82,7 +82,6 @@ export const Composer = memo(function Composer({
   voice?: {
     enabled: boolean;
     handsFree: boolean;
-    label: string;
     speaking: boolean;
     /** Increments after each spoken reply; opens the mic in hands-free mode. */
     listenSignal: number;
@@ -317,14 +316,13 @@ export const Composer = memo(function Composer({
         <div className="mx-auto mb-2 flex w-full max-w-3xl flex-wrap items-center gap-2 px-1 text-xs">
           <span
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bold",
+              "inline-flex size-7 items-center justify-center rounded-full border",
               voice.speaking
                 ? "border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--accent-text)]"
                 : listening
                   ? "border-red-500/30 bg-red-500/10 text-red-500"
                   : "border-line bg-surface-hover text-muted",
             )}
-            aria-live="polite"
           >
             {voice.speaking ? (
               <SpeakerHigh weight="fill" className="size-3.5 animate-pulse" aria-hidden />
@@ -333,11 +331,9 @@ export const Composer = memo(function Composer({
             ) : (
               <Waveform weight="bold" className="size-3.5" aria-hidden />
             )}
-            {voice.speaking
-              ? `Speaking · ${voice.label}`
-              : listening
-                ? "Listening…"
-                : `Voice mode · ${voice.label}`}
+            <span className="sr-only" aria-live="polite">
+              {voice.speaking ? "Speaking" : listening ? "Listening" : "Voice mode on"}
+            </span>
           </span>
           {voice.speaking ? (
             <button
@@ -366,7 +362,7 @@ export const Composer = memo(function Composer({
               Talk now
             </button>
           )}
-          {voice.handsFree && <span className="font-medium text-subtle">Hands-free</span>}
+          {voice.handsFree && <span className="sr-only">Hands-free is on</span>}
         </div>
       )}
 
