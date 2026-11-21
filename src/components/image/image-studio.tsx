@@ -510,6 +510,7 @@ function StudioBody({
                     width={image.width}
                     height={image.height}
                     loading="lazy"
+                    decoding="async"
                     className="aspect-square w-full object-cover"
                   />
                 </button>

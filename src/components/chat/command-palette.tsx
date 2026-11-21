@@ -2,7 +2,7 @@
 
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import { AnimatePresence, m } from "motion/react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { EASE, SPRING } from "@/lib/motion/tokens";
 
@@ -22,7 +22,7 @@ export type Command = {
  * you type. The inner panel is mounted fresh on every open, so the query always
  * starts empty without any state-syncing effect.
  */
-export function CommandPalette({
+export const CommandPalette = memo(function CommandPalette({
   open,
   onClose,
   commands,
@@ -54,7 +54,7 @@ export function CommandPalette({
       )}
     </AnimatePresence>
   );
-}
+});
 
 function PalettePanel({ onClose, commands }: { onClose: () => void; commands: Command[] }) {
   const [query, setQuery] = useState("");
@@ -139,7 +139,9 @@ function PalettePanel({ onClose, commands }: { onClose: () => void; commands: Co
       </div>
 
       <ul id={listId} role="listbox" aria-label="Commands" className="max-h-80 overflow-y-auto p-2">
-        {results.length === 0 && <li className="px-3 py-6 text-center text-sm text-subtle">No commands match.</li>}
+        {results.length === 0 && (
+          <li className="px-3 py-6 text-center text-sm text-subtle">No commands match.</li>
+        )}
         {results.map((command, index) => (
           <li key={command.id} id={`cmd-${command.id}`} role="option" aria-selected={index === active}>
             <m.button
@@ -165,7 +167,9 @@ function PalettePanel({ onClose, commands }: { onClose: () => void; commands: Co
               </span>
               <span className="flex-1 truncate">{command.label}</span>
               {command.hint && (
-                <kbd className="hidden shrink-0 font-mono text-[10px] text-subtle sm:block">{command.hint}</kbd>
+                <kbd className="hidden shrink-0 font-mono text-[10px] text-subtle sm:block">
+                  {command.hint}
+                </kbd>
               )}
             </m.button>
           </li>

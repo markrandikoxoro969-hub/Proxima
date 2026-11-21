@@ -100,6 +100,8 @@ export const POST = withApi(async (request: Request) => {
   let conversationId: string | null = null;
   let title: string | null = null;
   let userMessageId: string | null = null;
+  /** Turns read alongside the conversation, before this message was saved. */
+  let priorMessages: { id: string; role: AiHistoryMessage["role"]; content: string }[] = [];
 
   if (userId && !temporary) {
     const userMessage = {
@@ -117,13 +119,17 @@ export const POST = withApi(async (request: Request) => {
           _count: { select: { messages: true } },
           messages: {
             orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-            take: 1,
+            // Read the context now: after saving the new message, this is
+            // exactly the history the AI needs. One fewer round-trip than a
+            // separate query afterwards.
+            take: modeConfig.historyLimit,
             select: { id: true, role: true, content: true },
           },
         },
       });
       if (!existing) throw apiErrors.notFound("Conversation not found");
       conversationId = existing.id;
+      priorMessages = existing.messages;
       title =
         existing._count.messages === 0 && existing.title === DEFAULT_TITLE
           ? makeTitle(input.message)
@@ -156,13 +162,13 @@ export const POST = withApi(async (request: Request) => {
   // Guest: use the turns the demo sent (nothing is stored on the server).
   const history: AiHistoryMessage[] = [];
   if (userId && conversationId && !temporary) {
-    const recent = await db.message.findMany({
-      where: { conversationId, ...(userMessageId ? { id: { not: userMessageId } } : {}) },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: modeConfig.historyLimit,
-      select: { role: true, content: true },
-    });
-    for (const m of recent.reverse()) history.push({ role: m.role, content: m.content });
+    // `priorMessages` is newest-first; the prompt wants oldest-first. On a
+    // retry the last user message is the one being answered again, so it is
+    // sent separately and must not be duplicated here.
+    for (const m of priorMessages.slice().reverse()) {
+      if (m.id === userMessageId) continue;
+      history.push({ role: m.role, content: m.content });
+    }
   } else if (input.history) {
     // Guests (and temporary chats) keep their context in the browser only.
     history.push(...input.history.slice(-modeConfig.historyLimit));

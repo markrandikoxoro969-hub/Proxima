@@ -13,6 +13,10 @@ voices — the same family Edge uses for “Read Aloud”. They sound human, not
 voice cannot be reached, Proxima automatically finishes the reply with the device voice and the
 menu says so. Nothing ever silently does nothing.
 
+On a phone, browsers only allow sound after a real gesture. The page quietly unlocks **one reusable
+audio player** on your first tap or keypress, so a reply that arrives a minute later still plays
+automatically. This is the difference between working on an iPhone and looking broken there.
+
 > Grok's exact voices are not a public API. This uses the same class of technology (neural TTS)
 > and gives you a girl/boy choice; it does not clone Grok.
 
@@ -149,7 +153,7 @@ Only completed replies are ever read. Opening an old chat does not replay its hi
 | `401` / `402` in logs from Pollinations           | Missing/invalid `POLLINATIONS_API_KEY`, or the free credits are used up.                |
 | Edge fails after a Microsoft change               | Set a keyed provider (`SPEECH_PROVIDER=openai` or `pollinations`) or `SPEECH_EDGE=off`. |
 | Voice plays but hands-free never opens            | The reply must finish speaking first; a failed voice does not open the mic.             |
-| Preview works, automatic read is silent           | The browser blocked autoplay. Tap the speaker under the reply once.                     |
+| Preview works, automatic read is silent           | Make one tap or keypress on the page first, then try again. If it stays silent, tap the speaker under the reply once. |
 
 Microsoft's Edge endpoint is **unofficial** and can change without notice; that is why it is only
 one link in the chain and the browser voice is always available. The `msedge-tts` package used
