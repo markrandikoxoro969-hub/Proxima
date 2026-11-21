@@ -47,6 +47,7 @@ personal, non-commercial projects; switch to Pro if you start making money from 
    | `AUTH_GOOGLE_SECRET` | copy from `.env.local`                                               |
    | `AI_PROVIDER`        | `nvidia` (the engine; Render stays as automatic fallback)            |
   | `NVIDIA_API_KEY`     | your key from https://build.nvidia.com (server only)                 |
+  | `NVIDIA_VISION_API_KEY` | optional: the picture reader's key if it is a second NVIDIA account |
 
    New secret for production (run in your project folder):
 

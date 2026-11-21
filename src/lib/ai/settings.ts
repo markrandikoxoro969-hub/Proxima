@@ -9,7 +9,8 @@
  *   AI_PROVIDER="something"    → unknown name: use the default, with a tip
  *
  * NVIDIA settings (all optional except the key):
- *   NVIDIA_API_KEY, NVIDIA_MODEL, NVIDIA_MAX_TOKENS, NVIDIA_ENABLE_THINKING
+ *   NVIDIA_API_KEY, NVIDIA_MODEL, NVIDIA_MAX_TOKENS, NVIDIA_ENABLE_THINKING,
+ *   NVIDIA_VISION_MODEL, NVIDIA_VISION_API_KEY
  * Render settings:
  *   AI_API_URL (defaults to the PROXIMA Core API)
  *
@@ -93,7 +94,10 @@ export function resolveAiSettings(env: Record<string, string | undefined> = proc
 }
 
 export type NvidiaSettings = {
+  /** Key for the normal answering model. */
   apiKey: string;
+  /** Key for the picture reader; NVIDIA_VISION_API_KEY, or NVIDIA_API_KEY when empty. */
+  visionApiKey: string;
   model: string;
   /** Vision model used to describe pictures for a text-only main model. "" = off. */
   visionModel: string;
@@ -111,8 +115,13 @@ export type NvidiaSettings = {
 export function resolveNvidiaSettings(env: Record<string, string | undefined> = process.env): NvidiaSettings {
   const thinking = (env.NVIDIA_ENABLE_THINKING ?? "true").trim().toLowerCase();
   const vision = (env.NVIDIA_VISION_MODEL ?? "").trim();
+  const apiKey = (env.NVIDIA_API_KEY ?? "").trim();
+  // The two models can belong to different NVIDIA accounts. When no separate
+  // vision key is set, the reader reuses the main key (the old behaviour).
+  const visionApiKey = (env.NVIDIA_VISION_API_KEY ?? "").trim() || apiKey;
   return {
-    apiKey: (env.NVIDIA_API_KEY ?? "").trim(),
+    apiKey,
+    visionApiKey,
     model: (env.NVIDIA_MODEL ?? "").trim() || DEFAULT_NVIDIA_MODEL,
     visionModel: /^(off|none|false|0)$/i.test(vision) ? "" : vision || DEFAULT_NVIDIA_VISION_MODEL,
     maxTokens: number(env.NVIDIA_MAX_TOKENS, DEFAULT_NVIDIA_MAX_TOKENS),

@@ -243,6 +243,44 @@ describe("NVIDIA provider", () => {
     expect((newest.content as { type: string }[]).some((part) => part.type === "image_url")).toBe(true);
   });
 
+  it("sends the picture to the vision client, not the normal one", async () => {
+    const images: AiImage[] = [
+      { dataUrl: "data:image/png;base64,AAAA", mime: "image/png", width: 800, height: 600 },
+    ];
+    const normalCreate = vi.fn(async () => {
+      throw new Error("the normal client must not read pictures");
+    });
+    const visionCreate = vi.fn(async () => ({
+      choices: [{ message: { content: "A terminal showing a failed test." } }],
+    }));
+    const normalClient = { chat: { completions: { create: normalCreate } } } as unknown as OpenAI;
+    const visionClient = { chat: { completions: { create: visionCreate } } } as unknown as OpenAI;
+    const createStream = vi.fn(async () => {
+      return (async function* () {
+        yield chunk({ content: "The test failed." });
+      })();
+    });
+    const provider = createNvidiaProvider({
+      client: normalClient,
+      visionClient,
+      createStream: createStream as never,
+      settings: {
+        apiKey: "nvapi-normal",
+        visionApiKey: "nvapi-vision",
+        model: "nvidia/nemotron-3-ultra-550b-a55b",
+        visionModel: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+        maxTokens: 2048,
+        enableThinking: true,
+        firstTokenTimeoutMs: 1000,
+      },
+    });
+
+    await collect(provider.stream!({ ...request, images }));
+
+    expect(visionCreate).toHaveBeenCalledOnce();
+    expect(normalCreate).not.toHaveBeenCalled();
+  });
+
   it("asks the Omni reader for observations with thinking off", async () => {
     const images: AiImage[] = [
       { dataUrl: "data:image/png;base64,AAAA", mime: "image/png", width: 800, height: 600 },

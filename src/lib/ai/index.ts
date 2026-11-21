@@ -37,8 +37,13 @@ function cacheKey(): string {
     String(nvidia.maxTokens),
     String(nvidia.enableThinking),
     String(nvidia.firstTokenTimeoutMs),
-    // Never put the key itself in a string that could end up in a log.
+    // Never put the key itself in a string that could end up in a log. "separate"
+    // (not just "yes") matters: adding a vision key must bust the cache even
+    // though the shared fallback made visionApiKey truthy all along.
     nvidiaConfigured() ? "nvidia-key:yes" : "nvidia-key:no",
+    nvidia.visionApiKey && nvidia.visionApiKey !== nvidia.apiKey
+      ? "vision-key:separate"
+      : "vision-key:shared",
   ].join("|");
 }
 
