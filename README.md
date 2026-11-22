@@ -422,8 +422,8 @@ This was a prior simulated-device snapshot, not a repeatable local Chrome measur
       the server re-checks the real type and size, and the chat shows the actual picture.
 - [x] **Image studio:** create a picture from a prompt (style + shape presets) and edit one with
       AI. NVIDIA FLUX.1 dev creates and FLUX.1 Kontext edits, each with its own key
-      (`IMAGE_GENERATION` / `IMAGE_EDITING`); OpenAI and an offline preview are the fallbacks, so
-      it always returns something and labels offline results honestly. See
+      (`IMAGE_GENERATION` / `IMAGE_EDITING`). NVIDIA’s hosted editing preview currently limits input images;
+      OpenAI or a self-hosted endpoint can edit uploads. See
       [docs/IMAGES.md](docs/IMAGES.md).
 
 ---

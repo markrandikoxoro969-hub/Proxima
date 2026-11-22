@@ -37,24 +37,35 @@ NVIDIA accounts:
 | Create | `black-forest-labs/flux.1-dev`         | `IMAGE_GENERATION` |
 | Edit   | `black-forest-labs/flux.1-kontext-dev` | `IMAGE_EDITING`    |
 
-The edit model takes the source picture inline as a `data:` URL, so nothing has
-to be publicly reachable. Leave `IMAGE_EDITING` empty to reuse
+The app sends the source picture inline as a `data:` URL. **NVIDIA’s hosted
+Kontext preview currently documents only predefined example images, not arbitrary
+uploads** ([API reference](https://build.nvidia.com/black-forest-labs/flux_1-kontext-dev/apireference)).
+An editing key alone does not remove that restriction. For your own images,
+use OpenAI (`IMAGE_PROVIDER="openai"` and `OPENAI_API_KEY`) or configure a
+self-hosted NVIDIA Kontext NIM: set `IMAGE_EDITING_URL` to its full inference
+URL (for example, `https://your-nim.example/v1/infer`) and `IMAGE_EDITING` to
+a credential accepted by that server. The server must be reachable from the
+application. FLUX.1 dev is text-to-image in base mode; the sample code for it
+does not edit an image. Leave `IMAGE_EDITING` empty to reuse
 `IMAGE_GENERATION` when both models are on one account. Override either model
 with `IMAGE_GENERATION_MODEL` / `IMAGE_EDITING_MODEL`.
 
-With `auto` the order is: **NVIDIA → OpenAI → offline preview**. If a key is
-wrong or a service is down, the next engine gets a turn, and the studio labels
-offline results honestly ("Offline preview — add a key for real art"). Nothing
-shows a dead button.
+With `auto`, configured real engines are tried in order: **NVIDIA → OpenAI**.
+The offline preview is used only if no real engine is configured (or you explicitly
+select `mock`). Errors are shown when configured engines fail, so a bad key is
+not silently replaced by a fake picture. NVIDIA’s hosted FLUX.1 dev API documents
+only 1024 × 1024 output; other studio sizes produce a square with that engine.
 
 ### Adding the keys
 
 ```bash
-# NVIDIA FLUX — create and edit can be separate accounts
+# Add these server-side in .env.local, or in Vercel Environment Variables.
+# NVIDIA FLUX — use fresh keys; do not commit or share them.
 IMAGE_GENERATION="nvapi-…"
 IMAGE_EDITING="nvapi-…"
 # IMAGE_GENERATION_MODEL="black-forest-labs/flux.1-dev"
 # IMAGE_EDITING_MODEL="black-forest-labs/flux.1-kontext-dev"
+# IMAGE_EDITING_URL="https://your-nim.example/v1/infer" # optional self-hosted Kontext
 
 # OpenAI (the other create + edit engine)
 OPENAI_API_KEY="sk-…"
@@ -67,12 +78,16 @@ IMAGE_SIGNING_SECRET=""              # defaults to AUTH_SECRET
 ```
 
 Keys are read on the server only, never logged, and never sent to the browser.
+Leave `IMAGE_PROVIDER` unset or set it to `auto`; an explicit `mock` or `openai`
+selection overrides these keys. Restart locally or redeploy on Vercel after changes.
+The status page reports configuration only, not whether NVIDIA accepts the keys.
 
 ### How editing gets your picture
 
-NVIDIA FLUX.1 Kontext and OpenAI both receive the picture bytes directly
-(Kontext as an inline `data:` URL, OpenAI as an upload), so editing works
-without exposing `/api/images/:id` to the internet. A short-lived signed
+NVIDIA FLUX.1 Kontext and OpenAI receive the picture bytes directly
+(Kontext as an inline `data:` URL, OpenAI as an upload), without exposing
+`/api/images/:id` to the internet. NVIDIA’s hosted preview has the input
+restriction described above; self-hosted Kontext supports real image inputs. A short-lived signed
 `/api/images/:id/source` link remains available for future engines that fetch
 the source by URL.
 

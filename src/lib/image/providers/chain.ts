@@ -9,9 +9,8 @@ import {
 /**
  * Tries several engines in order and returns the first picture that works.
  *
- * This is what makes the feature dependable: if NVIDIA is down (or the key is
- * wrong) OpenAI gets a turn, and the offline preview is always last, so
- * pressing "Generate" never leaves you with a dead button and no picture.
+ * If one configured service fails, another real service can get a turn.
+ * Do not silently substitute a fake offline image for a failed AI request.
  */
 export function createFallbackImageProvider(providers: ImageProvider[]): ImageProvider {
   if (providers.length === 0) {

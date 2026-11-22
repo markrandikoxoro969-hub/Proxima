@@ -33,12 +33,6 @@ import {
  * `IMAGE_GENERATION_MODEL` / `IMAGE_EDITING_MODEL`.
  */
 
-/** FLUX likes multiples of 64 in a sane range. */
-export function snapNvidiaSize(value: number): number {
-  const snapped = Math.round(value / 64) * 64;
-  return Math.min(1344, Math.max(512, snapped));
-}
-
 export type NvidiaImageOptions = {
   /** Key for FLUX.1 dev (creating). */
   apiKey?: string;
@@ -47,6 +41,8 @@ export type NvidiaImageOptions = {
   model?: string;
   editModel?: string;
   baseUrl?: string;
+  /** Full URL for a self-hosted Kontext NIM, if used. */
+  editUrl?: string;
   /** Injected in tests so no network call is made. */
   fetchImpl?: typeof fetch;
 };
@@ -61,17 +57,18 @@ export function createNvidiaImageProvider(options: NvidiaImageOptions = {}): Ima
   const model = options.model ?? nvidiaImageModel();
   const editModel = options.editModel ?? nvidiaImageEditModel();
   const baseUrl = options.baseUrl ?? nvidiaImageBaseUrl();
+  const editUrl = options.editUrl ?? (process.env.IMAGE_EDITING_URL ?? "").trim();
   const doFetch = options.fetchImpl ?? fetch;
 
   const invoke = async (
     key: string,
     targetModel: string,
     body: Record<string, unknown>,
-    request: { width: number; height: number; signal: AbortSignal },
+    request: { width: number; height: number; signal: AbortSignal; editing?: boolean },
   ): Promise<GeneratedImage> => {
     let response: Response;
     try {
-      response = await doFetch(`${baseUrl}/${targetModel}`, {
+      response = await doFetch(request.editing && editUrl ? editUrl : `${baseUrl}/${targetModel}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${key}`,
@@ -87,6 +84,14 @@ export function createNvidiaImageProvider(options: NvidiaImageOptions = {}): Ima
     }
 
     if (!response.ok) {
+      if (
+        request.editing &&
+        !editUrl &&
+        response.status === 422 &&
+        baseUrl === "https://ai.api.nvidia.com/v1/genai"
+      ) {
+        throw new ImageProviderError("NVIDIA rejected the editing input", "edit_input", 422);
+      }
       throw new ImageProviderError(
         `NVIDIA responded with HTTP ${response.status}`,
         "upstream",
@@ -101,12 +106,24 @@ export function createNvidiaImageProvider(options: NvidiaImageOptions = {}): Ima
       throw new ImageProviderError("NVIDIA sent an unreadable answer", "bad_response");
     }
 
-    const base64 = parsed.artifacts?.[0]?.base64;
+    const artifact = parsed?.artifacts?.[0];
+    if (artifact?.finishReason && artifact.finishReason !== "SUCCESS") {
+      throw new ImageProviderError("NVIDIA did not produce an image", "bad_response");
+    }
+    const base64 = artifact?.base64;
     if (!base64) throw new ImageProviderError("NVIDIA returned no image", "bad_response");
 
-    const bytes = decodeBase64(base64);
+    let bytes: Uint8Array;
+    try {
+      bytes = decodeBase64(base64);
+    } catch {
+      throw new ImageProviderError("NVIDIA sent an invalid image", "bad_response");
+    }
+    const mime = sniffImageMime(bytes);
+    if (!mime || mime === "image/svg+xml")
+      throw new ImageProviderError("NVIDIA sent an invalid image", "bad_response");
     const size = readImageSize(bytes) ?? { width: request.width, height: request.height };
-    return { bytes, mime: sniffImageMime(bytes) ?? "image/jpeg", ...size };
+    return { bytes, mime, ...size };
   };
 
   return {
@@ -118,8 +135,9 @@ export function createNvidiaImageProvider(options: NvidiaImageOptions = {}): Ima
       if (!generationKey) {
         throw new ImageProviderError("IMAGE_GENERATION is not set", "unavailable");
       }
-      const width = snapNvidiaSize(request.width);
-      const height = snapNvidiaSize(request.height);
+      // NVIDIA hosted FLUX.1 dev documents only 1024 × 1024 support.
+      const width = 1024;
+      const height = 1024;
       return invoke(
         generationKey,
         model,
@@ -150,7 +168,7 @@ export function createNvidiaImageProvider(options: NvidiaImageOptions = {}): Ima
           seed: 0,
           steps: 30,
         },
-        { width: request.width, height: request.height, signal: request.signal },
+        { width: request.width, height: request.height, signal: request.signal, editing: true },
       );
     },
   };
