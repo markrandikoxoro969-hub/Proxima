@@ -70,6 +70,32 @@ describe("multi-file coding tasks", () => {
     await expect(planCodingTask(provider, request)).resolves.toEqual(plan);
   });
 
+  it("retries an invalid plan once with a stricter JSON-format reminder", async () => {
+    let calls = 0;
+    let retrySystem = "";
+    const provider = textProvider((input) => {
+      calls += 1;
+      if (calls === 1) return "Here is the project structure.";
+      retrySystem = input.system ?? "";
+      return JSON.stringify({ files: plan });
+    });
+
+    await expect(planCodingTask(provider, request)).resolves.toEqual(plan);
+    expect(calls).toBe(2);
+    expect(retrySystem).toContain("Format correction: return one complete, valid JSON object");
+  });
+
+  it("does not loop indefinitely if the corrected plan is still invalid", async () => {
+    let calls = 0;
+    const provider = textProvider(() => {
+      calls += 1;
+      return "Not a valid file plan.";
+    });
+
+    await expect(planCodingTask(provider, request)).rejects.toMatchObject({ code: "bad_response" });
+    expect(calls).toBe(2);
+  });
+
   it("keeps deadline interruptions retryable instead of reporting them as user cancellations", async () => {
     const controller = new AbortController();
     controller.abort(Object.assign(new Error("deadline"), { name: "TimeoutError" }));
@@ -94,6 +120,22 @@ describe("multi-file coding tasks", () => {
     });
 
     expect(code).toBe("export const add = (a: number, b: number) => a + b;");
+  });
+
+  it("accepts complete source without a Markdown fence when the completion marker is present", async () => {
+    const provider = textProvider((input) => {
+      const marker = input.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1];
+      return `export const subtract = (a: number, b: number) => a - b;\n${marker}`;
+    });
+
+    await expect(
+      generateCodingFile(provider, request, {
+        file: plan[0],
+        files: plan,
+        completedFiles: [],
+        completedContent: "",
+      }),
+    ).resolves.toBe("export const subtract = (a: number, b: number) => a - b;");
   });
 
   it("rejects a file response without its completion marker", async () => {

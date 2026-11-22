@@ -25,6 +25,12 @@ const PLAN_INSTRUCTIONS = [
   "Do not include Markdown fences, commentary, or files the user did not ask for.",
 ].join("\n");
 
+const PLAN_FORMAT_RETRY = [
+  "Format correction: return one complete, valid JSON object and nothing else.",
+  'It must have a non-empty "files" array; each entry must have a safe relative "path" and a short "purpose".',
+  `Use at most ${MAX_PLANNED_FILES} unique paths. No Markdown fences, comments, or trailing commas.`,
+].join("\n");
+
 /** Avoid a planning round-trip for ordinary one-file code questions. */
 export function isMultiFileCodingRequest(message: string): boolean {
   const explicit =
@@ -93,13 +99,23 @@ export function readCodingTaskProgress(value: unknown): CodingTaskProgress | nul
 }
 
 export async function planCodingTask(provider: AiProvider, request: AiRequest): Promise<CodingFilePlan[]> {
-  const text = await collectText(provider, {
+  const planRequest: AiRequest = {
     ...request,
     mode: "coding",
     system: `${request.system ?? ""}\n\n${PLAN_INSTRUCTIONS}`.trim(),
     message: `Coding task to plan:\n${request.message}`,
-  });
-  return parseCodingPlan(text);
+  };
+  const text = await collectText(provider, planRequest);
+  try {
+    return parseCodingPlan(text);
+  } catch (error) {
+    if (!(error instanceof AiProviderError) || error.code !== "bad_response") throw error;
+    const retryText = await collectText(provider, {
+      ...planRequest,
+      system: `${planRequest.system}\n\n${PLAN_FORMAT_RETRY}`,
+    });
+    return parseCodingPlan(retryText);
+  }
 }
 
 export async function generateCodingFile(
@@ -155,7 +171,7 @@ export async function generateCodingFile(
       "bad_response",
     );
   }
-  const code = extractFencedCode(raw.slice(0, markerAt));
+  const code = extractSource(raw.slice(0, markerAt));
   if (!code.trim()) {
     throw new AiProviderError(
       `The model returned an empty file for ${file.path}. Retry to resume.`,
@@ -183,11 +199,13 @@ async function collectText(provider: AiProvider, request: AiRequest): Promise<st
   return text;
 }
 
-function extractFencedCode(response: string): string {
+function extractSource(response: string): string {
   const lines = response.replace(/\r\n?/g, "\n").trim().split("\n");
   const openIndex = lines.findIndex((line) => /^\s{0,3}(`{3,}|~{3,})/.test(line));
-  if (openIndex < 0)
-    throw new AiProviderError("The model did not return a complete fenced source file", "bad_response");
+  // Some providers omit the requested Markdown fence but still include the
+  // required final completion marker. In that case the complete response body
+  // is the source file; format it into a fence when it is saved for display.
+  if (openIndex < 0) return lines.join("\n");
   const opening = /^\s{0,3}(`{3,}|~{3,})/.exec(lines[openIndex])?.[1];
   if (!opening) throw new AiProviderError("The model returned a malformed code fence", "bad_response");
 
