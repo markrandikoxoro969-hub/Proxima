@@ -143,7 +143,7 @@ export function imageEngineStatus(env: Record<string, string | undefined> = proc
       ok: true,
       detail: openai
         ? `Using OpenAI ${openaiImageModel(env)} for create and edit.`
-        : "OPENAI_API_KEY is not set, so the offline preview answers.",
+        : "OPENAI_API_KEY is not set; set it to enable images.",
     };
   }
   if (choice.id === "nvidia") {
@@ -152,10 +152,18 @@ export function imageEngineStatus(env: Record<string, string | undefined> = proc
       ok: true,
       detail: generation
         ? `${nvidia} ${nvidiaEdit}.`
-        : "IMAGE_GENERATION is not set, so the offline preview answers.",
+        : editing
+          ? `Using ${nvidiaImageEditModel(env)} to edit; set IMAGE_GENERATION to create.`
+          : "Set IMAGE_GENERATION and IMAGE_EDITING to enable NVIDIA images.",
     };
   }
   if (generation) return { name, ok: true, detail: `${nvidia} ${nvidiaEdit}.` };
+  if (editing)
+    return {
+      name,
+      ok: true,
+      detail: `Using ${nvidiaImageEditModel(env)} to edit; set IMAGE_GENERATION to create.`,
+    };
   if (openai) return { name, ok: true, detail: `Using OpenAI ${openaiImageModel(env)} for create and edit.` };
   return {
     name,

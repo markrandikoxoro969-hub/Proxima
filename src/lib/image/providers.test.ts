@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildImagePrompt, findImageStyle, IMAGE_LIMITS } from "./limits";
 import { createFallbackImageProvider } from "./providers/chain";
 import { createMockImageProvider, mockEditSvg, mockImageSvg, wrapPrompt } from "./providers/mock";
-import { createNvidiaImageProvider, snapNvidiaSize } from "./providers/nvidia";
+import { createNvidiaImageProvider } from "./providers/nvidia";
 import { createOpenAiImageProvider, openAiSizeFor } from "./providers/openai";
-import { nvidiaEditingKey, nvidiaGenerationKey } from "./settings";
+import { nvidiaEditingKey, nvidiaGenerationKey, resolveImageSettings } from "./settings";
+import { getImageProvider, resetImageProviderCache } from "./index";
 import { ImageProviderError, type ImageProvider } from "./types";
 
 const signal = () => new AbortController().signal;
@@ -113,13 +114,10 @@ describe("NVIDIA engine", () => {
     expect(nvidiaEditingKey({ IMAGE_GENERATION: "gen-key" })).toBe("gen-key");
     // The text key is never silently sent to the image endpoint.
     expect(nvidiaGenerationKey({ NVIDIA_API_KEY: "text-key" })).toBe("");
-  });
-
-  it("snaps sizes to multiples of 64 within FLUX's range", () => {
-    expect(snapNvidiaSize(1000)).toBe(1024);
-    expect(snapNvidiaSize(100)).toBe(512);
-    expect(snapNvidiaSize(2000)).toBe(1344);
-    expect(snapNvidiaSize(930)).toBe(960);
+    expect(nvidiaGenerationKey({ IMAGE_GENERATION: `IMAGE_GENERATION="nvapi-test\\_key"` })).toBe(
+      "nvapi-test_key",
+    );
+    expect(nvidiaEditingKey({ IMAGE_EDITING: `IMAGE_EDITING="nvapi-edit\\_key"` })).toBe("nvapi-edit_key");
   });
 
   it("creates with FLUX.1 dev and the IMAGE_GENERATION key", async () => {
@@ -145,7 +143,7 @@ describe("NVIDIA engine", () => {
       mode: "base",
       cfg_scale: 3.5,
       width: 1024,
-      height: 640,
+      height: 1024,
       steps: 50,
     });
   });
@@ -179,6 +177,27 @@ describe("NVIDIA engine", () => {
     expect(body.image).toBe(pngDataUrl());
   });
 
+  it("supports a self-hosted Kontext inference URL", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(Response.json({ artifacts: [{ base64: PNG_BASE64, finishReason: "SUCCESS" }] }));
+    const provider = createNvidiaImageProvider({
+      apiKey: "gen-key",
+      editApiKey: "edit-key",
+      editUrl: "https://example.test/v1/infer",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await provider.edit!({
+      prompt: "snow",
+      width: 512,
+      height: 512,
+      image: { bytes: pngBytes(), mime: "image/png", dataUrl: pngDataUrl() },
+      strength: 0.5,
+      signal: signal(),
+    });
+    expect(fetchImpl.mock.calls[0][0]).toBe("https://example.test/v1/infer");
+  });
+
   it("does not advertise editing without IMAGE_EDITING", async () => {
     const provider = createNvidiaImageProvider({ apiKey: "gen-key", editApiKey: "" });
     expect(provider.supportsEdit).toBe(false);
@@ -192,6 +211,33 @@ describe("NVIDIA engine", () => {
         signal: signal(),
       }),
     ).rejects.toMatchObject({ code: "unavailable" });
+  });
+
+  it("rejects invalid artifacts and reports the hosted editing input restriction", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ artifacts: [{ base64: "not-an-image", finishReason: "SUCCESS" }] }),
+      )
+      .mockResolvedValueOnce(new Response("untrusted details", { status: 422 }));
+    const provider = createNvidiaImageProvider({
+      apiKey: "gen-key",
+      editApiKey: "edit-key",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await expect(
+      provider.generate({ prompt: "x", width: 512, height: 512, signal: signal() }),
+    ).rejects.toMatchObject({ code: "bad_response" });
+    await expect(
+      provider.edit!({
+        prompt: "x",
+        width: 512,
+        height: 512,
+        image: { bytes: pngBytes(), mime: "image/png", dataUrl: pngDataUrl() },
+        strength: 0.5,
+        signal: signal(),
+      }),
+    ).rejects.toMatchObject({ code: "edit_input" });
   });
 
   it("reports upstream failures without leaking the key", async () => {
@@ -280,5 +326,42 @@ describe("fallback chain", () => {
         signal: signal(),
       }),
     ).rejects.toMatchObject({ code: "unsupported" });
+  });
+});
+
+describe("automatic image configuration", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    resetImageProviderCache();
+  });
+
+  it("lets image keys work even if chat is in mock mode, unless images are explicitly mocked", () => {
+    expect(resolveImageSettings({ AI_PROVIDER: "mock", IMAGE_GENERATION: "key" }).id).toBe("auto");
+    expect(resolveImageSettings({ AI_PROVIDER: "mock", IMAGE_EDITING: "key" }).id).toBe("auto");
+    expect(resolveImageSettings({ AI_PROVIDER: "mock" }).id).toBe("mock");
+    expect(resolveImageSettings({ IMAGE_PROVIDER: "mock", IMAGE_GENERATION: "key" }).id).toBe("mock");
+  });
+
+  it("selects NVIDIA with an editing key alone", () => {
+    vi.stubEnv("IMAGE_PROVIDER", "auto");
+    vi.stubEnv("IMAGE_GENERATION", "");
+    vi.stubEnv("IMAGE_EDITING", "edit-key");
+    vi.stubEnv("OPENAI_API_KEY", "");
+    resetImageProviderCache();
+    expect(getImageProvider().id).toBe("nvidia");
+    expect(getImageProvider().supportsEdit).toBe(true);
+  });
+
+  it("does not silently return an offline preview when a configured key fails", async () => {
+    vi.stubEnv("IMAGE_PROVIDER", "auto");
+    vi.stubEnv("IMAGE_GENERATION", "bad-key");
+    vi.stubEnv("IMAGE_EDITING", "");
+    vi.stubEnv("OPENAI_API_KEY", "");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("bad key", { status: 401 })));
+    resetImageProviderCache();
+    await expect(
+      getImageProvider().generate({ prompt: "test", width: 1024, height: 1024, signal: signal() }),
+    ).rejects.toMatchObject({ code: "upstream", status: 401 });
   });
 });

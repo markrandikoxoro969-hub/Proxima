@@ -25,6 +25,12 @@ export function imageApiError(error: unknown): unknown {
           ? "The image service refused the request (key, credits or rate limit). Check IMAGE_GENERATION / IMAGE_EDITING or try again in a minute."
           : "The image engine had a problem. Please try again.",
       );
+    case "edit_input":
+      return new ApiError(
+        422,
+        "image_edit_input",
+        "NVIDIA rejected this edit. Its hosted Kontext preview documents support for sample images only; use OpenAI or a self-hosted Kontext endpoint for your own images. See docs/IMAGES.md.",
+      );
     case "unsupported":
       return new ApiError(
         422,

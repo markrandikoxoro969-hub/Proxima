@@ -1,8 +1,10 @@
+import { cleanEnvValue } from "@/lib/env-clean";
+
 /**
  * Works out which image engine to use, from the environment.
  *
  *   IMAGE_PROVIDER="auto"    → NVIDIA FLUX if its key is set, then OpenAI,
- *                              then the offline preview
+ *                              or the offline preview if no real service is configured
  *   IMAGE_PROVIDER="openai"  → OpenAI Images (create + edit)
  *   IMAGE_PROVIDER="nvidia"  → NVIDIA FLUX.1 dev (create) and FLUX.1 Kontext
  *                              (edit), each with its own key
@@ -34,8 +36,15 @@ export type ImageSettings = {
 export function resolveImageSettings(env: Record<string, string | undefined> = process.env): ImageSettings {
   const raw = (env.IMAGE_PROVIDER ?? "").trim().toLowerCase();
   if (!raw) {
-    // The old offline mode should also switch images off the network.
-    return { id: (env.AI_PROVIDER ?? "").trim().toLowerCase() === "mock" ? "mock" : DEFAULT_IMAGE_PROVIDER };
+    // Respect the old offline mode unless image keys explicitly enable images.
+    return {
+      id:
+        (env.AI_PROVIDER ?? "").trim().toLowerCase() === "mock" &&
+        !nvidiaImageConfigured(env) &&
+        !nvidiaEditConfigured(env)
+          ? "mock"
+          : DEFAULT_IMAGE_PROVIDER,
+    };
   }
   if ((KNOWN_IMAGE_PROVIDERS as readonly string[]).includes(raw)) {
     return { id: raw as ImageProviderId };
@@ -48,7 +57,7 @@ export function resolveImageSettings(env: Record<string, string | undefined> = p
   }
   return {
     id: DEFAULT_IMAGE_PROVIDER,
-    warning: `IMAGE_PROVIDER "${raw}" is unknown (options: ${KNOWN_IMAGE_PROVIDERS.join(", ")}). Using auto.`,
+    warning: `IMAGE_PROVIDER is unknown (options: ${KNOWN_IMAGE_PROVIDERS.join(", ")}). Using auto.`,
   };
 }
 
@@ -61,7 +70,7 @@ export const openaiImageConfigured = (env: Record<string, string | undefined> = 
  * sending the text key to the image endpoint would just fail.
  */
 export const nvidiaGenerationKey = (env: Record<string, string | undefined> = process.env) =>
-  (env.IMAGE_GENERATION ?? "").trim();
+  cleanEnvValue(env.IMAGE_GENERATION, "IMAGE_GENERATION") ?? "";
 
 /**
  * Key for FLUX.1 Kontext (editing). Falls back to `IMAGE_GENERATION` so a
@@ -69,7 +78,7 @@ export const nvidiaGenerationKey = (env: Record<string, string | undefined> = pr
  * models live on different NVIDIA accounts.
  */
 export const nvidiaEditingKey = (env: Record<string, string | undefined> = process.env) =>
-  (env.IMAGE_EDITING ?? "").trim() || (env.IMAGE_GENERATION ?? "").trim();
+  (cleanEnvValue(env.IMAGE_EDITING, "IMAGE_EDITING") ?? "") || nvidiaGenerationKey(env);
 
 export const nvidiaImageConfigured = (env: Record<string, string | undefined> = process.env) =>
   Boolean(nvidiaGenerationKey(env));

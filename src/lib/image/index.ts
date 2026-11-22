@@ -20,11 +20,11 @@ import type { ImageProvider } from "./types";
  * ─── The swappable image engine ───
  *
  * IMAGE_PROVIDER picks the first engine; the list below adds automatic
- * fallbacks so "Generate" always returns a picture:
+ * fallbacks for real services; the preview is used only when none is configured:
  *
- *   auto         NVIDIA FLUX (if a key) → OpenAI (if a key) → offline
+ *   auto         NVIDIA FLUX (if a key) → OpenAI (if a key), or offline if neither
  *   openai       OpenAI only (create + edit)
- *   nvidia       NVIDIA FLUX create + Kontext edit, then OpenAI/offline
+ *   nvidia       NVIDIA FLUX create + Kontext edit, then OpenAI if configured
  *   mock         offline preview only
  *
  * Add a new service: create providers/my-engine.ts, add it to `create` and to
@@ -48,6 +48,7 @@ function cacheKey(): string {
     openaiImageModel(),
     nvidiaImageModel(),
     nvidiaImageEditModel(),
+    process.env.IMAGE_EDITING_URL ?? "",
     // Only whether a key exists goes into the cache key — never the key itself.
   ].join("|");
 }
@@ -56,9 +57,9 @@ function cacheKey(): string {
 export function buildImageProviders(id: ConcreteImageProviderId): ImageProvider[] {
   switch (id) {
     case "openai":
-      return [create.openai(), create.mock()];
+      return [create.openai()];
     case "nvidia":
-      return [create.nvidia(), create.openai(), create.mock()];
+      return [create.nvidia(), ...(openaiImageConfigured() ? [create.openai()] : [])];
     case "mock":
       return [create.mock()];
   }
@@ -75,10 +76,10 @@ export function getImageProvider(): ImageProvider {
   let providers: ImageProvider[];
   if (settings.id === "auto") {
     providers = [];
-    if (nvidiaImageConfigured()) providers.push(create.nvidia());
+    if (nvidiaImageConfigured() || nvidiaEditConfigured()) providers.push(create.nvidia());
     if (openaiImageConfigured()) providers.push(create.openai());
-    // Last resort: an offline preview instead of an error.
-    providers.push(create.mock());
+    // Only use the preview when no real service is configured.
+    if (providers.length === 0) providers.push(create.mock());
   } else {
     providers = buildImageProviders(settings.id);
   }
