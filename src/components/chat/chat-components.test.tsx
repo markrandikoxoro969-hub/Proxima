@@ -98,6 +98,21 @@ describe("<MessageItem />", () => {
     expect(screen.getByText("Thought for 4s")).toBeInTheDocument();
   });
 
+  it("shows which file is being written after earlier content is visible", () => {
+    render(
+      <MessageItem
+        message={msg({
+          status: "streaming",
+          content: "### Project structure",
+          statusMessage: "Writing file 2 of 3: src/app.js",
+        })}
+        onRetry={() => {}}
+        canRetry
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Writing file 2 of 3: src/app.js");
+  });
+
   it("offers Continue when a reply ends inside a code block", async () => {
     const onQuickAction = vi.fn();
     render(

@@ -172,6 +172,56 @@ describe("POST /api/chat — signed in", () => {
     expect(await t.prisma.message.count({ where: { conversationId: convo.id } })).toBe(2);
   });
 
+  it("uses a structured plan even for a one-file Coding request", async () => {
+    state.userId = alice;
+    state.responses = [
+      JSON.stringify({ files: [{ path: "app/main.py" }] }),
+      "```py\nprint('hello')\n```\n{{MARKER}}",
+    ];
+    const events = await readSse(await send({ message: "Write a hello world script", mode: "coding" }));
+    const text = replyText(events);
+    expect(text).toContain("└── app/");
+    expect(text).toContain("└── main.py");
+    expect(text).toContain("### `app/main.py`");
+    expect(events.at(-1)?.event).toBe("done");
+    expect(state.calls).toHaveLength(2);
+  });
+
+  it("repairs an unfinished file without saving its unverified output", async () => {
+    state.userId = alice;
+    state.responses = [
+      JSON.stringify({ files: [{ path: "src/a.ts" }, { path: "src/b.ts" }] }),
+      "```ts\nexport const a = 1;\n```\n{{MARKER}}",
+      "```ts\nconst broken = true;\n```",
+      "```ts\nexport const b = 2;\n```\n{{MARKER}}",
+    ];
+    const events = await readSse(await send({ message: "Create src/a.ts and src/b.ts", mode: "coding" }));
+    expect(events.some((event) => event.event === "done")).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.event === "status" && String(event.data.message).includes("Fixing the format of src/b.ts"),
+      ),
+    ).toBe(true);
+    expect(replyText(events)).not.toContain("broken");
+    const id = events.find((event) => event.event === "meta")!.data.conversationId as string;
+    const saved = await t.prisma.message.findFirstOrThrow({
+      where: { conversationId: id, role: "assistant" },
+    });
+    expect(saved.content).toBe(replyText(events));
+    expect(saved.generationProgress).toBeNull();
+  });
+
+  it("structures temporary coding replies without persisting them", async () => {
+    state.userId = alice;
+    const count = await t.prisma.message.count();
+    state.responses = [JSON.stringify({ files: [{ path: "hello.py" }] }), "```py\nprint(1)\n```\n{{MARKER}}"];
+    const events = await readSse(await send({ message: "Write code", mode: "coding", temporary: true }));
+    expect(replyText(events)).toContain("### `hello.py`");
+    expect(events.at(-1)?.event).toBe("done");
+    expect(await t.prisma.message.count()).toBe(count);
+  });
+
   it("generates multi-file coding work one file at a time and resumes from saved checkpoints", async () => {
     state.userId = alice;
     const message = "Build a TypeScript project with src/one.ts and src/two.ts.";
@@ -190,6 +240,9 @@ describe("POST /api/chat — signed in", () => {
     const first = await readSse(await send({ message, mode: "coding" }));
     expect(first.some((event) => event.event === "done")).toBe(false);
     expect(first.find((event) => event.event === "error")?.data.retryable).toBe(true);
+    expect(replyText(first)).toContain("### Project structure");
+    expect(replyText(first)).toContain("├── one.ts");
+    expect(replyText(first)).toContain("└── two.ts");
     expect(replyText(first)).toContain("### `src/one.ts`");
     expect(replyText(first)).not.toContain("### `src/two.ts`");
 
@@ -222,6 +275,7 @@ describe("POST /api/chat — signed in", () => {
     const resumed = await readSse(await send({ message, conversationId, retry: true, mode: "coding" }));
     const restoredText = String(resumed.find((event) => event.event === "meta")?.data.resumeText ?? "");
     expect(restoredText).toBe(partial.content);
+    expect((restoredText + replyText(resumed)).split("### Project structure")).toHaveLength(2);
     expect(restoredText + replyText(resumed)).toContain("### `src/one.ts`");
     expect(replyText(resumed)).toContain("### `src/two.ts`");
     expect((restoredText + replyText(resumed)).split("### `src/one.ts`")).toHaveLength(2);
@@ -428,6 +482,18 @@ describe("POST /api/chat — guest demo", () => {
     });
     expect(replyText(events)).toBe("Hello from the **fake** AI.");
     expect(state.calls[0].sessionId).toMatch(/^demo-/);
+    expect(await t.prisma.message.count()).toBe(before);
+  });
+
+  it("can format a guest Coding reply without saving it", async () => {
+    const before = await t.prisma.message.count();
+    state.responses = [
+      JSON.stringify({ files: [{ path: "src/app.js" }] }),
+      "```js\nconsole.log(1)\n```\n{{MARKER}}",
+    ];
+    const events = await readSse(await send({ message: "Write code", mode: "coding" }));
+    expect(replyText(events)).toContain("### `src/app.js`");
+    expect(events.at(-1)?.event).toBe("done");
     expect(await t.prisma.message.count()).toBe(before);
   });
 

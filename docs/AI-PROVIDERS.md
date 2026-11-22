@@ -119,15 +119,15 @@ hosting limit; your hosting plan can impose a shorter limit. A slow model, a
 long multi-file task, or an interrupted connection may need a resume. OpenRouter
 can also change model availability and limits.
 
-Multi-file jobs save each completed file before starting the next. If the model
-omits the completion marker or returns malformed file formatting, the app asks
-it to repair the file up to twice; unverified attempts are not saved as complete.
-If repair, the provider, or the overall deadline fails, use **Retry** to resume
-from the last saved file. Completed code is included in later file requests up
-to 400,000 characters; older content is explicitly marked as omitted beyond
-that. Plans are bounded to 12 files. These checks cannot guarantee generated
-code is correct or that the free service is always available; review and run
-generated code before use.
+Coding mode first produces a planned folder tree, then outputs each file with
+its relative path and a separate code block. The tree is a plan, not a claim
+that every file has already been written. Signed-in non-temporary chats save
+completed files and can resume after an interruption. Temporary and guest chats
+are not saved, so retrying starts again. A malformed file gets up to two
+format-repair attempts; unfinished attempts are not marked complete. Up to
+400,000 characters of completed output are included as context for later files;
+older content is marked as omitted. Plans are limited to 12 files. Generated
+code should still be reviewed and run before use.
 
 ### The two-model setup (default)
 

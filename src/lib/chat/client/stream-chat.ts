@@ -87,6 +87,7 @@ export async function streamChat(
           handlers.onMeta?.(event.data);
           break;
         case "status":
+          batcher.flush(); // Keep progress updates ordered after earlier file text.
           handlers.onStatus?.(event.data);
           break;
         case "token":
@@ -99,12 +100,12 @@ export async function streamChat(
           batcher.flush();
           finished = true;
           handlers.onDone(event.data);
-          break;
+          return;
         case "error":
           batcher.flush();
           finished = true;
           handlers.onError(event.data);
-          break;
+          return;
       }
     }
     if (!finished) {
@@ -117,6 +118,7 @@ export async function streamChat(
     }
   } catch {
     batcher.flush();
+    if (finished) return;
     if (signal?.aborted) handlers.onAbort?.();
     else
       handlers.onError({

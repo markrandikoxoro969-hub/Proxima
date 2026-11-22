@@ -41,6 +41,53 @@ describe("streamChat", () => {
     expect(h.onError).not.toHaveBeenCalled();
   });
 
+  it.each(["done", "error"])("finishes on %s even when the SSE connection stays open", async (terminal) => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const payload =
+          terminal === "done"
+            ? { messageId: "m", latencyMs: 1, source: "test" }
+            : { code: "upstream", message: "Error", retryable: true };
+        controller.enqueue(
+          new TextEncoder().encode(
+            `event: token\ndata: {"text":"complete code"}\n\nevent: ${terminal}\ndata: ${JSON.stringify(payload)}\n\n`,
+          ),
+        );
+      },
+      cancel,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(body)),
+    );
+    const h = handlers();
+    await streamChat({ message: "code" }, h);
+    expect(h.onText).toHaveBeenCalledWith("complete code");
+    expect(terminal === "done" ? h.onDone : h.onError).toHaveBeenCalledOnce();
+    expect(terminal === "done" ? h.onError : h.onDone).not.toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("flushes file text before reporting the next file status", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        sse(
+          ["token", { text: "first file" }],
+          ["status", { state: "thinking", message: "Writing next file" }],
+          ["done", { messageId: null, latencyMs: 1, source: "mock" }],
+        ),
+      ),
+    );
+    const order: string[] = [];
+    const h = handlers();
+    h.onText.mockImplementation(() => order.push("text"));
+    h.onStatus.mockImplementation(() => order.push("status"));
+    await streamChat({ message: "code" }, h);
+    expect(order).toEqual(["text", "status"]);
+  });
+
   it("turns HTTP errors (e.g. rate limit) into a friendly error", async () => {
     vi.stubGlobal(
       "fetch",

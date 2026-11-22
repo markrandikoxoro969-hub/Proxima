@@ -80,7 +80,38 @@ export function parseCodingPlan(text: string): CodingFilePlan[] {
     paths.add(path);
     result.push({ path, purpose: purpose || `Implement ${path}.` });
   }
+  if (result.some(({ path }) => result.some((other) => other.path.startsWith(`${path}/`)))) {
+    throw invalidPlan(); // A path cannot be both a file and a directory.
+  }
   return result;
+}
+
+/** Present the plan as a folder tree without inventing a project root. */
+export function formatCodingTree(files: CodingFilePlan[]): string {
+  type Node = Map<string, Node | null>;
+  const root: Node = new Map();
+  for (const { path } of files) {
+    const segments = path.split("/");
+    let node = root;
+    for (const [index, segment] of segments.entries()) {
+      if (index === segments.length - 1) node.set(segment, null);
+      else {
+        if (!node.has(segment)) node.set(segment, new Map());
+        node = node.get(segment) as Node;
+      }
+    }
+  }
+  const lines: string[] = [];
+  const visit = (node: Node, prefix: string) => {
+    const entries = [...node.entries()];
+    entries.forEach(([name, children], index) => {
+      const last = index === entries.length - 1;
+      lines.push(`${prefix}${last ? "└── " : "├── "}${name}${children ? "/" : ""}`);
+      if (children) visit(children, prefix + (last ? "    " : "│   "));
+    });
+  };
+  visit(root, "");
+  return `### Project structure (planned)\n\n\`\`\`text\n${lines.join("\n")}\n\`\`\`\n\n`;
 }
 
 /** Reads persisted JSON defensively; invalid or old progress is never resumed. */

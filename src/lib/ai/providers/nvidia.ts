@@ -260,6 +260,9 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
               yield { type: "text", text: delta.content };
             }
           }
+          // A finish reason is terminal for this completion. Do not wait for
+          // an upstream connection to close after it has already finished.
+          if (delta.finishReason) break;
         }
       } catch (error) {
         streamError = error;
