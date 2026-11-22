@@ -24,7 +24,8 @@ Set `IMAGE_PROVIDER` on the server (or in `.env.local`):
 
 | Value            | Engine                             | Create | Edit | Key needed                          |
 | ---------------- | ---------------------------------- | :----: | :--: | ----------------------------------- |
-| `auto` (default) | best available, with fallbacks     |   ✅   |  ✅  | —                                   |
+| `auto` (default) | configured providers, with fallbacks | ✅ | ✅ | — |
+| `pollinations`   | Pollinations image API             |   ✅   |  ✅  | `POLLINATIONS_API_KEY`              |
 | `nvidia`         | NVIDIA FLUX.1 dev + FLUX.1 Kontext |   ✅   |  ✅  | `IMAGE_GENERATION`, `IMAGE_EDITING` |
 | `openai`         | OpenAI Images (`gpt-image-1`)      |   ✅   |  ✅  | `OPENAI_API_KEY`                    |
 | `mock`           | Offline preview (SVG card)         |   ✅   |  ✅  | —                                   |
@@ -50,7 +51,7 @@ does not edit an image. Leave `IMAGE_EDITING` empty to reuse
 `IMAGE_GENERATION` when both models are on one account. Override either model
 with `IMAGE_GENERATION_MODEL` / `IMAGE_EDITING_MODEL`.
 
-With `auto`, configured real engines are tried in order: **NVIDIA → OpenAI**.
+With `auto`, configured real engines are tried in order: **Pollinations → NVIDIA → OpenAI**.
 The offline preview is used only if no real engine is configured (or you explicitly
 select `mock`). Errors are shown when configured engines fail, so a bad key is
 not silently replaced by a fake picture. NVIDIA’s hosted FLUX.1 dev API documents
@@ -60,6 +61,11 @@ only 1024 × 1024 output; other studio sizes produce a square with that engine.
 
 ```bash
 # Add these server-side in .env.local, or in Vercel Environment Variables.
+# Pollinations: a server-side secret key (sk_), with model access and credits.
+# This is also used by Pollinations speech when enabled.
+POLLINATIONS_API_KEY="sk_…"
+# POLLINATIONS_IMAGE_MODEL="black-forest-labs/flux.1-schnell"
+# POLLINATIONS_EDIT_MODEL="black-forest-labs/flux.2-klein-4b"
 # NVIDIA FLUX — use fresh keys; do not commit or share them.
 IMAGE_GENERATION="nvapi-…"
 IMAGE_EDITING="nvapi-…"
@@ -78,11 +84,20 @@ IMAGE_SIGNING_SECRET=""              # defaults to AUTH_SECRET
 ```
 
 Keys are read on the server only, never logged, and never sent to the browser.
-Leave `IMAGE_PROVIDER` unset or set it to `auto`; an explicit `mock` or `openai`
-selection overrides these keys. Restart locally or redeploy on Vercel after changes.
+Leave `IMAGE_PROVIDER` unset or set it to `auto` to prefer Pollinations when its
+key is present. Set `IMAGE_PROVIDER="pollinations"` to use it exclusively;
+explicit `mock`, `nvidia`, or `openai` selections override automatic selection. Restart locally or redeploy on Vercel after changes.
 The status page reports configuration only, not whether NVIDIA accepts the keys.
 
 ### How editing gets your picture
+
+Pollinations receives the original PNG/JPEG/WebP bytes as a multipart upload to
+`/v1/images/edits`; creation uses `/v1/images/generations`. No image or key is
+put in a URL. Edits resize requested output dimensions to the default model's
+supported range. The strength slider is not supported by this provider. Models,
+key permissions, available credits, and pricing can change; see the
+[Pollinations API documentation](https://github.com/pollinations/pollinations/blob/main/APIDOCS.md).
+A `pk_` app key does not authenticate server requests; use a secret `sk_` key.
 
 NVIDIA FLUX.1 Kontext and OpenAI receive the picture bytes directly
 (Kontext as an inline `data:` URL, OpenAI as an upload), without exposing

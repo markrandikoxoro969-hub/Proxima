@@ -3,6 +3,7 @@ import { createFallbackImageProvider } from "./providers/chain";
 import { createMockImageProvider } from "./providers/mock";
 import { createNvidiaImageProvider } from "./providers/nvidia";
 import { createOpenAiImageProvider } from "./providers/openai";
+import { createPollinationsImageProvider } from "./providers/pollinations";
 import {
   imageWatermarkNote,
   nvidiaEditConfigured,
@@ -11,6 +12,9 @@ import {
   nvidiaImageModel,
   openaiImageConfigured,
   openaiImageModel,
+  pollinationsImageConfigured,
+  pollinationsImageModel,
+  pollinationsEditModel,
   resolveImageSettings,
   type ConcreteImageProviderId,
 } from "./settings";
@@ -22,7 +26,8 @@ import type { ImageProvider } from "./types";
  * IMAGE_PROVIDER picks the first engine; the list below adds automatic
  * fallbacks for real services; the preview is used only when none is configured:
  *
- *   auto         NVIDIA FLUX (if a key) → OpenAI (if a key), or offline if neither
+ *   auto         Pollinations → NVIDIA FLUX → OpenAI when configured, or offline
+ *   pollinations Pollinations only (create + edit)
  *   openai       OpenAI only (create + edit)
  *   nvidia       NVIDIA FLUX create + Kontext edit, then OpenAI if configured
  *   mock         offline preview only
@@ -32,6 +37,7 @@ import type { ImageProvider } from "./types";
  */
 const create: Record<ConcreteImageProviderId, () => ImageProvider> = {
   openai: () => createOpenAiImageProvider(),
+  pollinations: () => createPollinationsImageProvider(),
   nvidia: () => createNvidiaImageProvider(),
   mock: () => createMockImageProvider(),
 };
@@ -42,6 +48,9 @@ function cacheKey(): string {
   const settings = resolveImageSettings();
   return [
     settings.id,
+    pollinationsImageConfigured() ? "pollinations:yes" : "pollinations:no",
+    pollinationsImageModel(),
+    pollinationsEditModel(),
     openaiImageConfigured() ? "openai:yes" : "openai:no",
     nvidiaImageConfigured() ? "nvidia:yes" : "nvidia:no",
     nvidiaEditConfigured() ? "nvidia-edit:yes" : "nvidia-edit:no",
@@ -56,6 +65,8 @@ function cacheKey(): string {
 /** Builds the engine list for a provider choice (exported for tests). */
 export function buildImageProviders(id: ConcreteImageProviderId): ImageProvider[] {
   switch (id) {
+    case "pollinations":
+      return [create.pollinations()];
     case "openai":
       return [create.openai()];
     case "nvidia":
@@ -76,6 +87,7 @@ export function getImageProvider(): ImageProvider {
   let providers: ImageProvider[];
   if (settings.id === "auto") {
     providers = [];
+    if (pollinationsImageConfigured()) providers.push(create.pollinations());
     if (nvidiaImageConfigured() || nvidiaEditConfigured()) providers.push(create.nvidia());
     if (openaiImageConfigured()) providers.push(create.openai());
     // Only use the preview when no real service is configured.

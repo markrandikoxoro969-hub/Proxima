@@ -343,6 +343,21 @@ describe("automatic image configuration", () => {
     expect(resolveImageSettings({ IMAGE_PROVIDER: "mock", IMAGE_GENERATION: "key" }).id).toBe("mock");
   });
 
+  it("prefers Pollinations for both operations when its key is configured", () => {
+    expect(resolveImageSettings({ AI_PROVIDER: "mock", POLLINATIONS_API_KEY: "sk_test" }).id).toBe("auto");
+    vi.stubEnv("AI_PROVIDER", "");
+    vi.stubEnv("IMAGE_PROVIDER", "auto");
+    vi.stubEnv("POLLINATIONS_API_KEY", "sk_test");
+    vi.stubEnv("IMAGE_GENERATION", "gen");
+    vi.stubEnv("IMAGE_EDITING", "");
+    vi.stubEnv("OPENAI_API_KEY", "");
+    resetImageProviderCache();
+    expect(getImageProvider().id).toBe("pollinations>nvidia");
+    expect(getImageProvider().supportsEdit).toBe(true);
+    vi.stubEnv("IMAGE_PROVIDER", "pollinations");
+    expect(getImageProvider().id).toBe("pollinations");
+  });
+
   it("selects NVIDIA with an editing key alone", () => {
     vi.stubEnv("IMAGE_PROVIDER", "auto");
     vi.stubEnv("IMAGE_GENERATION", "");

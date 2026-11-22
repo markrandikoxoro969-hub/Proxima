@@ -22,9 +22,11 @@ export function imageApiError(error: unknown): unknown {
         502,
         "image_upstream",
         error.status === 401 || error.status === 402 || error.status === 403 || error.status === 429
-          ? "The image service refused the request (key, credits or rate limit). Check IMAGE_GENERATION / IMAGE_EDITING or try again in a minute."
+          ? "The image service refused the request (key, credits or rate limit). Check the configured image provider key, credits and permissions, or try again in a minute."
           : "The image engine had a problem. Please try again.",
       );
+    case "unsupported_source":
+      return new ApiError(422, "image_edit_input", "Please use a PNG, JPEG or WebP image for this edit.");
     case "edit_input":
       return new ApiError(
         422,
@@ -35,7 +37,7 @@ export function imageApiError(error: unknown): unknown {
       return new ApiError(
         422,
         "image_unsupported",
-        "This engine can't edit pictures. Set IMAGE_EDITING (NVIDIA FLUX.1 Kontext) or an OpenAI key — see docs/IMAGES.md.",
+        "This engine can't edit pictures. Configure Pollinations, NVIDIA editing, or OpenAI — see docs/IMAGES.md.",
       );
     case "bad_response":
       return new ApiError(

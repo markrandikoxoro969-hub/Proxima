@@ -498,3 +498,8 @@ Run this checklist at each width:
 5. **Memory:** verify switch is off on a fresh account; accept consent; say “I'm training for a half marathon”; verify a note appears in `/settings/memory`; ask a related question and see the chip; use “Forget this”; test edit/export/delete-all. Turn memory off and verify it is neither retrieved nor updated. Turn on Temporary and verify the URL/history isn't added to the sidebar or database and no memory chip appears.
 
 Database migration and Neon notes: see **[docs/DEPLOY.md → Memory migration](docs/DEPLOY.md#memory-migration)**. The additive migration is safe for existing users: the new boolean defaults to false, and it does not alter chats.
+
+## Moving to a new repository
+
+See [docs/NEW-REPOSITORY.md](docs/NEW-REPOSITORY.md) for a clean source snapshot,
+secret-safe setup, database migrations, and Vercel deployment.
