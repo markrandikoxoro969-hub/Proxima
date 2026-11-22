@@ -149,9 +149,13 @@ Proxima uses two NVIDIA models, automatically:
 | Normal answers (text, analysis, code without OpenRouter) | `nvidia/nemotron-3-ultra-550b-a55b` | `NVIDIA_MODEL` |
 | Reading attached pictures (OCR, screenshots, charts) | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | `NVIDIA_VISION_MODEL` |
 
-A text-only message never calls the vision model. A message with a picture
-calls the Omni reader first (thinking off, 2048-token observation), then the
-normal model answers with that observation. `/api/status?setup=1` now shows a
+A message with a picture calls the Omni reader first (thinking off,
+2048-token observation), then the normal model answers with that observation.
+For follow-ups, the latest image-bearing user turn within the recent history
+window is also sent to the reader, even when the new message has no attachment.
+This can add latency and provider usage; attaching a new picture replaces that
+context. When the reader or a picture is unavailable, visual details cannot be
+reliably answered. `/api/status?setup=1` now shows a
 **Picture reader** line with both model ids, so you can confirm the deployment
 without sending a picture.
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { temporaryHistory } from "./history";
+
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { ChatMode } from "@/lib/ai/modes";
 import type { MessagesPage, SessionSummary } from "../types";
@@ -123,7 +125,7 @@ export function useChat({
         if (index >= 0) pool = priorMessages.slice(0, index);
         while (pool.at(-1)?.role === "user") pool = pool.slice(0, -1);
       }
-      const history = pool.slice(-20).map((m) => ({ role: m.role, content: m.content }));
+      const history = temporaryHistory(pool);
 
       const answerMode = mode;
       const userTemp = tempId("tmp-user");

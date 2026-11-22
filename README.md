@@ -465,7 +465,7 @@ The top bar and `/settings` offer Default/Light plus Sky (geometric), Ocean (rou
 
 ### Optional memory and Temporary chat
 
-Memory starts **off**. After a person accepts the Settings consent card, completed replies can save a few short, keyword-matchable facts/preferences; memory reads and writes stop when the switch is off. `/settings/memory` lists, edits, exports and deletes notes. Replies that used notes show a **Memory used · Forget this** chip. **Temporary** in the composer starts a fresh local chat: nothing from it is saved and memory is not read or written. Notes are separate from chat history; deleting a chat does not delete a note. Deleting an account cascades to notes.
+Memory starts **off**. After a person accepts the Settings consent card, completed replies can save a few short, keyword-matchable facts/preferences; memory reads and writes stop when the switch is off. `/settings/memory` lists, edits, exports and deletes notes. Replies that used notes show a **Memory used · Forget this** chip. **Temporary** in the composer starts a fresh local chat: messages are not saved and memory is not read or written. Picture uploads still go to the account's image library and can be deleted there. Notes are separate from chat history; deleting a chat does not delete a note. Deleting an account cascades to notes.
 
 ### Production-build and responsive test (repeat after each upgrade)
 
