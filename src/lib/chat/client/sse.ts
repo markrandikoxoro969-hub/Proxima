@@ -22,6 +22,8 @@ export type ChatStreamEvent =
     }
   | { event: "status"; data: { state: "thinking" | "waking"; message?: string } }
   | { event: "token"; data: { text: string } }
+  /** Temporary, unverified file draft. Empty text clears the preview. */
+  | { event: "file-preview"; data: { path: string; text: string } }
   /** Only sent when the user turned on Settings → Show reasoning. */
   | { event: "reasoning"; data: { text: string } }
   | {

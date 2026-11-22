@@ -250,14 +250,20 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
           if (!delta) continue;
           if (delta.finishReason) finishReason = delta.finishReason;
           if (delta.reasoning_content) {
-            if (buffering) attemptReasoning += delta.reasoning_content;
-            else yield { type: "reasoning", text: delta.reasoning_content };
+            if (buffering) {
+              attemptReasoning += delta.reasoning_content;
+              yield { type: "activity", text: "" };
+            } else yield { type: "reasoning", text: delta.reasoning_content };
           }
           if (delta.content) {
             attemptText += delta.content;
             if (!buffering) {
               partialAnswer += delta.content;
               yield { type: "text", text: delta.content };
+            } else {
+              // Continuations are buffered to remove duplicated prefixes. Tell
+              // the caller the provider is still active without exposing them.
+              yield { type: "activity", text: "" };
             }
           }
           // A finish reason is terminal for this completion. Do not wait for

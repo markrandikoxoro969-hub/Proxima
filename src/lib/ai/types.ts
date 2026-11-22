@@ -41,9 +41,10 @@ export type AiRequest = {
 /**
  * A piece of the stream. `text` becomes the answer; `reasoning` is the model's
  * private thinking. Reasoning is never saved and never shown unless the user
- * turns on Settings → Show reasoning.
+ * turns on Settings → Show reasoning. `activity` is an empty keep-alive from a
+ * provider buffering a continuation; it is never displayed or saved.
  */
-export type AiDelta = { type: "text" | "reasoning"; text: string };
+export type AiDelta = { type: "text" | "reasoning" | "activity"; text: string };
 
 export interface AiProvider {
   /** Short id used in AI_PROVIDER, e.g. "nvidia". */

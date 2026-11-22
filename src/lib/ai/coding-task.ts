@@ -20,6 +20,9 @@ const MAX_FILE_REPAIRS = 2;
 /** Preserve substantial prior code without overflowing a model's context window. */
 const MAX_PROJECT_CONTEXT_CHARS = 400_000;
 const MAX_REPAIR_CONTEXT_CHARS = 200_000;
+/** Bound a silent/stalled provider even when it ignores AbortSignal. */
+const CODING_IDLE_TIMEOUT_MS = 90_000;
+const MAX_DRAFT_CHARS = 100_000;
 
 const PLAN_INSTRUCTIONS = [
   "Plan this coding task as files, but do not write any source code yet.",
@@ -163,12 +166,17 @@ export async function generateCodingFile(
     completedFiles,
     completedContent,
     onRepair,
+    onDraft,
+    onActivity,
   }: {
     file: CodingFilePlan;
     files: CodingFilePlan[];
     completedFiles: string[];
     completedContent: string;
     onRepair?: (attempt: number) => void;
+    /** Unverified preview only; callers must never save it as a completed file. */
+    onDraft?: (code: string) => void;
+    onActivity?: () => void;
   },
 ): Promise<string> {
   const marker = `<<<PROXIMA_FILE_COMPLETE:${randomUUID()}>>>`;
@@ -198,7 +206,13 @@ export async function generateCodingFile(
   let previousOutput = "";
   for (let attempt = 0; attempt <= MAX_FILE_REPAIRS; attempt++) {
     if (request.signal.aborted) throw interruptedError(request.signal);
-    if (attempt > 0) onRepair?.(attempt);
+    if (attempt > 0) {
+      onDraft?.("");
+      onRepair?.(attempt);
+    }
+    let lastDraftAt = 0;
+    let lastDraft = "";
+    let lastActivityAt = 0;
     const repairPrompt = attempt
       ? [
           "The previous response was not a complete, correctly formatted file.",
@@ -210,12 +224,32 @@ export async function generateCodingFile(
         ].join("\n\n")
       : "";
     try {
-      previousOutput = await collectText(provider, {
-        ...request,
-        mode: "coding",
-        system: `${request.system ?? ""}\n\n${fileInstructions}`.trim(),
-        message: [prompt, repairPrompt].filter(Boolean).join("\n\n"),
-      });
+      previousOutput = await collectText(
+        provider,
+        {
+          ...request,
+          mode: "coding",
+          system: `${request.system ?? ""}\n\n${fileInstructions}`.trim(),
+          message: [prompt, repairPrompt].filter(Boolean).join("\n\n"),
+        },
+        (text) => {
+          if (!onDraft || Date.now() - lastDraftAt < 250) return;
+          const preview = draftSource(text);
+          if (preview) {
+            lastDraftAt = Date.now();
+            if (preview !== lastDraft) {
+              lastDraft = preview;
+              onDraft(preview);
+            }
+          }
+        },
+        () => {
+          if (onActivity && Date.now() - lastActivityAt >= 3_000) {
+            lastActivityAt = Date.now();
+            onActivity();
+          }
+        },
+      );
       return parseCodingFile(previousOutput, marker, file.path);
     } catch (error) {
       if (request.signal.aborted) throw interruptedError(request.signal);
@@ -266,13 +300,78 @@ export function formatCodingFile(path: string, code: string): string {
   return `### \`${path}\`\n\n${fence}${language}\n${code.replace(/\n+$/, "")}\n${fence}\n\n`;
 }
 
-async function collectText(provider: AiProvider, request: AiRequest): Promise<string> {
-  let text = "";
-  for await (const delta of generateReply(provider, request)) {
-    if (request.signal.aborted) throw interruptedError(request.signal);
-    if (delta.type === "text") text += delta.text;
+/** Only preview a fenced file body; never expose the model's completion marker. */
+function draftSource(response: string): string {
+  const normalized = response.replace(/\r\n?/g, "\n");
+  const opening = /^\s{0,3}(`{3,}|~{3,})[^\n]*\n/.exec(normalized);
+  if (!opening) return "";
+  const fence = opening[1];
+  const lines = normalized.slice(opening[0].length).split("\n");
+  const code: string[] = [];
+  for (const line of lines) {
+    const markerPrefix = "<<<PROXIMA_FILE_COMPLETE:";
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith(markerPrefix) || (trimmed.length >= 3 && markerPrefix.startsWith(trimmed))) break;
+    const closing = /^\s{0,3}(`{3,}|~{3,})\s*$/.exec(line)?.[1];
+    if (closing && closing[0] === fence[0] && closing.length >= fence.length) break;
+    // A closing fence may be split across provider chunks. Hide it until the
+    // next chunk makes clear whether it is source or the closing delimiter.
+    if (line === lines.at(-1) && new RegExp(`^\\s{0,3}${fence[0]}{1,}\\s*$`).test(line)) break;
+    code.push(line);
   }
-  if (request.signal.aborted) throw interruptedError(request.signal);
+  return code.join("\n").slice(0, MAX_DRAFT_CHARS);
+}
+
+async function collectText(
+  provider: AiProvider,
+  request: AiRequest,
+  onText?: (text: string) => void,
+  onActivity?: () => void,
+): Promise<string> {
+  let text = "";
+  const idle = new AbortController();
+  const signal = AbortSignal.any([request.signal, idle.signal]);
+  const iterator = generateReply(provider, { ...request, signal })[Symbol.asyncIterator]();
+  let complete = false;
+  try {
+    while (true) {
+      if (signal.aborted) throw interruptedError(signal);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let onAbort: (() => void) | undefined;
+      try {
+        const interrupted = new Promise<never>((_resolve, reject) => {
+          onAbort = () => reject(interruptedError(signal));
+          signal.addEventListener("abort", onAbort, { once: true });
+          timer = setTimeout(
+            () => idle.abort(Object.assign(new Error("Coding stream stalled"), { name: "TimeoutError" })),
+            CODING_IDLE_TIMEOUT_MS,
+          );
+        });
+        const result = await Promise.race([iterator.next(), interrupted]);
+        if (result.done) {
+          complete = true;
+          break;
+        }
+        if (result.value.type === "text") {
+          text += result.value.text;
+          onText?.(text);
+        } else if (result.value.type === "activity") {
+          onActivity?.();
+        }
+      } finally {
+        if (timer) clearTimeout(timer);
+        if (onAbort) signal.removeEventListener("abort", onAbort);
+      }
+    }
+  } finally {
+    if (!complete) {
+      // Ask the upstream to stop, but don't let a non-cooperative iterator
+      // keep the request open after cancellation or timeout.
+      if (!idle.signal.aborted) idle.abort();
+      void iterator.return(undefined).catch(() => {});
+    }
+  }
+  if (signal.aborted) throw interruptedError(signal);
   if (!text.trim()) throw new AiProviderError("The model returned an empty coding response", "bad_response");
   return text;
 }

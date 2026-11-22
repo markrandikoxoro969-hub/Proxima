@@ -113,6 +113,22 @@ describe("<MessageItem />", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Writing file 2 of 3: src/app.js");
   });
 
+  it("shows an explicitly unsaved draft while the next file is being written", () => {
+    render(
+      <MessageItem
+        message={msg({
+          status: "streaming",
+          content: "Saved file",
+          filePreview: { path: "src/two.ts", text: "export const two = 2;" },
+        })}
+        onRetry={() => {}}
+        canRetry
+      />,
+    );
+    expect(screen.getByText(/draft, not saved yet/)).toBeInTheDocument();
+    expect(screen.getByText("export const two = 2;")).toBeInTheDocument();
+  });
+
   it("offers Continue when a reply ends inside a code block", async () => {
     const onQuickAction = vi.fn();
     render(

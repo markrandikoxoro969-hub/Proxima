@@ -127,7 +127,12 @@ are not saved, so retrying starts again. A malformed file gets up to two
 format-repair attempts; unfinished attempts are not marked complete. Up to
 400,000 characters of completed output are included as context for later files;
 older content is marked as omitted. Plans are limited to 12 files. Generated
-code should still be reviewed and run before use.
+code should still be reviewed and run before use. While a file
+is being generated, a live draft may be shown separately; it is unverified and
+is not saved until the whole file passes the completion check. A silent coding
+stream is stopped after 90 seconds without provider activity, allowing a saved
+chat to retry from its last completed file. The overall request and hosting
+deadlines still apply, even if the model is actively generating.
 
 ### The two-model setup (default)
 

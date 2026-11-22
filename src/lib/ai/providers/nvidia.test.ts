@@ -202,6 +202,49 @@ describe("NVIDIA provider", () => {
     expect(messages.at(-1)?.content).toContain("Continue with only the missing suffix");
   });
 
+  it("signals activity during a buffered continuation without exposing duplicate text", async () => {
+    let call = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const createStream = vi.fn(async () => {
+      const first = call++ === 0;
+      return (async function* () {
+        if (first) yield chunk({ content: "long prefix here" }, "length");
+        else {
+          yield chunk({ content: "long prefix here and" }, "");
+          await gate;
+          yield chunk({ content: " more" }, "stop");
+        }
+      })();
+    });
+    const provider = createNvidiaProvider({
+      client: {} as OpenAI,
+      createStream,
+      settings: {
+        apiKey: "fake",
+        model: "nvidia/test",
+        visionModel: "",
+        maxTokens: 2048,
+        enableThinking: false,
+        firstTokenTimeoutMs: 1000,
+      },
+    });
+    const iterator = provider.stream!({ ...request, mode: "coding" })[Symbol.asyncIterator]();
+    expect((await iterator.next()).value).toEqual({ type: "text", text: "long prefix here" });
+    expect((await iterator.next()).value).toEqual({ type: "activity", text: "" });
+    release();
+    const rest = [];
+    for await (const item of { [Symbol.asyncIterator]: () => iterator }) rest.push(item);
+    expect(
+      rest
+        .filter((item) => item.type === "text")
+        .map((item) => item.text)
+        .join(""),
+    ).toBe(" and more");
+  });
+
   it("continues through more than two output-limit chunks", async () => {
     const replies = ["first ", "second ", "third ", "last"];
     let call = 0;

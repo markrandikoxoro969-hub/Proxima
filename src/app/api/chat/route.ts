@@ -38,6 +38,7 @@ import { chatRequestSchema, LIMITS } from "@/lib/validation";
  *   meta       { mode, answerMode, conversationId, title, userMessageId }
  *   status     { state: "thinking" | "waking", message? }
  *   reasoning  { text }   ← only if the browser asked (Settings → Show reasoning)
+ *   file-preview { path, text } ← transient, unverified draft (never persisted)
  *   token      { text }   ← many of these; the answer as it is written
  *   done       { messageId, latencyMs, source, mode, text }  ← `text` is the final,
  *                                                         cleaned answer
@@ -367,6 +368,9 @@ export const POST = withApi(async (request: Request) => {
               files: codingProgress.files,
               completedFiles: codingProgress.completedFiles,
               completedContent: raw,
+              onDraft: (text) => sse.send("file-preview", { path: file.path, text }),
+              onActivity: () =>
+                sse.send("status", { state: "thinking", message: `Continuing ${file.path}…` }),
               onRepair: () =>
                 sse.send("status", {
                   state: "thinking",
@@ -386,6 +390,7 @@ export const POST = withApi(async (request: Request) => {
             raw = nextRaw;
             codingProgress = nextProgress;
             sentText = raw;
+            sse.send("file-preview", { path: file.path, text: "" });
             sse.send("token", { text: fileText });
           }
 
@@ -416,6 +421,7 @@ export const POST = withApi(async (request: Request) => {
               });
 
           for await (const delta of deltas) {
+            if (delta.type === "activity") continue;
             if (delta.type === "reasoning") {
               // Never stored, never counted as an answer, only sent when asked.
               if (showReasoning && delta.text) sse.send("reasoning", { text: delta.text });
@@ -498,7 +504,7 @@ export const POST = withApi(async (request: Request) => {
         console.error(`[chat] ${provider.id} failed (${code}${status ? `, HTTP ${status}` : ""})`);
         const message =
           codingProgress?.currentFile && code !== "aborted"
-            ? `Could not finish ${codingProgress.currentFile}. ${conversationId ? "Your completed files are saved; retry to resume from this file." : "Retry to start again."}`
+            ? `${code === "timeout" ? "The engine stopped responding or ran out of time while writing" : "Could not finish"} ${codingProgress.currentFile}. ${conversationId ? "Your completed files are saved; retry to resume from this file." : "Retry to start again."}`
             : FRIENDLY_ERRORS[code];
         sse.send("error", { code, message, retryable: code !== "aborted" });
       } finally {

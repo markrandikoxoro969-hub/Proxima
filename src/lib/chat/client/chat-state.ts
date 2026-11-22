@@ -15,6 +15,8 @@ export type UiMessage = ChatMessageDTO & {
   status?: "streaming" | "error" | "stopped";
   phase?: StreamPhase;
   statusMessage?: string;
+  /** Live unverified file content; never part of saved conversation text. */
+  filePreview?: { path: string; text: string };
   error?: { code: string; message: string; retryable: boolean };
   /** Stable key for the list (the id changes when the server confirms the message). */
   clientKey?: string;
@@ -93,6 +95,7 @@ export type ChatAction =
     }
   | { type: "phase"; key: string; id: string; phase: StreamPhase; message?: string }
   | { type: "append"; key: string; id: string; text: string }
+  | { type: "filePreview"; key: string; id: string; path: string; text: string }
   | { type: "reasoning"; key: string; id: string; text: string }
   | { type: "thought"; key: string; id: string; ms: number }
   | {
@@ -294,6 +297,12 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         statusMessage: undefined,
       }));
 
+    case "filePreview":
+      return updateMessage(state, action.key, action.id, (m) => ({
+        ...m,
+        filePreview: action.text ? { path: action.path, text: action.text } : undefined,
+      }));
+
     case "thought":
       return updateMessage(state, action.key, action.id, (m) =>
         m.thoughtMs === undefined ? { ...m, thoughtMs: action.ms } : m,
@@ -316,6 +325,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         status: undefined,
         phase: undefined,
         statusMessage: undefined,
+        filePreview: undefined,
         latencyMs: action.latencyMs,
       }));
       return { ...next, streamingKey: null, sessions: touchSession(next.sessions, action.key, 1) };
@@ -328,6 +338,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         status: "error",
         phase: undefined,
         statusMessage: undefined,
+        filePreview: undefined,
         error: action.error,
       }));
       return { ...next, streamingKey: null };
@@ -340,6 +351,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         status: "stopped",
         phase: undefined,
         statusMessage: undefined,
+        filePreview: undefined,
       }));
       return { ...next, streamingKey: null };
     }

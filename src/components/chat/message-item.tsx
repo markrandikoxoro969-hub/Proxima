@@ -180,6 +180,17 @@ function AssistantMessage({
           </>
         )}
 
+        {streaming && message.filePreview && (
+          <section aria-label={`Draft of ${message.filePreview.path}`} className="mt-4">
+            <p className="text-sm text-muted">
+              Writing <code>{message.filePreview.path}</code> — draft, not saved yet
+            </p>
+            <pre className="mt-2 max-h-96 overflow-auto rounded-2xl border border-line bg-surface-hover p-4 text-sm">
+              <code>{message.filePreview.text}</code>
+            </pre>
+          </section>
+        )}
+
         {streaming && message.content && message.statusMessage && (
           <p role="status" className="mt-3 text-sm text-muted">
             {message.statusMessage}

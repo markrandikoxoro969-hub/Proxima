@@ -143,6 +143,131 @@ describe("multi-file coding tasks", () => {
     });
   });
 
+  it("streams a draft before the file completes and does not expose the marker", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const onDraft = vi.fn();
+    const provider: AiProvider = {
+      id: "test",
+      label: "test",
+      async *stream(input) {
+        yield { type: "text", text: "```ts\n" };
+        yield { type: "text", text: "export const partial = 1;\n" };
+        await gate;
+        const marker = input.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1];
+        yield { type: "text", text: `export const done = true;\n\`\`\`\n${marker}` };
+      },
+    };
+    const pending = generateCodingFile(provider, request, {
+      file: plan[0],
+      files: plan,
+      completedFiles: [],
+      completedContent: "",
+      onDraft,
+    });
+    await vi.waitFor(() => expect(onDraft).toHaveBeenCalledWith("export const partial = 1;\n"));
+    release();
+    await expect(pending).resolves.toContain("export const done = true;");
+    expect(JSON.stringify(onDraft.mock.calls)).not.toContain("PROXIMA_FILE_COMPLETE");
+  });
+
+  it("clears an unverified draft before attempting a format repair", async () => {
+    let calls = 0;
+    const onDraft = vi.fn();
+    const provider = textProvider((input) => {
+      calls++;
+      const marker = input.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1];
+      return calls === 1 ? "```ts\nconst bad = 1;\n```" : `\`\`\`ts\nconst good = 1;\n\`\`\`\n${marker}`;
+    });
+    await generateCodingFile(provider, request, {
+      file: plan[0],
+      files: plan,
+      completedFiles: [],
+      completedContent: "",
+      onDraft,
+    });
+    expect(onDraft.mock.calls.map(([text]) => text)).toEqual(["const bad = 1;", "", "const good = 1;"]);
+  });
+
+  it("times out a stalled provider even if it ignores cancellation", async () => {
+    vi.useFakeTimers();
+    try {
+      const provider: AiProvider = {
+        id: "test",
+        label: "test",
+        async *stream() {
+          yield { type: "text", text: "```ts\npartial" };
+          await new Promise(() => {});
+        },
+      };
+      const pending = generateCodingFile(provider, request, {
+        file: plan[0],
+        files: plan,
+        completedFiles: [],
+        completedContent: "",
+      });
+      const assertion = expect(pending).rejects.toMatchObject({ code: "timeout" });
+      await vi.advanceTimersByTimeAsync(90_001);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a buffered continuation alive when the provider reports activity", async () => {
+    vi.useFakeTimers();
+    try {
+      const provider: AiProvider = {
+        id: "test",
+        label: "test",
+        async *stream(input) {
+          yield { type: "text", text: "```ts\nexport const x = 1;\n" };
+          for (let i = 0; i < 2; i++) {
+            await new Promise((resolve) => setTimeout(resolve, 60_000));
+            yield { type: "activity", text: "" };
+          }
+          const marker = input.system?.match(
+            /Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/,
+          )?.[1];
+          yield { type: "text", text: `\`\`\`\n${marker}` };
+        },
+      };
+      const onActivity = vi.fn();
+      const pending = generateCodingFile(provider, request, {
+        file: plan[0],
+        files: plan,
+        completedFiles: [],
+        completedContent: "",
+        onActivity,
+      });
+      await vi.advanceTimersByTimeAsync(120_001);
+      await expect(pending).resolves.toBe("export const x = 1;");
+      expect(onActivity).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops a stalled file promptly on cancellation", async () => {
+    const controller = new AbortController();
+    const provider: AiProvider = {
+      id: "test",
+      label: "test",
+      async *stream() {
+        await new Promise(() => {});
+      },
+    };
+    const pending = generateCodingFile(
+      provider,
+      { ...request, signal: controller.signal },
+      { file: plan[0], files: plan, completedFiles: [], completedContent: "" },
+    );
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ code: "aborted" });
+  });
+
   it("generates exactly one file, checks its completion marker, and returns source only", async () => {
     const provider = textProvider((input) => {
       const marker = input.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1];

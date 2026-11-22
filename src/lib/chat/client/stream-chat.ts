@@ -37,6 +37,7 @@ export type StreamHandlers = {
   onMeta?: (data: Data<"meta">) => void;
   onStatus?: (data: Data<"status">) => void;
   onText: (text: string) => void;
+  onFilePreview?: (data: Data<"file-preview">) => void;
   /** Private "thinking" text. Only arrives when the user asked for it. */
   onReasoning?: (text: string) => void;
   onDone: (data: Data<"done">) => void;
@@ -92,6 +93,10 @@ export async function streamChat(
           break;
         case "token":
           batcher.push(event.data.text);
+          break;
+        case "file-preview":
+          batcher.flush();
+          handlers.onFilePreview?.(event.data);
           break;
         case "reasoning":
           handlers.onReasoning?.(event.data.text);
