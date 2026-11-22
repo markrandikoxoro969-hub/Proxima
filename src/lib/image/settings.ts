@@ -3,8 +3,9 @@ import { cleanEnvValue } from "@/lib/env-clean";
 /**
  * Works out which image engine to use, from the environment.
  *
- *   IMAGE_PROVIDER="auto"    → NVIDIA FLUX if its key is set, then OpenAI,
+ *   IMAGE_PROVIDER="auto"    → Pollinations, NVIDIA FLUX, then OpenAI if keyed,
  *                              or the offline preview if no real service is configured
+ *   IMAGE_PROVIDER="pollinations" → Pollinations (create + edit)
  *   IMAGE_PROVIDER="openai"  → OpenAI Images (create + edit)
  *   IMAGE_PROVIDER="nvidia"  → NVIDIA FLUX.1 dev (create) and FLUX.1 Kontext
  *                              (edit), each with its own key
@@ -13,7 +14,7 @@ import { cleanEnvValue } from "@/lib/env-clean";
  * Keys are only read inside the provider that needs them; they are never
  * returned from this module, logged, or sent to the browser.
  */
-export const KNOWN_IMAGE_PROVIDERS = ["auto", "nvidia", "openai", "mock"] as const;
+export const KNOWN_IMAGE_PROVIDERS = ["auto", "pollinations", "nvidia", "openai", "mock"] as const;
 export type ImageProviderId = (typeof KNOWN_IMAGE_PROVIDERS)[number];
 export type ConcreteImageProviderId = Exclude<ImageProviderId, "auto">;
 
@@ -40,6 +41,7 @@ export function resolveImageSettings(env: Record<string, string | undefined> = p
     return {
       id:
         (env.AI_PROVIDER ?? "").trim().toLowerCase() === "mock" &&
+        !pollinationsImageConfigured(env) &&
         !nvidiaImageConfigured(env) &&
         !nvidiaEditConfigured(env)
           ? "mock"
@@ -60,6 +62,16 @@ export function resolveImageSettings(env: Record<string, string | undefined> = p
     warning: `IMAGE_PROVIDER is unknown (options: ${KNOWN_IMAGE_PROVIDERS.join(", ")}). Using auto.`,
   };
 }
+
+/** Pollinations secret key is shared with speech, but never sent to the browser. */
+export const pollinationsImageKey = (env: Record<string, string | undefined> = process.env) =>
+  cleanEnvValue(env.POLLINATIONS_API_KEY, "POLLINATIONS_API_KEY") ?? "";
+export const pollinationsImageConfigured = (env: Record<string, string | undefined> = process.env) =>
+  Boolean(pollinationsImageKey(env));
+export const pollinationsImageModel = (env: Record<string, string | undefined> = process.env) =>
+  (env.POLLINATIONS_IMAGE_MODEL ?? "").trim() || "black-forest-labs/flux.1-schnell";
+export const pollinationsEditModel = (env: Record<string, string | undefined> = process.env) =>
+  (env.POLLINATIONS_EDIT_MODEL ?? "").trim() || "black-forest-labs/flux.2-klein-4b";
 
 export const openaiImageConfigured = (env: Record<string, string | undefined> = process.env) =>
   Boolean((env.OPENAI_API_KEY ?? "").trim());

@@ -50,7 +50,14 @@ export type GeneratedImage = {
 };
 
 export type ImageErrorCode =
-  "unavailable" | "timeout" | "upstream" | "bad_response" | "unsupported" | "aborted" | "edit_input";
+  | "unavailable"
+  | "timeout"
+  | "upstream"
+  | "bad_response"
+  | "unsupported"
+  | "aborted"
+  | "edit_input"
+  | "unsupported_source";
 
 /** Thrown by providers; `code` decides the friendly message the person sees. */
 export class ImageProviderError extends Error {

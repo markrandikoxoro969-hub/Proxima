@@ -287,6 +287,72 @@ describe("POST /api/images/:id/edit", () => {
   });
 });
 
+describe("Pollinations image API integration", () => {
+  const realFetch = globalThis.fetch;
+  beforeEach(() => {
+    process.env.IMAGE_PROVIDER = "auto";
+    process.env.POLLINATIONS_API_KEY = "sk_test";
+    resetImageProviderCache();
+  });
+  afterAll(() => {
+    globalThis.fetch = realFetch;
+    process.env.IMAGE_PROVIDER = "mock";
+    delete process.env.POLLINATIONS_API_KEY;
+    resetImageProviderCache();
+  });
+
+  it("generates and edits an owned image, storing real output with its parent", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(input), init });
+      return Response.json({ data: [{ b64_json: PNG_BASE64 }] });
+    }) as typeof fetch;
+    const generated = await generate(
+      req("/api/images/generate", { method: "POST", body: { prompt: "a blue boat" } }),
+    );
+    expect(generated.status).toBe(200);
+    const first = await generated.json();
+    expect(first.offline).toBe(false);
+    expect(first.engine.id.startsWith("pollinations")).toBe(true);
+    const edited = await edit(
+      req(`/api/images/${first.image.id}/edit`, { method: "POST", body: { prompt: "make it red" } }),
+      ctx(first.image.id),
+    );
+    expect(edited.status).toBe(200);
+    const second = await edited.json();
+    expect(second.offline).toBe(false);
+    expect(second.original).toBe(first.image.id);
+    const saved = await testDb.prisma.imageAsset.findUniqueOrThrow({ where: { id: second.image.id } });
+    expect(saved.parentId).toBe(first.image.id);
+    expect(saved.userId).toBe(userId);
+    expect(saved.mime).toBe("image/png");
+    expect(calls.map((c) => c.url)).toEqual([
+      "https://gen.pollinations.ai/v1/images/generations",
+      "https://gen.pollinations.ai/v1/images/edits",
+    ]);
+    const form = calls[1].init!.body as FormData;
+    expect(new Uint8Array(await (form.get("image") as File).arrayBuffer())).toEqual(
+      new Uint8Array(Buffer.from(PNG_BASE64, "base64")),
+    );
+  });
+
+  it("returns a useful error rather than fake art when Pollinations refuses a request", async () => {
+    process.env.IMAGE_PROVIDER = "pollinations";
+    resetImageProviderCache();
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response("private details", { status: 401 })) as typeof fetch;
+    const result = await generate(
+      req("/api/images/generate", { method: "POST", body: { prompt: "a boat" } }),
+    );
+    expect(result.status).toBe(502);
+    const body = await result.json();
+    expect(body.error.message).toMatch(/key, credits and permissions/);
+    expect(JSON.stringify(body)).not.toContain("sk_test");
+    expect(JSON.stringify(body)).not.toContain("private details");
+  });
+});
+
 describe("editing through NVIDIA FLUX.1 Kontext", () => {
   // Stands in for ai.api.nvidia.com: captures the request, answers an artifact.
   const realFetch = globalThis.fetch;

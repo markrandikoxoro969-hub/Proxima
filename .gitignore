@@ -48,3 +48,6 @@ next-env.d.ts
 
 # Local test screenshots (not part of the site)
 /.arena/
+
+# Downloadable clean-source snapshot (generated locally, never commit it)
+/Proxima-clean-source.tar.gz
