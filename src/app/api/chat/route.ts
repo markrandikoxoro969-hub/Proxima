@@ -361,6 +361,11 @@ export const POST = withApi(async (request: Request) => {
               files: codingProgress.files,
               completedFiles: codingProgress.completedFiles,
               completedContent: raw,
+              onRepair: () =>
+                sse.send("status", {
+                  state: "thinking",
+                  message: `Fixing the format of ${file.path} before continuing…`,
+                }),
             });
             const fileText = formatCodingFile(file.path, code);
             const nextRaw = raw + fileText;
@@ -481,9 +486,14 @@ export const POST = withApi(async (request: Request) => {
         if (clientGone.signal.aborted) return;
         const code: AiErrorCode =
           error instanceof AiProviderError ? error.code : timeout.aborted ? "timeout" : "unavailable";
-        // Log the failure type only — never the user's message or the API key.
-        console.error(`[chat] ${provider.id} failed (${code}):`, (error as Error).message);
-        sse.send("error", { code, message: FRIENDLY_ERRORS[code], retryable: code !== "aborted" });
+        // Log only the failure type and status, never prompts, provider responses or keys.
+        const status = error instanceof AiProviderError ? error.status : undefined;
+        console.error(`[chat] ${provider.id} failed (${code}${status ? `, HTTP ${status}` : ""})`);
+        const message =
+          codingProgress?.currentFile && code !== "aborted"
+            ? `Could not finish ${codingProgress.currentFile}. Your completed files are saved; retry to resume from this file.`
+            : FRIENDLY_ERRORS[code];
+        sse.send("error", { code, message, retryable: code !== "aborted" });
       } finally {
         clearTimeout(waking);
         clearInterval(heartbeat);

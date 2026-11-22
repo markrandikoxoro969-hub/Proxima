@@ -83,7 +83,7 @@ export function buildMessages({
           { type: "text", text: message },
           ...images.map<AiImagePart>((image) => ({ type: "image_url", image_url: { url: image.dataUrl } })),
         ]
-      : imageNote(message.slice(0, maxChars), images.length);
+      : imageNote(message, images.length);
   }
 
   return [{ role: "system", content: system }, ...recent, { role: "user", content: newest }];
