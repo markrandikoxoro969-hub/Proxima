@@ -6,6 +6,7 @@ import { SYSTEM_PROMPT } from "@/lib/ai/prompt";
 import { generateReply, typeOut } from "@/lib/ai/reply";
 import {
   formatCodingFile,
+  formatCodingTree,
   generateCodingFile,
   isMultiFileCodingRequest,
   planCodingTask,
@@ -308,10 +309,7 @@ export const POST = withApi(async (request: Request) => {
 
       let codingProgress = resumeCodingProgress;
       const fileByFile = Boolean(
-        !identityAnswer &&
-        userId &&
-        !temporary &&
-        (resumeCodingProgress || (multiFileIntent && !resumedAssistant)),
+        !identityAnswer && (resumeCodingProgress || (answerMode === "coding" && !resumedAssistant)),
       );
       const finalAnswer = () => (fileByFile ? raw : stripFiller(cleanIdentityLeaks(raw)));
 
@@ -344,7 +342,15 @@ export const POST = withApi(async (request: Request) => {
             };
           }
           codingProgress = { ...codingProgress, state: "in-progress", currentFile: null };
-          await saveIncomplete(raw, codingProgress as unknown as Prisma.InputJsonValue);
+          if (!raw) {
+            const tree = formatCodingTree(codingProgress.files);
+            await saveIncomplete(tree, codingProgress as unknown as Prisma.InputJsonValue);
+            raw = tree;
+            sentText = raw;
+            sse.send("token", { text: tree });
+          } else {
+            await saveIncomplete(raw, codingProgress as unknown as Prisma.InputJsonValue);
+          }
 
           for (const [index, file] of codingProgress.files.entries()) {
             if (codingProgress.completedFiles.includes(file.path)) continue;
@@ -361,6 +367,8 @@ export const POST = withApi(async (request: Request) => {
               files: codingProgress.files,
               completedFiles: codingProgress.completedFiles,
               completedContent: raw,
+              onRepair: () =>
+                sse.send("status", { state: "thinking", message: `Fixing ${file.path} before continuing…` }),
             });
             const fileText = formatCodingFile(file.path, code);
             const nextRaw = raw + fileText;
@@ -445,9 +453,6 @@ export const POST = withApi(async (request: Request) => {
 
         const latencyMs = Date.now() - started;
         const messageId = await saveComplete(text || sentText, latencyMs);
-        // Learn after the reply completes: extraction is deterministic and
-        // best-effort, and the database consent check was made above.
-        if (useMemory && userId) await rememberMessage(userId, input.message, conversationId);
         sse.send("done", {
           messageId,
           latencyMs,
@@ -460,6 +465,10 @@ export const POST = withApi(async (request: Request) => {
             ? { usedMemory: memories.map((memory) => ({ id: memory.id, text: memory.text })) }
             : {}),
         });
+        // The answer is saved; close the stream before best-effort memory writes
+        // so a slow database cannot keep the Stop button visible.
+        sse.close();
+        if (useMemory && userId) await rememberMessage(userId, input.message, conversationId).catch(() => 0);
       } catch (error) {
         const incompleteProgress = codingProgress
           ? { ...codingProgress, state: "interrupted" as const }
@@ -482,8 +491,12 @@ export const POST = withApi(async (request: Request) => {
         const code: AiErrorCode =
           error instanceof AiProviderError ? error.code : timeout.aborted ? "timeout" : "unavailable";
         // Log the failure type only — never the user's message or the API key.
-        console.error(`[chat] ${provider.id} failed (${code}):`, (error as Error).message);
-        sse.send("error", { code, message: FRIENDLY_ERRORS[code], retryable: code !== "aborted" });
+        console.error(`[chat] ${provider.id} failed (${code})`);
+        const message =
+          codingProgress?.currentFile && code !== "aborted"
+            ? `Could not finish ${codingProgress.currentFile}. ${conversationId ? "Completed files are saved; retry to resume." : "Retry to start again."}`
+            : FRIENDLY_ERRORS[code];
+        sse.send("error", { code, message, retryable: code !== "aborted" });
       } finally {
         clearTimeout(waking);
         clearInterval(heartbeat);

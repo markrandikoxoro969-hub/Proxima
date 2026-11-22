@@ -1,8 +1,9 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AiProvider, AiRequest } from "./types";
 import {
   formatCodingFile,
+  formatCodingTree,
   generateCodingFile,
   isMultiFileCodingRequest,
   parseCodingPlan,
@@ -59,9 +60,45 @@ describe("multi-file coding tasks", () => {
     { files: [] },
     { files: [{ path: "../secret.txt", purpose: "escape" }] },
     { files: [{ path: "src/a.ts" }, { path: "src/a.ts" }] },
+    { files: [{ path: "src" }, { path: "src/a.ts" }] },
     { files: Array.from({ length: 13 }, (_, index) => ({ path: `src/${index}.ts` })) },
   ])("rejects unsafe, duplicate, empty, or excessive file plans", (value) => {
     expect(() => parseCodingPlan(JSON.stringify(value))).toThrow(/file plan/i);
+  });
+
+  it("formats nested folders and root files as a readable tree", () => {
+    expect(
+      formatCodingTree([
+        { path: "app/ui/index.js", purpose: "" },
+        { path: "app/main.py", purpose: "" },
+        { path: "README.md", purpose: "" },
+      ]),
+    ).toBe(
+      "### Project structure (planned)\n\n```text\n├── app/\n│   ├── ui/\n│   │   └── index.js\n│   └── main.py\n└── README.md\n```\n\n",
+    );
+  });
+
+  it("repairs an invalid file and retains substantial earlier file context", async () => {
+    let calls = 0;
+    const provider = textProvider((input) => {
+      calls++;
+      expect(input.message).toContain("LAST_EXPORT");
+      const marker = input.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1];
+      if (calls === 1) return "```ts\nexport const x = 1;\n```";
+      expect(input.message).toContain("Previous attempt (unverified)");
+      return `\`\`\`ts\nexport const x = 1;\n\`\`\`\n${marker}`;
+    });
+    const repair = vi.fn();
+    await expect(
+      generateCodingFile(provider, request, {
+        file: plan[1],
+        files: plan,
+        completedFiles: [plan[0].path],
+        completedContent: "x".repeat(20_000) + "LAST_EXPORT",
+        onRepair: repair,
+      }),
+    ).resolves.toBe("export const x = 1;");
+    expect(repair).toHaveBeenCalledOnce();
   });
 
   it("plans without generating source code", async () => {

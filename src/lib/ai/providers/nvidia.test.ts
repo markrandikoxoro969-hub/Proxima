@@ -92,7 +92,7 @@ describe("NVIDIA provider", () => {
 
   it("keeps reasoning_content separate from the answer", async () => {
     const { provider } = setup([
-      chunk({ reasoning_content: "The user wants a one-liner." }),
+      chunk({ reasoning_content: "The user wants a one-liner." }, ""),
       chunk({ content: "A Map stores key → value pairs." }),
     ]);
     const deltas = await collect(provider.stream!(request));
@@ -100,6 +100,38 @@ describe("NVIDIA provider", () => {
       { type: "reasoning", text: "The user wants a one-liner." },
       { type: "text", text: "A Map stores key → value pairs." },
     ]);
+  });
+
+  it("finishes at the provider finish reason without waiting for the upstream to close", async () => {
+    const close = vi.fn(async () => ({ done: true as const, value: undefined }));
+    let reads = 0;
+    const createStream = vi.fn(async () => ({
+      [Symbol.asyncIterator]() {
+        return {
+          next() {
+            return ++reads === 1
+              ? Promise.resolve({ done: false as const, value: chunk({ content: "finished" }) })
+              : new Promise<IteratorResult<unknown>>(() => {});
+          },
+          return: close,
+        };
+      },
+    }));
+    const provider = createNvidiaProvider({
+      client: {} as OpenAI,
+      createStream,
+      settings: {
+        apiKey: "fake",
+        model: "nvidia/test-model",
+        visionModel: "",
+        maxTokens: 2048,
+        enableThinking: false,
+        firstTokenTimeoutMs: 1000,
+      },
+    });
+    expect((await collect(provider.stream!(request))).map((d) => d.text).join("")).toBe("finished");
+    expect(reads).toBe(1);
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it("can switch thinking off", async () => {
@@ -235,7 +267,7 @@ describe("NVIDIA provider", () => {
       const attempt = call++;
       return (async function* () {
         if (attempt === 0) {
-          yield chunk({ content: "The stable sentence." });
+          yield chunk({ content: "The stable sentence." }, "");
           throw Object.assign(new Error("upstream reset"), { status: 503 });
         }
         yield chunk({ content: "The stable sentence. And the rest." });

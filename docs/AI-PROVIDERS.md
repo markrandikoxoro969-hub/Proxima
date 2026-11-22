@@ -119,6 +119,15 @@ hosting limit; your hosting plan can impose a shorter limit. A slow model, a
 long multi-file task, or an interrupted connection may need a resume. OpenRouter
 can also change model availability and limits.
 
+Coding mode first produces a planned folder tree, then outputs each file with
+its relative path and a separate code block. The tree is a plan, not a claim
+that every file has already been written. Signed-in non-temporary chats save
+completed files and can resume after an interruption. Temporary and guest chats
+are not saved, so retrying starts again. A malformed file gets up to two
+format-repair attempts; unfinished attempts are not marked complete. Up to
+400,000 characters of completed output are included as context for later files;
+older content is marked as omitted. Plans are limited to 12 files.
+
 ### The two-model setup (default)
 
 Proxima uses two NVIDIA models, automatically:

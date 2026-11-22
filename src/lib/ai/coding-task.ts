@@ -15,6 +15,9 @@ export type CodingTaskProgress = {
 };
 
 const MAX_PLANNED_FILES = 12;
+const MAX_FILE_REPAIRS = 2;
+const MAX_PROJECT_CONTEXT_CHARS = 400_000;
+const MAX_REPAIR_CONTEXT_CHARS = 200_000;
 
 const PLAN_INSTRUCTIONS = [
   "Plan this coding task as files, but do not write any source code yet.",
@@ -75,7 +78,38 @@ export function parseCodingPlan(text: string): CodingFilePlan[] {
     paths.add(path);
     result.push({ path, purpose: purpose || `Implement ${path}.` });
   }
+  if (result.some(({ path }) => result.some((other) => other.path.startsWith(`${path}/`)))) {
+    throw invalidPlan(); // A path cannot be both a file and a directory.
+  }
   return result;
+}
+
+/** Present the plan as a folder tree without inventing a project root. */
+export function formatCodingTree(files: CodingFilePlan[]): string {
+  type Node = Map<string, Node | null>;
+  const root: Node = new Map();
+  for (const { path } of files) {
+    const segments = path.split("/");
+    let node = root;
+    for (const [index, segment] of segments.entries()) {
+      if (index === segments.length - 1) node.set(segment, null);
+      else {
+        if (!node.has(segment)) node.set(segment, new Map());
+        node = node.get(segment) as Node;
+      }
+    }
+  }
+  const lines: string[] = [];
+  const visit = (node: Node, prefix: string) => {
+    const entries = [...node.entries()];
+    entries.forEach(([name, children], index) => {
+      const last = index === entries.length - 1;
+      lines.push(`${prefix}${last ? "└── " : "├── "}${name}${children ? "/" : ""}`);
+      if (children) visit(children, prefix + (last ? "    " : "│   "));
+    });
+  };
+  visit(root, "");
+  return `### Project structure (planned)\n\n\`\`\`text\n${lines.join("\n")}\n\`\`\`\n\n`;
 }
 
 /** Reads persisted JSON defensively; invalid or old progress is never resumed. */
@@ -126,11 +160,13 @@ export async function generateCodingFile(
     files,
     completedFiles,
     completedContent,
+    onRepair,
   }: {
     file: CodingFilePlan;
     files: CodingFilePlan[];
     completedFiles: string[];
     completedContent: string;
+    onRepair?: () => void;
   },
 ): Promise<string> {
   const marker = `<<<PROXIMA_FILE_COMPLETE:${randomUUID()}>>>`;
@@ -151,34 +187,46 @@ export async function generateCodingFile(
     completedPaths.length
       ? `Already completed and saved; do not regenerate:\n${completedPaths.join("\n")}`
       : "No files have been completed yet.",
+    ...(completedContent
+      ? [
+          `Previously completed files (context only, do not reproduce):\n${completedContent.length > MAX_PROJECT_CONTEXT_CHARS ? "[Earlier project content omitted to fit the context budget.]\n" : ""}${completedContent.slice(-MAX_PROJECT_CONTEXT_CHARS)}`,
+        ]
+      : []),
     `Generate only this file now:\n${file.path}\nPurpose: ${file.purpose}`,
     "Keep exported names and interfaces compatible with the files already saved above.",
   ].join("\n\n");
-  const history = [...(request.history ?? [])];
-  if (completedContent) history.push({ role: "assistant", content: completedContent });
-
-  const raw = await collectText(provider, {
-    ...request,
-    mode: "coding",
-    history,
-    system: `${request.system ?? ""}\n\n${fileInstructions}`.trim(),
-    message: prompt,
-  });
-  const markerAt = raw.lastIndexOf(marker);
-  if (markerAt < 0 || raw.slice(markerAt + marker.length).trim()) {
-    throw new AiProviderError(
-      `The model did not finish ${file.path}. Its progress is saved; retry to resume.`,
-      "bad_response",
-    );
+  let previousOutput = "";
+  for (let attempt = 0; attempt <= MAX_FILE_REPAIRS; attempt++) {
+    if (request.signal.aborted) throw interruptedError(request.signal);
+    if (attempt) onRepair?.();
+    try {
+      previousOutput = await collectText(provider, {
+        ...request,
+        mode: "coding",
+        system: `${request.system ?? ""}\n\n${fileInstructions}`.trim(),
+        message: attempt
+          ? `${prompt}\n\nThe previous response was incomplete or malformed. Return the entire file again, not a patch, and include the exact completion marker.\nPrevious attempt (unverified):\n${previousOutput.slice(0, MAX_REPAIR_CONTEXT_CHARS)}${previousOutput.length > MAX_REPAIR_CONTEXT_CHARS ? "\n[Previous attempt truncated.]" : ""}`
+          : prompt,
+      });
+      const markerAt = previousOutput.lastIndexOf(marker);
+      if (markerAt < 0 || previousOutput.slice(markerAt + marker.length).trim()) {
+        throw new AiProviderError(`The model did not finish ${file.path}`, "bad_response");
+      }
+      const code = extractSource(previousOutput.slice(0, markerAt));
+      if (!code.trim())
+        throw new AiProviderError(`The model returned an empty file for ${file.path}`, "bad_response");
+      return code;
+    } catch (error) {
+      if (request.signal.aborted) throw interruptedError(request.signal);
+      if (
+        !(error instanceof AiProviderError) ||
+        error.code !== "bad_response" ||
+        attempt === MAX_FILE_REPAIRS
+      )
+        throw error;
+    }
   }
-  const code = extractSource(raw.slice(0, markerAt));
-  if (!code.trim()) {
-    throw new AiProviderError(
-      `The model returned an empty file for ${file.path}. Retry to resume.`,
-      "bad_response",
-    );
-  }
-  return code;
+  throw new AiProviderError("The model could not complete the file", "bad_response");
 }
 
 export function formatCodingFile(path: string, code: string): string {
@@ -212,7 +260,10 @@ function extractSource(response: string): string {
   let closeIndex = -1;
   for (let i = openIndex + 1; i < lines.length; i++) {
     const closing = /^\s{0,3}(`{3,}|~{3,})\s*$/.exec(lines[i])?.[1];
-    if (closing && closing[0] === opening[0] && closing.length >= opening.length) closeIndex = i;
+    if (closing && closing[0] === opening[0] && closing.length >= opening.length) {
+      closeIndex = i;
+      break;
+    }
   }
   if (closeIndex < 0 || lines.slice(closeIndex + 1).some((line) => line.trim())) {
     throw new AiProviderError("The model returned an unfinished code fence", "bad_response");

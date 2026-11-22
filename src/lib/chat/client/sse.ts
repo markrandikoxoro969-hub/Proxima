@@ -67,6 +67,7 @@ export async function* readChatStream(body: ReadableStream<Uint8Array>): AsyncGe
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let ended = false;
   try {
     while (true) {
       const { value, done } = await reader.read();
@@ -80,9 +81,15 @@ export async function* readChatStream(body: ReadableStream<Uint8Array>): AsyncGe
           /* ignore a malformed event rather than breaking the whole reply */
         }
       }
-      if (done) return;
+      if (done) {
+        ended = true;
+        return;
+      }
     }
   } finally {
+    // Stop reading immediately after a terminal event, even if the server or
+    // proxy leaves the connection open. Do not wait on a slow cancel hook.
+    if (!ended) void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

@@ -180,6 +180,11 @@ function AssistantMessage({
           </>
         )}
 
+        {streaming && message.content && message.statusMessage && (
+          <p role="status" className="mt-3 text-sm text-muted">
+            {message.statusMessage}
+          </p>
+        )}
         {streaming && message.content && <span className="stream-caret" aria-hidden />}
 
         {cutOffCode && (
