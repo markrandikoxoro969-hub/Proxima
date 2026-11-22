@@ -8,8 +8,8 @@
  *   analyze   structured breakdown, evidence and a recommendation
  *
  * This file is imported by BOTH the browser (the picker) and the server
- * (the prompt + model settings). It therefore has no dependencies and no
- * "server-only" import: keep it that way.
+ * (mode selection + model settings). Prompt text lives in mode-prompts.ts so
+ * long system instructions stay out of the browser bundle.
  */
 
 export const CHAT_MODES = ["thinking", "fast", "coding", "analyze"] as const;
@@ -34,8 +34,6 @@ export type ModeConfig = {
   maxTokens: number;
   /** How many earlier turns are sent as context. */
   historyLimit: number;
-  /** Appended to the system prompt by modeSystemPrompt(). */
-  guidance: string;
 };
 
 export const MODE_CONFIG: Record<ChatMode, ModeConfig> = {
@@ -49,12 +47,6 @@ export const MODE_CONFIG: Record<ChatMode, ModeConfig> = {
     topP: 0.95,
     maxTokens: 4096,
     historyLimit: 20,
-    guidance: [
-      "Mode: Thinking.",
-      "Work the problem through before you answer: check assumptions, look for edge cases, then give the result.",
-      "Keep the working private. The answer itself should be calm, correct and no longer than it needs to be.",
-      "For a hard question, a short plan or a few numbered steps is welcome; for an easy one, answer in a sentence.",
-    ].join("\n"),
   },
 
   fast: {
@@ -67,12 +59,6 @@ export const MODE_CONFIG: Record<ChatMode, ModeConfig> = {
     topP: 0.9,
     maxTokens: 1024,
     historyLimit: 12,
-    guidance: [
-      "Mode: Fast.",
-      "Answer immediately in one to three sentences. No preamble, no restating the question, no long lists or headings.",
-      "Include code or an example only when the answer would be wrong without it.",
-      "If the request needs a long answer, give the single most useful part and offer to go deeper.",
-    ].join("\n"),
   },
 
   coding: {
@@ -80,22 +66,14 @@ export const MODE_CONFIG: Record<ChatMode, ModeConfig> = {
     label: "Coding",
     summary: "Complete, runnable code",
     waiting: "Writing code",
-    thinking: true,
+    // Private reasoning shares NVIDIA's output-token budget; reserve it for source code.
+    thinking: false,
     temperature: 0.2,
     topP: 0.9,
-    // A complete file plus its explanation no longer fits 8192 once the
-    // model's private reasoning shares the same budget.
+    // Multi-file tasks are planned and emitted one file at a time; a large
+    // individual file can still use the provider's continuation path.
     maxTokens: 16_384,
     historyLimit: 16,
-    guidance: [
-      "Mode: Coding.",
-      "The code is the answer. Do not shorten it to fit the usual two-or-three-sentence style, and do not stop at a sketch when the request needs a working result.",
-      'Think like a careful senior engineer. Return complete, runnable code — every import, every file, no "…" or "your code here" where real code belongs. If the answer needs several files, give each one its own fenced block with its path above it.',
-      "Use the correct language tag on every fence. Handle empty, null, failure and edge cases; keep names clear and the code idiomatic.",
-      "Before you finish, re-read what you wrote: every name must be defined, every bracket closed, and the example must run as written. If you could not test something, say which assumption you made.",
-      "If the user pasted an error, name the root cause first, then show the fix. Never invent an API: if you are not sure it exists, say so.",
-      "Keep the explanation after the code to a few short lines (how to run it, one assumption). Do not bury the code under a long essay.",
-    ].join("\n"),
   },
 
   analyze: {
@@ -108,14 +86,6 @@ export const MODE_CONFIG: Record<ChatMode, ModeConfig> = {
     topP: 0.95,
     maxTokens: 6144,
     historyLimit: 20,
-    guidance: [
-      "Mode: Analyze.",
-      "Break the question into its parts before answering. Separate what is known from what is assumed, and say which is which.",
-      "Use short bullet points when comparing options, causes or evidence. Avoid tables unless the numbers genuinely need columns; if you use one, keep it to two narrow columns that read on a phone.",
-      "Name each option or cause in full. Never use a letter, number or one-word label as a placeholder standing in for an explanation.",
-      "Finish with a clear conclusion or recommendation, plus the main risk or the next thing worth checking.",
-      "If the data is not enough for a firm conclusion, say what is missing instead of guessing.",
-    ].join("\n"),
   },
 };
 
@@ -133,14 +103,6 @@ export function resolveChatMode(value: unknown, fallback: ChatMode = DEFAULT_CHA
 
 export function resolveModeConfig(value: unknown): ModeConfig {
   return MODE_CONFIG[resolveChatMode(value)];
-}
-
-/**
- * Base system prompt + this mode's rules. The mode section is last so it is
- * the freshest instruction the model reads.
- */
-export function modeSystemPrompt(baseSystemPrompt: string, mode: ChatMode): string {
-  return `${baseSystemPrompt.trim()}\n\n${MODE_CONFIG[mode].guidance}`;
 }
 
 /**

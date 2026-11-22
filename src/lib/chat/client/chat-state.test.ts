@@ -21,6 +21,7 @@ const msg = (
   content,
   attachments: null,
   latencyMs: null,
+  complete: true,
   createdAt: now,
   ...extra,
 });
@@ -49,6 +50,7 @@ describe("chatReducer", () => {
       key: DRAFT,
       conversationId: "c1",
       title: "Hello",
+      answerMode: "coding",
       userTempId: "tmp-user-1",
       userMessageId: "u1",
     });
@@ -57,6 +59,7 @@ describe("chatReducer", () => {
     expect(s.conversations[DRAFT]).toBeUndefined();
     expect(s.sessions[0]).toMatchObject({ id: "c1", title: "Hello", messageCount: 1 });
     expect(s.conversations.c1.messages[0]).toMatchObject({ id: "u1", clientKey: "tmp-user-1" });
+    expect(s.conversations.c1.messages[1].mode).toBe("coding");
 
     s = chatReducer(s, { type: "append", key: "c1", id: "tmp-ai-1", text: "Hi " });
     s = chatReducer(s, { type: "append", key: "c1", id: "tmp-ai-1", text: "there" });
@@ -119,6 +122,32 @@ describe("chatReducer", () => {
       replaceId: "tmp-ai-3",
     });
     expect(s.conversations[DRAFT].messages.map((m) => m.id)).toEqual(["tmp-user-3", "tmp-ai-4"]);
+  });
+
+  it("restores interrupted saved replies as retryable incomplete messages", () => {
+    const s = initialChatState({
+      sessions: [session("a")],
+      nextCursor: null,
+      activeId: "a",
+      activePage: {
+        messages: [
+          msg("u1", "user", "Build a project"),
+          msg("a1", "assistant", "Completed file was saved.", { complete: false }),
+        ],
+        hasMore: false,
+        nextBefore: null,
+      },
+    });
+
+    expect(s.conversations.a.messages[1]).toMatchObject({
+      complete: false,
+      status: "error",
+      error: {
+        code: "interrupted",
+        retryable: true,
+        message: expect.stringContaining("Saved progress is preserved"),
+      },
+    });
   });
 
   it("prepends older messages without duplicates", () => {

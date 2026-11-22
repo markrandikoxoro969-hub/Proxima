@@ -13,6 +13,7 @@ const msg = (extra: Partial<UiMessage>): UiMessage => ({
   content: "",
   attachments: null,
   latencyMs: null,
+  complete: true,
   createdAt: "2026-11-19T10:00:00.000Z",
   ...extra,
 });

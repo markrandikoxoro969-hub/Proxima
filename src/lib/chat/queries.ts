@@ -48,7 +48,15 @@ export async function getMessagesPage(
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
     ...(before ? { cursor: { id: before }, skip: 1 } : {}),
-    select: { id: true, role: true, content: true, attachments: true, latencyMs: true, createdAt: true },
+    select: {
+      id: true,
+      role: true,
+      content: true,
+      attachments: true,
+      latencyMs: true,
+      generationProgress: true,
+      createdAt: true,
+    },
   });
   const hasMore = rows.length > limit;
   const messages: ChatMessageDTO[] = rows
@@ -60,6 +68,7 @@ export async function getMessagesPage(
       content: m.content,
       attachments: Array.isArray(m.attachments) ? (m.attachments as AttachmentMeta[]) : null,
       latencyMs: m.latencyMs,
+      complete: m.generationProgress === null,
       createdAt: m.createdAt.toISOString(),
     }));
   return { messages, hasMore, nextBefore: hasMore ? (messages[0]?.id ?? null) : null };

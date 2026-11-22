@@ -37,6 +37,8 @@ export type ChatMessageDTO = {
   content: string;
   attachments: AttachmentMeta[] | null;
   latencyMs: number | null;
+  /** False when a reply was interrupted and has resumable progress saved. */
+  complete: boolean;
   createdAt: string;
 };
 

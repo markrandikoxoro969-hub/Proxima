@@ -19,7 +19,8 @@ const state = vi.hoisted(() => ({
     system?: string;
   }[],
   reply: "Hello from the **fake** AI." as string | Error,
-  stream: null as { type: "text" | "reasoning"; text: string }[] | null,
+  stream: null as ({ type: "text" | "reasoning"; text: string } | Error)[] | null,
+  responses: [] as (string | Error)[],
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -64,8 +65,8 @@ vi.mock("@/lib/ai", async (importOriginal) => {
         },
       };
 
-      // Only expose stream() when a test wants to stream reasoning/text.
-      if (!state.stream) return base;
+      // Expose stream() only when a test scripts tokens or a sequence of task responses.
+      if (!state.stream && state.responses.length === 0) return base;
       return {
         ...base,
         async *stream(request: {
@@ -76,7 +77,18 @@ vi.mock("@/lib/ai", async (importOriginal) => {
           system?: string;
         }) {
           record(request);
-          for (const delta of state.stream ?? []) yield delta;
+          const response = state.responses.shift();
+          if (response instanceof Error) throw response;
+          if (typeof response === "string") {
+            const marker =
+              request.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1] ?? "";
+            yield { type: "text", text: response.replaceAll("{{MARKER}}", marker) };
+            return;
+          }
+          for (const delta of state.stream ?? []) {
+            if (delta instanceof Error) throw delta;
+            yield delta;
+          }
         },
       };
     },
@@ -113,6 +125,7 @@ beforeEach(async () => {
   state.calls = [];
   state.reply = "Hello from the **fake** AI.";
   state.stream = null;
+  state.responses = [];
   await t.prisma.rateLimit.deleteMany();
   await t.prisma.userSkill.deleteMany();
 });
@@ -159,6 +172,72 @@ describe("POST /api/chat — signed in", () => {
     expect(await t.prisma.message.count({ where: { conversationId: convo.id } })).toBe(2);
   });
 
+  it("generates multi-file coding work one file at a time and resumes from saved checkpoints", async () => {
+    state.userId = alice;
+    const message = "Build a TypeScript project with src/one.ts and src/two.ts.";
+    const firstFile = ["```ts", "export const one = 1;", "```", "{{MARKER}}"].join("\n");
+    state.responses = [
+      JSON.stringify({
+        files: [
+          { path: "src/one.ts", purpose: "Export the first value." },
+          { path: "src/two.ts", purpose: "Use and extend the first value." },
+        ],
+      }),
+      firstFile,
+      new Error("temporary connection failure"),
+    ];
+
+    const first = await readSse(await send({ message, mode: "coding" }));
+    expect(first.some((event) => event.event === "done")).toBe(false);
+    expect(first.find((event) => event.event === "error")?.data.retryable).toBe(true);
+    expect(replyText(first)).toContain("### `src/one.ts`");
+    expect(replyText(first)).not.toContain("### `src/two.ts`");
+
+    const conversationId = first.find((event) => event.event === "meta")!.data.conversationId as string;
+    const partial = await t.prisma.message.findFirstOrThrow({
+      where: { conversationId, role: "assistant" },
+    });
+    expect(partial.content).toContain("### `src/one.ts`");
+    expect(partial.generationProgress).toMatchObject({
+      kind: "multi-file-coding",
+      state: "interrupted",
+      completedFiles: ["src/one.ts"],
+      currentFile: "src/two.ts",
+    });
+    const interruptedPage = await session.GET(req(`/api/sessions/${conversationId}`), ctx(conversationId));
+    const interruptedMessages = (await interruptedPage.json()).messages as {
+      role: string;
+      complete: boolean;
+    }[];
+    expect(interruptedMessages.find((message) => message.role === "assistant")?.complete).toBe(false);
+
+    const secondFile = [
+      "```ts",
+      'import { one } from "./one";',
+      "export const two = one + 1;",
+      "```",
+      "{{MARKER}}",
+    ].join("\n");
+    state.responses = [secondFile];
+    const resumed = await readSse(await send({ message, conversationId, retry: true, mode: "coding" }));
+    const restoredText = String(resumed.find((event) => event.event === "meta")?.data.resumeText ?? "");
+    expect(restoredText).toBe(partial.content);
+    expect(restoredText + replyText(resumed)).toContain("### `src/one.ts`");
+    expect(replyText(resumed)).toContain("### `src/two.ts`");
+    expect((restoredText + replyText(resumed)).split("### `src/one.ts`")).toHaveLength(2);
+    expect(resumed.some((event) => event.event === "done")).toBe(true);
+    expect(state.calls).toHaveLength(4); // plan + two files, then only the unfinished file
+
+    const assistants = await t.prisma.message.findMany({ where: { conversationId, role: "assistant" } });
+    expect(assistants).toHaveLength(1);
+    expect(assistants[0].generationProgress).toBeNull();
+    const completedPage = await session.GET(req(`/api/sessions/${conversationId}`), ctx(conversationId));
+    const completedMessages = (await completedPage.json()).messages as { role: string; complete: boolean }[];
+    expect(completedMessages.find((message) => message.role === "assistant")?.complete).toBe(true);
+    expect(assistants[0].content.split("### `src/one.ts`")).toHaveLength(2);
+    expect(assistants[0].content.split("### `src/two.ts`")).toHaveLength(2);
+  });
+
   it("only adds trusted instructions for an installed, enabled skill", async () => {
     state.userId = alice;
     const installation = await t.prisma.userSkill.create({
@@ -186,6 +265,31 @@ describe("POST /api/chat — signed in", () => {
     await readSse(await send({ message: "Review this code", skills: ["coding-assistant"] }));
     expect(state.calls[0].system).toContain("Act as a careful coding partner");
     expect(state.calls[0].system).toContain("No external tools are available to this skill.");
+  });
+
+  it("saves partial streamed replies as incomplete and resumes without duplicating text", async () => {
+    state.userId = alice;
+    const message = "Explain the design.";
+    state.stream = [{ type: "text", text: "The saved prefix." }, new Error("temporary stream interruption")];
+
+    const first = await readSse(await send({ message }));
+    expect(first.some((event) => event.event === "done")).toBe(false);
+    const conversationId = first.find((event) => event.event === "meta")!.data.conversationId as string;
+    const partial = await t.prisma.message.findFirstOrThrow({
+      where: { conversationId, role: "assistant" },
+    });
+    expect(partial.content).toBe("The saved prefix.");
+    expect(partial.generationProgress).toMatchObject({ kind: "stream", state: "interrupted" });
+
+    state.stream = [{ type: "text", text: " The remaining explanation." }];
+    const resumed = await readSse(await send({ message, conversationId, retry: true }));
+    expect(resumed.find((event) => event.event === "meta")?.data.resumeText).toBe(partial.content);
+    expect(resumed.some((event) => event.event === "done")).toBe(true);
+
+    const saved = await t.prisma.message.findMany({ where: { conversationId, role: "assistant" } });
+    expect(saved).toHaveLength(1);
+    expect(saved[0].generationProgress).toBeNull();
+    expect(saved[0].content).toBe("The saved prefix. The remaining explanation.");
   });
 
   it("retry answers the saved question again without saving it twice", async () => {

@@ -34,6 +34,18 @@ export type UiMessage = ChatMessageDTO & {
   outgoingImages?: { id: string }[];
 };
 
+const INCOMPLETE_REPLY_MESSAGE =
+  "This reply was interrupted before it finished. Saved progress is preserved; try again to resume.";
+
+function hydrateMessage(message: ChatMessageDTO): UiMessage {
+  if (message.complete || message.role !== "assistant") return message;
+  return {
+    ...message,
+    status: "error",
+    error: { code: "interrupted", message: INCOMPLETE_REPLY_MESSAGE, retryable: true },
+  };
+}
+
 export type ConversationState = {
   messages: UiMessage[];
   hasMore: boolean;
@@ -74,6 +86,7 @@ export type ChatAction =
       key: string;
       conversationId: string | null;
       title: string | null;
+      answerMode?: ChatMode;
       userTempId?: string;
       userMessageId: string | null;
       retry?: boolean;
@@ -173,7 +186,12 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ...state,
         conversations: {
           ...state.conversations,
-          [action.key]: { ...emptyConversation(), ...action.page, status: "ready" },
+          [action.key]: {
+            ...emptyConversation(),
+            ...action.page,
+            messages: action.page.messages.map(hydrateMessage),
+            status: "ready",
+          },
         },
       };
 
@@ -190,7 +208,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
               ...c,
               loadingOlder: false,
               messages: [
-                ...action.page.messages.filter((m) => !c.messages.some((x) => x.id === m.id)),
+                ...action.page.messages
+                  .filter((m) => !c.messages.some((x) => x.id === m.id))
+                  .map(hydrateMessage),
                 ...c.messages,
               ],
               hasMore: action.page.hasMore,
@@ -248,6 +268,14 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       if (action.userTempId && action.userMessageId) {
         next = updateMessage(next, key, action.userTempId, (m) => ({ ...m, id: action.userMessageId! }));
       }
+      if (action.answerMode) {
+        next = updateConversation(next, key, (conversation) => ({
+          ...conversation,
+          messages: conversation.messages.map((message) =>
+            message.status === "streaming" ? { ...message, mode: action.answerMode } : message,
+          ),
+        }));
+      }
       return next;
     }
 
@@ -284,6 +312,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         // The server removes trailing filler after streaming; swap in its final text.
         content: action.text ?? m.content,
         id: action.newId ?? m.id,
+        complete: true,
         status: undefined,
         phase: undefined,
         statusMessage: undefined,
@@ -295,6 +324,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "failed": {
       const next = updateMessage(state, action.key, action.id, (m) => ({
         ...m,
+        complete: false,
         status: "error",
         phase: undefined,
         statusMessage: undefined,
@@ -306,6 +336,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "stopped": {
       const next = updateMessage(state, action.key, action.id, (m) => ({
         ...m,
+        complete: false,
         status: "stopped",
         phase: undefined,
         statusMessage: undefined,
@@ -355,7 +386,13 @@ export function initialChatState({
   activePage: MessagesPage | null;
 }): ChatState {
   const conversations: Record<string, ConversationState> = { [DRAFT]: emptyConversation() };
-  if (activeId && activePage) conversations[activeId] = { ...emptyConversation(), ...activePage };
+  if (activeId && activePage) {
+    conversations[activeId] = {
+      ...emptyConversation(),
+      ...activePage,
+      messages: activePage.messages.map(hydrateMessage),
+    };
+  }
   return {
     sessions,
     nextCursor,
