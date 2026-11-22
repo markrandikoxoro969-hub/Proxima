@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import type { AiProvider, AiRequest } from "./types";
+import { AiProviderError, type AiProvider, type AiRequest } from "./types";
 import {
   formatCodingFile,
   formatCodingTree,
@@ -85,7 +85,7 @@ describe("multi-file coding tasks", () => {
       expect(input.message).toContain("LAST_EXPORT");
       const marker = input.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1];
       if (calls === 1) return "```ts\nexport const x = 1;\n```";
-      expect(input.message).toContain("Previous attempt (unverified)");
+      expect(input.message).toContain("Previous attempt (unverified;");
       return `\`\`\`ts\nexport const x = 1;\n\`\`\`\n${marker}`;
     });
     const repair = vi.fn();
@@ -186,6 +186,136 @@ describe("multi-file coding tasks", () => {
         completedContent: "",
       }),
     ).rejects.toMatchObject({ code: "bad_response" });
+  });
+
+  it("automatically repairs a missing completion marker without committing partial output", async () => {
+    let calls = 0;
+    const provider = textProvider((input) => {
+      calls += 1;
+      if (calls === 1) return "```ts\nexport const value = 1;\n```";
+      expect(input.message).toContain("export const value = 1;");
+      const marker = input.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1];
+      return `\`\`\`ts\nexport const value = 1;\n\`\`\`\n${marker}`;
+    });
+    const code = await generateCodingFile(provider, request, {
+      file: plan[0],
+      files: plan,
+      completedFiles: [],
+      completedContent: "",
+    });
+    expect(calls).toBe(2);
+    expect(code).toBe("export const value = 1;");
+  });
+
+  it("preserves completed project files beyond the 12000-character history limit", async () => {
+    const completedContent = "file-one: " + "x".repeat(20_000) + "\nfile-two: LAST_EXPORT";
+    const provider = textProvider((input) => {
+      expect(input.message).toContain("file-one:");
+      expect(input.message).toContain("LAST_EXPORT");
+      const marker = input.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1];
+      return `export const done = true;\n${marker}`;
+    });
+    await expect(
+      generateCodingFile(provider, request, {
+        file: plan[1],
+        files: plan,
+        completedFiles: [plan[0].path],
+        completedContent,
+      }),
+    ).resolves.toBe("export const done = true;");
+  });
+
+  it("bounds large project context and explicitly marks omitted earlier content", async () => {
+    const completedContent = "EARLY_SECRET_SECTION" + "x".repeat(400_000) + "LAST_EXPORT";
+    const provider = textProvider((input) => {
+      expect(input.message).toContain("Earlier project content omitted");
+      expect(input.message).not.toContain("EARLY_SECRET_SECTION");
+      expect(input.message).toContain("LAST_EXPORT");
+      const marker = input.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1];
+      return `export const done = true;\n${marker}`;
+    });
+    await generateCodingFile(provider, request, {
+      file: plan[1],
+      files: plan,
+      completedFiles: [plan[0].path],
+      completedContent,
+    });
+  });
+
+  it("does not attempt a repair after cancellation", async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const provider = textProvider(() => {
+      calls++;
+      controller.abort();
+      return "unfinished";
+    });
+    await expect(
+      generateCodingFile(
+        provider,
+        { ...request, signal: controller.signal },
+        { file: plan[0], files: plan, completedFiles: [], completedContent: "" },
+      ),
+    ).rejects.toMatchObject({ code: "aborted" });
+    expect(calls).toBe(1);
+  });
+
+  it("bounds repair attempts and never accepts an unfinished file", async () => {
+    let calls = 0;
+    const provider = textProvider(() => {
+      calls++;
+      return "```ts\nexport const incomplete = true;\n```";
+    });
+    await expect(
+      generateCodingFile(provider, request, {
+        file: plan[0],
+        files: plan,
+        completedFiles: [],
+        completedContent: "",
+      }),
+    ).rejects.toMatchObject({ code: "bad_response" });
+    expect(calls).toBe(3);
+  });
+
+  it("does not retry authentication or quota errors at the file-format layer", async () => {
+    let calls = 0;
+    const provider: AiProvider = {
+      id: "test",
+      label: "test",
+      async *stream() {
+        calls++;
+        throw new AiProviderError("quota", "upstream", 429);
+      },
+    };
+    await expect(
+      generateCodingFile(provider, request, {
+        file: plan[0],
+        files: plan,
+        completedFiles: [],
+        completedContent: "",
+      }),
+    ).rejects.toMatchObject({ code: "upstream", status: 429 });
+    expect(calls).toBe(1);
+  });
+
+  it("repairs malformed multi-block output rather than merging unrelated blocks into source", async () => {
+    let calls = 0;
+    const provider = textProvider((input) => {
+      calls++;
+      const marker = input.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1];
+      return calls === 1
+        ? `\`\`\`ts\nfirst\n\`\`\`\n\`\`\`ts\nsecond\n\`\`\`\n${marker}`
+        : `\`\`\`ts\nexport const valid = true;\n\`\`\`\n${marker}`;
+    });
+    await expect(
+      generateCodingFile(provider, request, {
+        file: plan[0],
+        files: plan,
+        completedFiles: [],
+        completedContent: "",
+      }),
+    ).resolves.toBe("export const valid = true;");
+    expect(calls).toBe(2);
   });
 
   it("formats saved files as path-labeled blocks and nests source fences safely", () => {

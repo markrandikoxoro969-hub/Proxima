@@ -199,7 +199,8 @@ describe("POST /api/chat — signed in", () => {
     expect(events.some((event) => event.event === "done")).toBe(true);
     expect(
       events.some(
-        (event) => event.event === "status" && String(event.data.message).includes("Fixing src/b.ts"),
+        (event) =>
+          event.event === "status" && String(event.data.message).includes("Fixing the format of src/b.ts"),
       ),
     ).toBe(true);
     expect(replyText(events)).not.toContain("broken");
@@ -289,6 +290,39 @@ describe("POST /api/chat — signed in", () => {
     expect(completedMessages.find((message) => message.role === "assistant")?.complete).toBe(true);
     expect(assistants[0].content.split("### `src/one.ts`")).toHaveLength(2);
     expect(assistants[0].content.split("### `src/two.ts`")).toHaveLength(2);
+  });
+
+  it("saves two files and resumes the third after bounded format repair fails", async () => {
+    state.userId = alice;
+    const message = "Create a project with src/a.ts, src/b.ts and src/c.ts.";
+    state.responses = [
+      JSON.stringify({ files: [{ path: "src/a.ts" }, { path: "src/b.ts" }, { path: "src/c.ts" }] }),
+      "```ts\nexport const a = 1;\n```\n{{MARKER}}",
+      "```ts\nexport const b = 2;\n```\n{{MARKER}}",
+      "```ts\nconst notFinished = 1;\n```",
+      "still incomplete",
+      "still incomplete again",
+    ];
+    const first = await readSse(await send({ message, mode: "coding" }));
+    expect(first.some((event) => event.event === "done")).toBe(false);
+    expect(first.find((event) => event.event === "error")?.data.message).toContain("src/c.ts");
+    expect(first.find((event) => event.event === "error")?.data.message).toContain("saved");
+    expect(replyText(first)).not.toContain("notFinished");
+    const conversationId = first.find((event) => event.event === "meta")!.data.conversationId as string;
+    const saved = await t.prisma.message.findFirstOrThrow({ where: { conversationId, role: "assistant" } });
+    expect(saved.generationProgress).toMatchObject({
+      state: "interrupted",
+      completedFiles: ["src/a.ts", "src/b.ts"],
+      currentFile: "src/c.ts",
+    });
+    state.responses = ["```ts\nexport const c = 3;\n```\n{{MARKER}}"];
+    const resumed = await readSse(await send({ message, conversationId, retry: true, mode: "coding" }));
+    expect(resumed.some((event) => event.event === "done")).toBe(true);
+    expect(replyText(resumed)).toContain("src/c.ts");
+    const final = await t.prisma.message.findUniqueOrThrow({ where: { id: saved.id } });
+    expect(final.generationProgress).toBeNull();
+    for (const path of ["src/a.ts", "src/b.ts", "src/c.ts"])
+      expect(final.content.split(`### \`${path}\``)).toHaveLength(2);
   });
 
   it("only adds trusted instructions for an installed, enabled skill", async () => {

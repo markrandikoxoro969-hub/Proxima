@@ -614,6 +614,16 @@ describe("NVIDIA provider", () => {
 });
 
 describe("buildMessages", () => {
+  it("preserves long newest message context when a text-only model receives an image", () => {
+    const message = "x".repeat(20_000) + "IMPORTANT_END";
+    const messages = buildMessages({
+      message,
+      images: [{ dataUrl: "data:image/png;base64,AA==", mime: "image/png", width: 1, height: 1 }],
+    });
+    expect(messages.at(-1)?.content).toContain("IMPORTANT_END");
+    expect(messages.at(-1)?.content).toContain("can't see images");
+  });
+
   it("keeps only the last 20 turns", () => {
     const history = Array.from({ length: 30 }, (_, i) => ({
       role: (i % 2 ? "assistant" : "user") as "user" | "assistant",
