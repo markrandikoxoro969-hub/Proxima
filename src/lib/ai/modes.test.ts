@@ -5,10 +5,10 @@ import {
   isChatMode,
   MODE_CONFIG,
   modeModelSettings,
-  modeSystemPrompt,
   resolveChatMode,
   resolveModeConfig,
 } from "./modes";
+import { MODE_GUIDANCE, modeSystemPrompt } from "./mode-prompts";
 
 describe("answer modes", () => {
   it("has exactly the four documented modes, all unique", () => {
@@ -31,10 +31,10 @@ describe("answer modes", () => {
   it("appends the mode rules after the base prompt, so they win", () => {
     const prompt = modeSystemPrompt("You are Proxima.", "coding");
     expect(prompt.startsWith("You are Proxima.")).toBe(true);
-    expect(prompt).toContain(MODE_CONFIG.coding.guidance);
-    expect(prompt.trim().endsWith(MODE_CONFIG.coding.guidance.trim())).toBe(true);
+    expect(prompt).toContain(MODE_GUIDANCE.coding);
+    expect(prompt.trim().endsWith(MODE_GUIDANCE.coding.trim())).toBe(true);
     // Every mode has its own, non-empty guidance.
-    for (const mode of CHAT_MODES) expect(MODE_CONFIG[mode].guidance.length).toBeGreaterThan(40);
+    for (const mode of CHAT_MODES) expect(MODE_GUIDANCE[mode].length).toBeGreaterThan(40);
   });
 
   it("gives fast mode less room and no private thinking", () => {
@@ -43,15 +43,15 @@ describe("answer modes", () => {
     expect(fast.maxTokens).toBe(1024);
     expect(fast.historyLimit).toBeLessThan(modeModelSettings("thinking").historyLimit);
     expect(modeModelSettings("thinking").thinking).toBe(true);
-    expect(modeModelSettings("coding").thinking).toBe(true);
+    expect(modeModelSettings("coding").thinking).toBe(false);
   });
 
-  it("gives coding mode room for a complete file, not a snippet", () => {
-    // Private reasoning counts against max_tokens, so this is deliberately
-    // larger than a one-file snippet needs.
+  it("reserves coding mode's output budget for complete source files", () => {
     expect(modeModelSettings("coding").maxTokens).toBeGreaterThanOrEqual(16_384);
-    expect(MODE_CONFIG.coding.guidance).toContain('no "…"');
-    expect(MODE_CONFIG.coding.guidance).toContain("every bracket closed");
+    expect(modeModelSettings("coding").thinking).toBe(false);
+    expect(MODE_GUIDANCE.coding).toContain('no "…"');
+    expect(MODE_GUIDANCE.coding).toContain("one complete file at a time");
+    expect(MODE_GUIDANCE.coding).toContain("every bracket closed");
   });
 
   it("never exceeds the environment's token ceiling", () => {

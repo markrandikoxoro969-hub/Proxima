@@ -134,6 +134,7 @@ export function useChat({
         content: "",
         attachments: null,
         latencyMs: null,
+        complete: false,
         createdAt: now,
         status: "streaming",
         phase: "thinking",
@@ -168,6 +169,7 @@ export function useChat({
                   ]
                 : null,
             latencyMs: null,
+            complete: true,
             createdAt: now,
             fresh: true,
             clientKey: userTemp,
@@ -208,11 +210,15 @@ export function useChat({
               key: currentKey,
               conversationId: meta.conversationId,
               title: meta.title,
+              answerMode: meta.answerMode,
               userTempId: user ? userTemp : undefined,
               userMessageId: meta.userMessageId,
               retry: Boolean(retryOf),
             });
             if (meta.conversationId) currentKey = meta.conversationId;
+            if (meta.resumeText) {
+              dispatch({ type: "append", key: currentKey, id: assistantId, text: meta.resumeText });
+            }
           },
           onStatus: (s) =>
             dispatch({ type: "phase", key: currentKey, id: assistantId, phase: s.state, message: s.message }),

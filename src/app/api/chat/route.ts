@@ -1,8 +1,18 @@
 import { AI_TIMEOUT_MS, AiProviderError, getAiProvider } from "@/lib/ai";
 import { LeadingCleanGate, stripFiller } from "@/lib/ai/clean-reply";
-import { modeSystemPrompt, resolveChatMode, resolveModeConfig } from "@/lib/ai/modes";
+import { resolveChatMode, resolveModeConfig } from "@/lib/ai/modes";
+import { modeSystemPrompt } from "@/lib/ai/mode-prompts";
 import { SYSTEM_PROMPT } from "@/lib/ai/prompt";
 import { generateReply, typeOut } from "@/lib/ai/reply";
+import {
+  formatCodingFile,
+  generateCodingFile,
+  isMultiFileCodingRequest,
+  planCodingTask,
+  readCodingTaskProgress,
+  type CodingTaskProgress,
+} from "@/lib/ai/coding-task";
+import { Prisma } from "@/generated/prisma/client";
 import type { AiErrorCode, AiHistoryMessage } from "@/lib/ai/types";
 import { ApiError, apiErrors, readJson, withApi } from "@/lib/api/http";
 import { assertSameOrigin, hashedClientId } from "@/lib/api/security";
@@ -32,7 +42,8 @@ import { chatRequestSchema, LIMITS } from "@/lib/validation";
  *                                                         cleaned answer
  *   error      { code, message, retryable }            ← instead of done
  *
- * Only the final answer is stored. Reasoning never touches the database.
+ * Answer text is stored; reasoning never touches the database. Incomplete replies
+ * retain progress so the UI can offer a safe resume instead of presenting them as finished.
  */
 export const maxDuration = 120; // seconds (Render cold starts can be slow)
 
@@ -56,7 +67,11 @@ export const POST = withApi(async (request: Request) => {
   const showReasoning = input.showReasoning === true;
   /** Fast / Thinking / Coding / Analyze — see src/lib/ai/modes.ts. */
   const mode = resolveChatMode(input.mode);
-  const modeConfig = resolveModeConfig(mode);
+  const multiFileIntent = isMultiFileCodingRequest(
+    [input.message, ...attachments.map((attachment) => attachment.name)].join("\n"),
+  );
+  let answerMode = multiFileIntent ? "coding" : mode;
+  const modeConfig = resolveModeConfig(answerMode);
   /** Temporary chats are never written to the database and never touch memory. */
   const temporary = input.temporary === true;
 
@@ -107,6 +122,8 @@ export const POST = withApi(async (request: Request) => {
   let userMessageId: string | null = null;
   /** Turns read alongside the conversation, before this message was saved. */
   let priorMessages: { id: string; role: AiHistoryMessage["role"]; content: string }[] = [];
+  let resumedAssistant: { id: string; content: string; progress: unknown } | null = null;
+  let resumeCodingProgress: CodingTaskProgress | null = null;
 
   if (userId && !temporary) {
     const userMessage = {
@@ -127,29 +144,45 @@ export const POST = withApi(async (request: Request) => {
             // Read the context now: after saving the new message, this is
             // exactly the history the AI needs. One fewer round-trip than a
             // separate query afterwards.
-            take: modeConfig.historyLimit,
-            select: { id: true, role: true, content: true },
+            take: Math.max(modeConfig.historyLimit, 2),
+            select: { id: true, role: true, content: true, generationProgress: true },
           },
         },
       });
       if (!existing) throw apiErrors.notFound("Conversation not found");
       conversationId = existing.id;
-      priorMessages = existing.messages;
       title =
         existing._count.messages === 0 && existing.title === DEFAULT_TITLE
           ? makeTitle(input.message)
           : existing.title;
 
       const last = existing.messages[0];
-      if (input.retry && last?.role === "user" && last.content === input.message) {
-        // Retry: the user's message is already saved — just answer it again.
-        userMessageId = last.id;
+      const previous = existing.messages[1];
+      const canResume =
+        input.retry === true &&
+        last?.role === "assistant" &&
+        last.generationProgress !== null &&
+        previous?.role === "user" &&
+        previous.content === input.message;
+      if (canResume) {
+        resumedAssistant = { id: last.id, content: last.content, progress: last.generationProgress };
+        resumeCodingProgress = readCodingTaskProgress(last.generationProgress);
+        const savedMode = (last.generationProgress as { mode?: unknown } | null)?.mode;
+        if (resumeCodingProgress || savedMode === "coding") answerMode = "coding";
+        priorMessages = existing.messages.slice(2);
+        userMessageId = previous.id;
       } else {
-        const [created] = await db.$transaction([
-          db.message.create({ data: { ...userMessage, conversationId }, select: { id: true } }),
-          db.conversation.update({ where: { id: conversationId }, data: { title, updatedAt: new Date() } }),
-        ]);
-        userMessageId = created.id;
+        priorMessages = existing.messages;
+        if (input.retry && last?.role === "user" && last.content === input.message) {
+          // Retry: the user's message is already saved — just answer it again.
+          userMessageId = last.id;
+        } else {
+          const [created] = await db.$transaction([
+            db.message.create({ data: { ...userMessage, conversationId }, select: { id: true } }),
+            db.conversation.update({ where: { id: conversationId }, data: { title, updatedAt: new Date() } }),
+          ]);
+          userMessageId = created.id;
+        }
       }
     } else {
       title = makeTitle(input.message);
@@ -178,6 +211,10 @@ export const POST = withApi(async (request: Request) => {
     // Guests (and temporary chats) keep their context in the browser only.
     history.push(...input.history.slice(-modeConfig.historyLimit));
   }
+  if (resumedAssistant && !resumeCodingProgress && resumedAssistant.content) {
+    // A partial non-project reply is context for the resumed request, not a completed turn.
+    history.push({ role: "assistant", content: resumedAssistant.content });
+  }
 
   // ── Memory (Settings → Memory; off unless the person turned it on) ──
   // Reading is a single indexed query; learning is deterministic (no AI call),
@@ -192,7 +229,7 @@ export const POST = withApi(async (request: Request) => {
   const skillSection = skillPromptSection(skills);
   const system = modeSystemPrompt(
     [SYSTEM_PROMPT, memorySection, skillSection].filter(Boolean).join("\n\n"),
-    mode,
+    answerMode,
   );
 
   // ── Stream the reply ──
@@ -203,23 +240,28 @@ export const POST = withApi(async (request: Request) => {
   const clientGone = new AbortController();
   const timeout = AbortSignal.timeout(AI_TIMEOUT_MS());
   const signal = AbortSignal.any([clientGone.signal, timeout]);
+  const interruptedError = () =>
+    timeout.aborted
+      ? new AiProviderError("The generation deadline expired", "timeout")
+      : new AiProviderError("Request was cancelled", "aborted");
   request.signal?.addEventListener("abort", () => clientGone.abort(), { once: true });
 
   const stream = createSseStream(
     async (sse) => {
       sse.send("meta", {
         mode: userId ? "user" : "guest",
-        answerMode: mode,
+        answerMode,
         conversationId,
         title,
         userMessageId,
+        ...(resumedAssistant?.content ? { resumeText: resumedAssistant.content } : {}),
       });
       sse.send("status", { state: "thinking" });
 
       const started = Date.now();
-      let raw = "";
-      let sentText = "";
-      let receivedAny = false;
+      let raw = resumedAssistant?.content ?? "";
+      let sentText = raw;
+      let receivedAny = Boolean(raw);
       const gate = new LeadingCleanGate();
 
       const waking = setTimeout(() => {
@@ -232,50 +274,157 @@ export const POST = withApi(async (request: Request) => {
       }, WAKING_AFTER_MS);
       const heartbeat = setInterval(() => sse.ping(), HEARTBEAT_MS);
 
-      const saveAssistant = async (content: string, latencyMs: number | null) => {
-        if (!conversationId || !content) return null;
+      let assistantMessageId = resumedAssistant?.id ?? null;
+      const persistAssistant = async (
+        content: string,
+        latencyMs: number | null,
+        generationProgress: Prisma.InputJsonValue | typeof Prisma.DbNull,
+      ) => {
+        if (!conversationId || (!content && generationProgress === Prisma.DbNull)) return null;
+        if (assistantMessageId) {
+          await db.$transaction([
+            db.message.update({
+              where: { id: assistantMessageId },
+              data: { content, latencyMs, generationProgress },
+            }),
+            db.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }),
+          ]);
+          return assistantMessageId;
+        }
         const [saved] = await db.$transaction([
           db.message.create({
-            data: { conversationId, role: "assistant", content, latencyMs },
+            data: { conversationId, role: "assistant", content, latencyMs, generationProgress },
             select: { id: true },
           }),
           db.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }),
         ]);
+        assistantMessageId = saved.id;
         return saved.id;
       };
+      const saveIncomplete = (content: string, progress: unknown) =>
+        persistAssistant(content, null, progress as Prisma.InputJsonValue);
+      const saveComplete = (content: string, latencyMs: number | null) =>
+        persistAssistant(content, latencyMs, Prisma.DbNull);
 
-      const finalAnswer = () => stripFiller(cleanIdentityLeaks(raw));
+      let codingProgress = resumeCodingProgress;
+      const fileByFile = Boolean(
+        !identityAnswer &&
+        userId &&
+        !temporary &&
+        (resumeCodingProgress || (multiFileIntent && !resumedAssistant)),
+      );
+      const finalAnswer = () => (fileByFile ? raw : stripFiller(cleanIdentityLeaks(raw)));
 
       try {
-        const deltas = identityAnswer
-          ? typeOut(identityAnswer, signal)
-          : generateReply(provider, {
-              message: prompt,
-              sessionId,
-              signal,
-              history,
-              showReasoning,
-              mode,
-              images: pictures,
-              system,
-            });
-
-        for await (const delta of deltas) {
-          if (delta.type === "reasoning") {
-            // Never stored, never counted as an answer, only sent when asked.
-            if (showReasoning && delta.text) sse.send("reasoning", { text: delta.text });
-            continue;
+        if (fileByFile) {
+          const codingRequest = {
+            message: prompt,
+            sessionId,
+            signal,
+            history,
+            showReasoning: false,
+            mode: "coding" as const,
+            images: pictures,
+            system: modeSystemPrompt(
+              [SYSTEM_PROMPT, memorySection, skillSection].filter(Boolean).join("\n\n"),
+              "coding",
+            ),
+          };
+          if (!codingProgress) {
+            receivedAny = true;
+            sse.send("status", { state: "thinking", message: "Planning the project files…" });
+            const files = await planCodingTask(provider, codingRequest);
+            codingProgress = {
+              kind: "multi-file-coding",
+              version: 1,
+              state: "planned",
+              files,
+              completedFiles: [],
+              currentFile: null,
+            };
           }
-          receivedAny = true;
-          raw += delta.text;
-          const safe = gate.push(delta.text);
-          if (safe) {
-            sentText += safe;
-            sse.send("token", { text: safe });
+          codingProgress = { ...codingProgress, state: "in-progress", currentFile: null };
+          await saveIncomplete(raw, codingProgress as unknown as Prisma.InputJsonValue);
+
+          for (const [index, file] of codingProgress.files.entries()) {
+            if (codingProgress.completedFiles.includes(file.path)) continue;
+            if (signal.aborted) throw interruptedError();
+            receivedAny = true;
+            codingProgress = { ...codingProgress, state: "in-progress", currentFile: file.path };
+            await saveIncomplete(raw, codingProgress as unknown as Prisma.InputJsonValue);
+            sse.send("status", {
+              state: "thinking",
+              message: `Writing file ${index + 1} of ${codingProgress.files.length}: ${file.path}`,
+            });
+            const code = await generateCodingFile(provider, codingRequest, {
+              file,
+              files: codingProgress.files,
+              completedFiles: codingProgress.completedFiles,
+              completedContent: raw,
+            });
+            const fileText = formatCodingFile(file.path, code);
+            const nextRaw = raw + fileText;
+            const nextProgress: CodingTaskProgress = {
+              ...codingProgress,
+              state: "in-progress",
+              completedFiles: [...codingProgress.completedFiles, file.path],
+              currentFile: null,
+            };
+            // Update memory only after the content and checkpoint commit together.
+            await saveIncomplete(nextRaw, nextProgress as unknown as Prisma.InputJsonValue);
+            raw = nextRaw;
+            codingProgress = nextProgress;
+            sentText = raw;
+            sse.send("token", { text: fileText });
+          }
+
+          const completed = new Set(codingProgress.completedFiles);
+          const unfinished = codingProgress.files.filter((file) => !completed.has(file.path));
+          if (unfinished.length) {
+            throw new AiProviderError(
+              `The project still has unfinished files: ${unfinished.map((file) => file.path).join(", ")}`,
+              "bad_response",
+            );
+          }
+        } else {
+          const resumeInstruction =
+            resumedAssistant && !resumeCodingProgress
+              ? "\n\nThe previous assistant reply was interrupted. Continue from its saved output in the conversation history. Do not repeat completed sections or files, and finish every requested file before claiming the task is complete."
+              : "";
+          const deltas = identityAnswer
+            ? typeOut(identityAnswer, signal)
+            : generateReply(provider, {
+                message: `${prompt}${resumeInstruction}`,
+                sessionId,
+                signal,
+                history,
+                showReasoning,
+                mode: answerMode,
+                images: pictures,
+                system,
+              });
+
+          for await (const delta of deltas) {
+            if (delta.type === "reasoning") {
+              // Never stored, never counted as an answer, only sent when asked.
+              if (showReasoning && delta.text) sse.send("reasoning", { text: delta.text });
+              continue;
+            }
+            receivedAny = true;
+            raw += delta.text;
+            const safe = gate.push(delta.text);
+            if (safe) {
+              sentText += safe;
+              sse.send("token", { text: safe });
+            }
           }
         }
 
-        // Release the first-sentence buffer (filler already removed).
+        // Some fallback providers return normally when their typing loop is
+        // aborted. Treat that as interruption, never as a completed answer.
+        if (signal.aborted) throw interruptedError();
+
+        // Release the first-sentence buffer (empty for file-by-file coding tasks).
         const held = gate.flush();
         if (held) {
           sentText += held;
@@ -289,20 +438,20 @@ export const POST = withApi(async (request: Request) => {
         }
 
         if (clientGone.signal.aborted) {
-          // Browser left mid-reply: keep what we have so it shows after reload.
-          await saveAssistant(text, null);
+          // The output is complete even if the browser left before receiving `done`.
+          await saveComplete(text, null);
           return;
         }
 
         const latencyMs = Date.now() - started;
-        const messageId = await saveAssistant(text || sentText, latencyMs);
+        const messageId = await saveComplete(text || sentText, latencyMs);
         // Learn after the reply completes: extraction is deterministic and
         // best-effort, and the database consent check was made above.
         if (useMemory && userId) await rememberMessage(userId, input.message, conversationId);
         sse.send("done", {
           messageId,
           latencyMs,
-          mode,
+          mode: answerMode,
           source: identityAnswer ? "identity" : provider.id,
           // The clean final answer. The client swaps it in if trailing filler was removed.
           text: text || sentText,
@@ -312,10 +461,24 @@ export const POST = withApi(async (request: Request) => {
             : {}),
         });
       } catch (error) {
-        if (clientGone.signal.aborted) {
-          await saveAssistant(finalAnswer() || sentText, null).catch(() => {});
-          return;
+        const incompleteProgress = codingProgress
+          ? { ...codingProgress, state: "interrupted" as const }
+          : raw
+            ? { kind: "stream", version: 1, state: "interrupted", mode: answerMode }
+            : (resumedAssistant?.progress ?? null);
+        const partialText = finalAnswer() || sentText || raw;
+        if (conversationId && (partialText || incompleteProgress !== null)) {
+          const progress = incompleteProgress ?? {
+            kind: "stream",
+            version: 1,
+            state: "interrupted",
+            mode: answerMode,
+          };
+          await saveIncomplete(partialText, progress as Prisma.InputJsonValue).catch(() => {
+            console.error("[chat] could not save interrupted reply progress");
+          });
         }
+        if (clientGone.signal.aborted) return;
         const code: AiErrorCode =
           error instanceof AiProviderError ? error.code : timeout.aborted ? "timeout" : "unavailable";
         // Log the failure type only — never the user's message or the API key.

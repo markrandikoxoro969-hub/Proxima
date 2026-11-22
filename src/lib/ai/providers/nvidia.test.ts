@@ -34,8 +34,8 @@ function setup(
   return { provider, createStream, body: () => body };
 }
 
-const chunk = (delta: { content?: string; reasoning_content?: string }, finishReason?: string) => ({
-  choices: [{ delta, finish_reason: finishReason ?? null }],
+const chunk = (delta: { content?: string; reasoning_content?: string }, finishReason = "stop") => ({
+  choices: [{ delta, finish_reason: finishReason }],
 });
 
 const collect = async (iterable: AsyncIterable<AiDelta>) => {
@@ -119,12 +119,15 @@ describe("NVIDIA provider", () => {
     expect((sent.messages as unknown[]).length).toBeLessThanOrEqual(1 + 12 + 1);
   });
 
-  it("coding and analyze modes keep thinking on and get the full token budget", async () => {
-    for (const mode of ["coding", "analyze"] as const) {
+  it("coding reserves its output budget while analyze mode still uses private thinking", async () => {
+    for (const [mode, expectedThinking] of [
+      ["coding", false],
+      ["analyze", true],
+    ] as const) {
       const { provider, body } = setup([chunk({ content: "ok" })]);
       await collect(provider.stream!({ ...request, mode }));
       const sent = body()!;
-      expect(sent.chat_template_kwargs).toEqual({ enable_thinking: true });
+      expect(sent.chat_template_kwargs).toEqual(expectedThinking ? { enable_thinking: true } : undefined);
       // Never above NVIDIA_MAX_TOKENS (2048 in these tests).
       expect(sent.max_tokens).toBe(2048);
     }
@@ -164,16 +167,16 @@ describe("NVIDIA provider", () => {
     expect(bodies[1].chat_template_kwargs).toBeUndefined();
     const messages = bodies[1].messages as { role: string; content: string }[];
     expect(messages.at(-2)).toEqual({ role: "assistant", content: "```ts\nexport function f() {" });
-    expect(messages.at(-1)?.content).toContain("Continue from the exact character");
+    expect(messages.at(-1)?.content).toContain("Continue with only the missing suffix");
   });
 
-  it("keeps the partial answer when a continuation fails", async () => {
+  it("continues through more than two output-limit chunks", async () => {
+    const replies = ["first ", "second ", "third ", "last"];
     let call = 0;
     const createStream = vi.fn(async () => {
-      call += 1;
-      if (call === 2) throw new Error("network went away");
+      const index = call++;
       return (async function* () {
-        yield chunk({ content: "half of a file" }, "length");
+        yield chunk({ content: replies[index] }, index === replies.length - 1 ? "stop" : "length");
       })();
     });
     const provider = createNvidiaProvider({
@@ -190,6 +193,187 @@ describe("NVIDIA provider", () => {
     });
 
     const deltas = await collect(provider.stream!({ ...request, mode: "coding" }));
+
+    expect(deltas.map((delta) => delta.text).join("")).toBe("first second third last");
+    expect(createStream).toHaveBeenCalledTimes(4);
+  });
+
+  it("removes a repeated overlap at the start of a continuation", async () => {
+    let call = 0;
+    const createStream = vi.fn(async () => {
+      const first = call++ === 0;
+      return (async function* () {
+        yield first
+          ? chunk({ content: "const x = 1;\n// Keep this long duplicate marker exactly once." }, "length")
+          : chunk({ content: "// Keep this long duplicate marker exactly once.\nconst y = 2;" }, "stop");
+      })();
+    });
+    const provider = createNvidiaProvider({
+      client: {} as OpenAI,
+      createStream: createStream as never,
+      settings: {
+        apiKey: "nvapi-test",
+        model: "nvidia/nemotron-3-ultra-550b-a55b",
+        visionModel: "",
+        maxTokens: 2048,
+        enableThinking: false,
+        firstTokenTimeoutMs: 1000,
+      },
+    });
+
+    const deltas = await collect(provider.stream!({ ...request, mode: "coding" }));
+
+    expect(deltas.map((delta) => delta.text).join("")).toBe(
+      "const x = 1;\n// Keep this long duplicate marker exactly once.\nconst y = 2;",
+    );
+  });
+
+  it("continues a transiently interrupted stream without repeating its saved prefix", async () => {
+    let call = 0;
+    const retryWait = vi.fn(async () => {});
+    const createStream = vi.fn(async () => {
+      const attempt = call++;
+      return (async function* () {
+        if (attempt === 0) {
+          yield chunk({ content: "The stable sentence." });
+          throw Object.assign(new Error("upstream reset"), { status: 503 });
+        }
+        yield chunk({ content: "The stable sentence. And the rest." });
+      })();
+    });
+    const provider = createNvidiaProvider({
+      client: {} as OpenAI,
+      createStream: createStream as never,
+      retryWait,
+      settings: {
+        apiKey: "nvapi-test",
+        model: "nvidia/test-model",
+        visionModel: "",
+        maxTokens: 2048,
+        enableThinking: false,
+        firstTokenTimeoutMs: 1000,
+      },
+    });
+
+    const deltas = await collect(provider.stream!(request));
+
+    expect(deltas.map((delta) => delta.text).join("")).toBe("The stable sentence. And the rest.");
+    expect(createStream).toHaveBeenCalledTimes(2);
+    expect(retryWait).toHaveBeenCalledOnce();
+  });
+
+  it("reports request deadlines as retryable timeouts", async () => {
+    const controller = new AbortController();
+    controller.abort(Object.assign(new Error("deadline"), { name: "TimeoutError" }));
+    const createStream = vi.fn(async (...args: [OpenAI, unknown, AbortSignal]) => {
+      const signal = args[2];
+      if (signal.aborted) throw signal.reason;
+      return (async function* () {})();
+    });
+    const provider = createNvidiaProvider({
+      client: {} as OpenAI,
+      createStream: createStream as never,
+      settings: {
+        apiKey: "nvapi-test",
+        model: "nvidia/test-model",
+        visionModel: "",
+        maxTokens: 2048,
+        enableThinking: false,
+        firstTokenTimeoutMs: 1000,
+      },
+    });
+
+    await expect(collect(provider.stream!({ ...request, signal: controller.signal }))).rejects.toMatchObject({
+      code: "timeout",
+    });
+  });
+
+  it("retries rate limits and respects Retry-After", async () => {
+    let call = 0;
+    const retryWait = vi.fn(async (milliseconds: number, signal: AbortSignal) => {
+      void milliseconds;
+      void signal;
+    });
+    const rateLimit = Object.assign(new Error("rate limited"), {
+      status: 429,
+      headers: new Headers({ "retry-after": "3" }),
+    });
+    const createStream = vi.fn(async () => {
+      if (call++ === 0) throw rateLimit;
+      return (async function* () {
+        yield chunk({ content: "recovered" });
+      })();
+    });
+    const provider = createNvidiaProvider({
+      client: {} as OpenAI,
+      createStream: createStream as never,
+      retryWait,
+      settings: {
+        apiKey: "nvapi-test",
+        model: "nvidia/test-model",
+        visionModel: "",
+        maxTokens: 2048,
+        enableThinking: false,
+        firstTokenTimeoutMs: 1000,
+      },
+    });
+
+    expect((await collect(provider.stream!(request))).map((delta) => delta.text).join("")).toBe("recovered");
+    expect(createStream).toHaveBeenCalledTimes(2);
+    expect(retryWait.mock.calls[0]?.[0]).toBe(3000);
+  });
+
+  it("fails explicitly rather than accepting output that exceeds its continuation safety limit", async () => {
+    let call = 0;
+    const createStream = vi.fn(async () => {
+      const current = call++;
+      return (async function* () {
+        yield chunk({ content: `part ${current} ` }, "length");
+      })();
+    });
+    const provider = createNvidiaProvider({
+      client: {} as OpenAI,
+      createStream: createStream as never,
+      settings: {
+        apiKey: "nvapi-test",
+        model: "nvidia/test-model",
+        visionModel: "",
+        maxTokens: 2048,
+        enableThinking: false,
+        firstTokenTimeoutMs: 1000,
+      },
+    });
+
+    await expect(collect(provider.stream!(request))).rejects.toMatchObject({ code: "upstream" });
+    expect(createStream).toHaveBeenCalledTimes(9);
+  });
+
+  it("surfaces a failed continuation instead of reporting a partial answer as complete", async () => {
+    let call = 0;
+    const createStream = vi.fn(async () => {
+      call += 1;
+      if (call === 2) throw new Error("bad request");
+      return (async function* () {
+        yield chunk({ content: "half of a file" }, "length");
+      })();
+    });
+    const provider = createNvidiaProvider({
+      client: {} as OpenAI,
+      createStream: createStream as never,
+      settings: {
+        apiKey: "nvapi-test",
+        model: "nvidia/nemotron-3-ultra-550b-a55b",
+        visionModel: "",
+        maxTokens: 2048,
+        enableThinking: true,
+        firstTokenTimeoutMs: 1000,
+      },
+    });
+    const deltas: AiDelta[] = [];
+
+    await expect(async () => {
+      for await (const delta of provider.stream!({ ...request, mode: "coding" })) deltas.push(delta);
+    }).rejects.toMatchObject({ code: "unavailable" });
 
     expect(deltas.map((delta) => delta.text).join("")).toBe("half of a file");
     expect(createStream).toHaveBeenCalledTimes(2);

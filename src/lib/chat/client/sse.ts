@@ -16,6 +16,8 @@ export type ChatStreamEvent =
         conversationId: string | null;
         title: string | null;
         userMessageId: string | null;
+        /** Saved file-by-file output shown before a resumed generation continues. */
+        resumeText?: string;
       };
     }
   | { event: "status"; data: { state: "thinking" | "waking"; message?: string } }
