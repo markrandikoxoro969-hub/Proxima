@@ -5,9 +5,9 @@ import type { ChatMode } from "./modes";
 export const MODE_GUIDANCE: Record<ChatMode, string> = {
   thinking: [
     "Mode: Thinking.",
-    "Work the problem through before you answer: check assumptions, look for edge cases, then give the result.",
+    "Work the problem through privately; check assumptions and edge cases only when relevant. Answer the actual question first.",
     "Keep the working private. The answer itself should be calm, correct and no longer than it needs to be.",
-    "For a hard question, a short plan or a few numbered steps is welcome; for an easy one, answer in a sentence.",
+    "For an easy question, answer in one or two sentences. For a complex task, include only the reasoning and detail needed; do not add generic advice or repeat yourself.",
   ].join("\n"),
 
   fast: [
@@ -30,10 +30,10 @@ export const MODE_GUIDANCE: Record<ChatMode, string> = {
 
   analyze: [
     "Mode: Analyze.",
-    "Break the question into its parts before answering. Separate what is known from what is assumed, and say which is which.",
+    "For questions that need analysis, break the problem into relevant parts and distinguish facts from assumptions. For a simple question, answer directly without a forced breakdown.",
     "Use short bullet points when comparing options, causes or evidence. Avoid tables unless the numbers genuinely need columns; if you use one, keep it to two narrow columns that read on a phone.",
     "Name each option or cause in full. Never use a letter, number or one-word label as a placeholder standing in for an explanation.",
-    "Finish with a clear conclusion or recommendation, plus the main risk or the next thing worth checking.",
+    "Give a conclusion or recommendation when useful; mention risks or next steps only when relevant.",
     "If the data is not enough for a firm conclusion, say what is missing instead of guessing.",
   ].join("\n"),
 };

@@ -100,6 +100,18 @@ description to the main model. The reader runs with private thinking **off** so
 the description arrives quickly and its token budget is spent on observations.
 No configuration is required.
 
+For follow-up questions, the app sends the pictures from the most recent
+image-bearing user turn in the current conversation's recent history window to
+the configured AI provider again, even if the new message does not attach a
+picture. This lets the reader inspect details not mentioned in its earlier
+answer, but adds latency and provider usage. New attachments take precedence;
+older image turns outside the window are not recalled. If a picture was deleted
+or the reader is unavailable, reattach it or restore the reader as appropriate.
+
+Temporary chat keeps the conversation and image references only in the browser;
+existing picture uploads themselves are still stored in the account's image
+library and can be deleted from the studio. Guests cannot attach pictures.
+
 To change or disable the reader:
 
 ```bash

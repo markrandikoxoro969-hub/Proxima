@@ -22,6 +22,7 @@ import { getApiUserId } from "@/lib/auth/api";
 import { attachmentMeta, composePrompt, DEFAULT_TITLE, makeTitle } from "@/lib/chat/compose";
 import { db } from "@/lib/db";
 import { chatImageAttachment, loadChatImages } from "@/lib/image/store";
+import { IMAGE_LIMITS } from "@/lib/image/limits";
 import { cleanIdentityLeaks, getIdentityAnswer } from "@/lib/identity";
 import { memoryEnabled, memoryPrompt, relevantMemories, rememberMessage } from "@/lib/memory/store";
 import { enforceRateLimit, RATE_LIMITS, rateLimitHeaders } from "@/lib/rate-limit";
@@ -129,7 +130,12 @@ export const POST = withApi(async (request: Request) => {
   let title: string | null = null;
   let userMessageId: string | null = null;
   /** Turns read alongside the conversation, before this message was saved. */
-  let priorMessages: { id: string; role: AiHistoryMessage["role"]; content: string }[] = [];
+  let priorMessages: {
+    id: string;
+    role: AiHistoryMessage["role"];
+    content: string;
+    attachments: Prisma.JsonValue | null;
+  }[] = [];
   let resumedAssistant: { id: string; content: string; progress: unknown } | null = null;
   let resumeCodingProgress: CodingTaskProgress | null = null;
 
@@ -153,7 +159,7 @@ export const POST = withApi(async (request: Request) => {
             // exactly the history the AI needs. One fewer round-trip than a
             // separate query afterwards.
             take: Math.max(modeConfig.historyLimit, 2),
-            select: { id: true, role: true, content: true, generationProgress: true },
+            select: { id: true, role: true, content: true, attachments: true, generationProgress: true },
           },
         },
       });
@@ -224,12 +230,50 @@ export const POST = withApi(async (request: Request) => {
     }
   } else if (input.history) {
     // Guests (and temporary chats) keep their context in the browser only.
-    history.push(...input.history.slice(-modeConfig.historyLimit));
+    history.push(
+      ...input.history.slice(-modeConfig.historyLimit).map(({ role, content }) => ({ role, content })),
+    );
   }
   if (resumedAssistant && !resumeCodingProgress && resumedAssistant.content) {
     // A partial non-project reply is context for the resumed request, not a completed turn.
     history.push({ role: "assistant", content: resumedAssistant.content });
   }
+
+  // Re-read only the most recent image-bearing user turn in this conversation's
+  // context window. Never trust browser history for saved chats, and always
+  // load bytes with the owner's ID. New attachments take precedence.
+  let contextImageIds: string[] = [];
+  if (userId && !imageIds.length) {
+    if (conversationId && !temporary) {
+      for (const turn of priorMessages) {
+        if (turn.role !== "user" || turn.id === userMessageId || !Array.isArray(turn.attachments)) continue;
+        const ids = turn.attachments
+          .flatMap((item) => {
+            if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+            return item.kind === "image" && typeof item.imageId === "string" ? [item.imageId] : [];
+          })
+          .slice(0, IMAGE_LIMITS.perMessage);
+        if (ids.length) {
+          contextImageIds = ids;
+          break;
+        }
+      }
+    } else if (temporary) {
+      const lastWithImages = input.history
+        ?.slice(-modeConfig.historyLimit)
+        .reverse()
+        .find((turn) => turn.role === "user" && turn.images?.length);
+      contextImageIds = lastWithImages?.images?.map((image) => image.id) ?? [];
+    }
+  }
+  const contextPictures =
+    userId && contextImageIds.length ? await loadChatImages(userId, contextImageIds) : [];
+  const providerPictures = pictures.length ? pictures : contextPictures;
+  const imageContextNote = contextImageIds.length
+    ? contextPictures.length === contextImageIds.length
+      ? "\n\n[The provided picture(s) are from the most recent earlier image-bearing user message, not newly attached. Use them only if relevant to the current request.]"
+      : "\n\n[Some or all pictures from the most recent earlier image-bearing message are no longer available. Do not guess details that require a missing image; ask for it again if needed.]"
+    : "";
 
   // ── Memory (Settings → Memory; off unless the person turned it on) ──
   // Reading is a single indexed query; learning is deterministic (no AI call),
@@ -249,7 +293,7 @@ export const POST = withApi(async (request: Request) => {
 
   // ── Stream the reply ──
   const provider = getAiProvider(answerMode);
-  const prompt = composePrompt(input.message, attachments, pictures.length);
+  const prompt = composePrompt(input.message, attachments, pictures.length) + imageContextNote;
   const sessionId = conversationId ?? `demo-${input.demoSessionId ?? crypto.randomUUID()}`;
 
   const clientGone = new AbortController();
@@ -336,7 +380,7 @@ export const POST = withApi(async (request: Request) => {
             history,
             showReasoning: false,
             mode: "coding" as const,
-            images: pictures,
+            images: providerPictures,
             system: modeSystemPrompt(
               [SYSTEM_PROMPT, memorySection, skillSection].filter(Boolean).join("\n\n"),
               "coding",
@@ -444,7 +488,7 @@ export const POST = withApi(async (request: Request) => {
                 history,
                 showReasoning,
                 mode: answerMode,
-                images: pictures,
+                images: providerPictures,
                 system,
               });
 

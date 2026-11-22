@@ -13,7 +13,7 @@ import { ctx, readSse, req } from "./helpers";
 const state = vi.hoisted(() => ({
   db: undefined as unknown,
   userId: null as string | null,
-  aiCalls: [] as { message: string; images?: { mime: string; width: number }[] }[],
+  aiCalls: [] as { message: string; images?: { mime: string; width: number; dataUrl: string }[] }[],
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -29,7 +29,10 @@ vi.mock("@/lib/ai", async (importOriginal) => {
     getAiProvider: () => ({
       id: "fake",
       label: "Fake AI",
-      async complete(request: { message: string; images?: { mime: string; width: number }[] }) {
+      async complete(request: {
+        message: string;
+        images?: { mime: string; width: number; dataUrl: string }[];
+      }) {
         state.aiCalls.push({ message: request.message, images: request.images });
         return "I can see it.";
       },
@@ -360,6 +363,127 @@ describe("pictures in a chat message", () => {
       imageId: image.id,
       url: `/api/images/${image.id}`,
     });
+  });
+
+  it("reuses the latest saved photo on later turns without saving it as a new attachment", async () => {
+    const { image } = await (
+      await upload(req("/api/images", { method: "POST", body: { dataUrl: pngDataUrl } }))
+    ).json();
+    const first = await readSse(
+      await chat(
+        req("/api/chat", { method: "POST", body: { message: "What is this?", images: [{ id: image.id }] } }),
+      ),
+    );
+    const conversationId = first.find((event) => event.event === "meta")!.data.conversationId;
+    await readSse(
+      await chat(
+        req("/api/chat", { method: "POST", body: { message: "Check that photo's colour", conversationId } }),
+      ),
+    );
+    expect(state.aiCalls[1].images?.[0].dataUrl).toBe(pngDataUrl);
+    expect(state.aiCalls[1].message).toContain("earlier image-bearing user message");
+    expect(state.aiCalls[1].message).not.toContain("picture is attached to this message");
+    const saved = await testDb.prisma.message.findFirstOrThrow({
+      where: { conversationId: String(conversationId), content: "Check that photo's colour" },
+    });
+    expect(saved.attachments).toBeNull();
+  });
+
+  it("uses only the latest image-bearing turn, and a new attachment takes precedence", async () => {
+    const firstImage = (
+      await (await upload(req("/api/images", { method: "POST", body: { dataUrl: pngDataUrl } }))).json()
+    ).image;
+    const secondImage = await testDb.prisma.imageAsset.create({
+      data: {
+        userId,
+        mime: "image/png",
+        width: 2,
+        height: 2,
+        bytes: new Uint8Array([1, 2, 3]),
+        source: "upload",
+      },
+    });
+    const first = await readSse(
+      await chat(
+        req("/api/chat", { method: "POST", body: { message: "First", images: [{ id: firstImage.id }] } }),
+      ),
+    );
+    const conversationId = first.find((event) => event.event === "meta")!.data.conversationId;
+    await readSse(
+      await chat(
+        req("/api/chat", {
+          method: "POST",
+          body: { message: "Second", conversationId, images: [{ id: secondImage.id }] },
+        }),
+      ),
+    );
+    expect(state.aiCalls[1].images).toHaveLength(1);
+    expect(state.aiCalls[1].images![0].width).toBe(2);
+    expect(state.aiCalls[1].message).not.toContain("earlier image-bearing");
+    await readSse(
+      await chat(req("/api/chat", { method: "POST", body: { message: "What colour?", conversationId } })),
+    );
+    expect(state.aiCalls[2].images).toHaveLength(1);
+    expect(state.aiCalls[2].images![0].width).toBe(2);
+  });
+
+  it("does not reuse deleted images or images from another conversation", async () => {
+    const { image } = await (
+      await upload(req("/api/images", { method: "POST", body: { dataUrl: pngDataUrl } }))
+    ).json();
+    const first = await readSse(
+      await chat(
+        req("/api/chat", { method: "POST", body: { message: "What is this?", images: [{ id: image.id }] } }),
+      ),
+    );
+    const conversationId = first.find((event) => event.event === "meta")!.data.conversationId;
+    await readSse(await chat(req("/api/chat", { method: "POST", body: { message: "What colour?" } })));
+    expect(state.aiCalls[1].images).toHaveLength(0);
+    await testDb.prisma.imageAsset.delete({ where: { id: image.id } });
+    await readSse(
+      await chat(req("/api/chat", { method: "POST", body: { message: "What colour?", conversationId } })),
+    );
+    expect(state.aiCalls[2].images).toHaveLength(0);
+    expect(state.aiCalls[2].message).toContain("no longer available");
+  });
+
+  it("allows temporary follow-ups using owner-checked history without saving chat messages", async () => {
+    const { image } = await (
+      await upload(req("/api/images", { method: "POST", body: { dataUrl: pngDataUrl } }))
+    ).json();
+    const before = await testDb.prisma.message.count();
+    await readSse(
+      await chat(
+        req("/api/chat", {
+          method: "POST",
+          body: {
+            temporary: true,
+            message: "What colour?",
+            history: [
+              { role: "user", content: "What is this?", images: [{ id: image.id }] },
+              { role: "assistant", content: "A photo." },
+            ],
+          },
+        }),
+      ),
+    );
+    expect(state.aiCalls[0].images?.[0].dataUrl).toBe(pngDataUrl);
+    expect(await testDb.prisma.message.count()).toBe(before);
+    state.userId = otherUserId;
+    await readSse(
+      await chat(
+        req("/api/chat", {
+          method: "POST",
+          body: {
+            temporary: true,
+            message: "What colour?",
+            history: [{ role: "user", content: "What is this?", images: [{ id: image.id }] }],
+          },
+        }),
+      ),
+    );
+    expect(state.aiCalls[1].images).toHaveLength(0);
+    expect(state.aiCalls[1].message).toContain("no longer available");
   });
 
   it("refuses a picture that belongs to someone else", async () => {

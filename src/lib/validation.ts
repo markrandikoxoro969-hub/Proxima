@@ -41,6 +41,8 @@ export const historyMessageSchema = z.object({
     .string()
     .transform((value) => stripControl(value).trim().slice(0, LIMITS.historyMessageMax))
     .pipe(z.string().min(1, "A history message can't be empty.")),
+  /** Temporary chat only: image IDs in this turn; still checked against the owner. */
+  images: z.array(chatImageSchema).max(IMAGE_LIMITS.perMessage).optional(),
 });
 
 export const chatRequestSchema = z.object({
@@ -90,7 +92,7 @@ export const chatRequestSchema = z.object({
    * read nor written for this message.
    */
   temporary: z.boolean().optional(),
-  /** Guest demo only — signed-in chats use the messages saved in the database. */
+  /** Guest and temporary chats only — saved chats use the database. */
   history: z.array(historyMessageSchema).max(20).optional(),
 });
 export type ChatRequest = z.infer<typeof chatRequestSchema>;

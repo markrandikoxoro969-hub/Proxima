@@ -28,8 +28,8 @@ export type ChatRequestBody = {
   skills?: string[];
   /** Temporary chat: nothing is saved and memory is not used. */
   temporary?: boolean;
-  /** Guest demo only: recent turns so the demo keeps its memory. */
-  history?: { role: "user" | "assistant"; content: string }[];
+  /** Guest/temporary recent turns; images are owner-checked IDs, never bytes. */
+  history?: { role: "user" | "assistant"; content: string; images?: { id: string }[] }[];
 };
 
 export type StreamError = { code: string; message: string; retryable: boolean; status?: number };

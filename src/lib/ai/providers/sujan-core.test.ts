@@ -42,6 +42,18 @@ describe("sujan-core provider", () => {
     expect(body.message.endsWith("Hi")).toBe(true);
   });
 
+  it("tells the text-only fallback when it cannot see a provided photo", async () => {
+    const { provider, fetchImpl } = setup(ok({ reply: "Please describe it." }));
+    await provider.complete!({
+      ...request(),
+      images: [{ dataUrl: "data:image/png;base64,AAAA", mime: "image/png", width: 1, height: 1 }],
+    });
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { message: string };
+    expect(body.message).toContain("cannot see the provided pictures");
+    expect(body.message).not.toContain("base64");
+  });
+
   it("retries once when Render is restarting (503)", async () => {
     const { provider, fetchImpl } = setup(ok({}, 503), ok({ reply: "Back!" }));
     await expect(provider.complete!(request())).resolves.toBe("Back!");
