@@ -47,7 +47,7 @@ describe("answer modes", () => {
   });
 
   it("reserves coding mode's output budget for complete source files", () => {
-    expect(modeModelSettings("coding").maxTokens).toBeGreaterThanOrEqual(16_384);
+    expect(modeModelSettings("coding").maxTokens).toBe(65_536);
     expect(modeModelSettings("coding").thinking).toBe(false);
     expect(MODE_GUIDANCE.coding).toContain('no "…"');
     expect(MODE_GUIDANCE.coding).toContain("one complete file at a time");

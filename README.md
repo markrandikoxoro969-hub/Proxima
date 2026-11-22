@@ -296,13 +296,13 @@ The landing page is plain, fast HTML. Sections just carry **labels**, and one sm
   | --- | --- | --- | --- |
   | **Thinking** (default) | Reasons before answering; checks edge cases | On | 4096 |
   | **Fast** | One to three sentences, no private thinking | Off | 1024 |
-  | **Coding** | Complete, runnable code with the right language tag | On | 8192 |
+  | **Coding** | Complete, runnable code with the right language tag | Off | Up to 65,536 per call with OpenRouter; otherwise 16,384 |
   | **Analyze** | Known vs assumed, a comparison, then a recommendation | On | 6144 |
 
   Each mode swaps the system-prompt section **and** the model settings (temperature, top_p,
   history length), so it changes how the engine actually answers — not just a label. The choice is
-  remembered on that device, and the reply shows a small mode chip. `NVIDIA_MAX_TOKENS` still caps
-  the budget. The landing-page demo uses Thinking unless changed in the app.
+  remembered on that device, and the reply shows a small mode chip. `NVIDIA_MAX_TOKENS` caps
+  NVIDIA calls; OpenRouter Coding uses its own ceiling. The landing-page demo uses Thinking unless changed in the app.
 - **Reasoning is private by default.** Newer models (NVIDIA Nemotron) stream their thinking in a
   separate field. PROXIMA never shows it and never saves it. While the model thinks you see a
   wordless orb and a shimmer line (the label follows the mode: Thinking / Writing code / Analyzing).

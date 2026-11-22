@@ -74,6 +74,7 @@ A `401` means the key is wrong; a `404` means the model name is wrong.
 | ------------------------ | ------------------------------------------ | ----------------------------------------------------------- |
 | `AI_PROVIDER`            | `nvidia`                                   | `nvidia`, `render` or `mock`                                |
 | `NVIDIA_API_KEY`         | —                                          | Your key. Server only.                                      |
+| `OPENROUTER_API_KEY`     | —                                          | Enables OpenRouter for Coding mode. Server only.            |
 | `NVIDIA_VISION_API_KEY`  | —                                          | Optional: the picture reader's key on a second account.     |
 | `NVIDIA_MODEL`           | `nvidia/nemotron-3-ultra-550b-a55b`        | Which model answers                                         |
 | `NVIDIA_VISION_MODEL`    | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | Reads attached pictures (OCR, screenshots, charts) for a text-only main model. `off` disables |
@@ -81,15 +82,42 @@ A `401` means the key is wrong; a `404` means the model name is wrong.
 | `NVIDIA_ENABLE_THINKING` | `true`                                     | Let the model reason privately (`chat_template_kwargs`)     |
 | `NVIDIA_TIMEOUT_MS`      | `45000`                                    | Switch to Render if NVIDIA produces no first token in time; a live answer may run on |
 | `AI_API_URL`             | `https://sujancoreapi.onrender.com/chat`   | Render fallback address                                     |
-| `AI_TIMEOUT_MS`          | `110000`                                   | Total budget (route limit: 120 s)                           |
+| `AI_TIMEOUT_MS`          | `110000`                                   | Total budget for non-coding replies                          |
+| `AI_CODING_TIMEOUT_MS`   | `290000`                                   | Coding deadline in ms (capped at 295000)                     |
 
 Request shape (`src/lib/ai/providers/nvidia.ts`): `stream: true`; `temperature`,
 `top_p` and `max_tokens` come from the selected answer mode (Thinking, Fast,
 Coding, Analyze — see `src/lib/ai/modes.ts`), capped by `NVIDIA_MAX_TOKENS`.
-Coding gets 16 384 tokens; if the model still reports `finish_reason: "length"`,
-the provider automatically asks it to continue from the exact character where it
-stopped (up to two follow-ups, thinking off), so a long file is not left with an
-unclosed code fence.
+Without OpenRouter, NVIDIA Coding is capped at 16,384 tokens per call. If the
+model reports `finish_reason: "length"`, the provider can request continuations
+(up to eight, subject to the overall deadline).
+
+### OpenRouter for Coding
+
+Add `OPENROUTER_API_KEY` to `.env.local` or the deployment's server-side
+environment variables and restart or redeploy. No other provider setting is
+required. Coding mode, including multi-file planning and file generation, uses
+`nvidia/nemotron-3-ultra-550b-a55b:free` through OpenRouter with
+`max_tokens: 65536` and reasoning disabled. The existing OpenAI-compatible SDK
+streams the response; no OpenRouter SDK installation is needed. NVIDIA's
+`NVIDIA_MAX_TOKENS` does not cap OpenRouter. Other modes continue to use the
+configured normal provider. Explicit `AI_PROVIDER=mock` keeps all modes offline.
+
+If the OpenRouter key is absent, or OpenRouter fails before sending answer text,
+the normal provider is used instead. Once answer text has streamed, the app
+will not mix in another provider's answer; interrupted work can be resumed.
+OpenRouter's free endpoint can rate-limit requests or be unavailable, and the
+fallback may have a smaller token limit. `GET /api/status?setup=1` reports
+whether the key is configured, not whether it or the quota works. OpenRouter
+receives the prompt and conversation context; attached pictures still use the
+separate NVIDIA vision reader if configured, otherwise the model is told it
+cannot see them.
+
+65,536 is the requested **per-call ceiling**, not a guaranteed response length.
+The default Coding deadline is 290 seconds and this route requests a 300-second
+hosting limit; your hosting plan can impose a shorter limit. A slow model, a
+long multi-file task, or an interrupted connection may need a resume. OpenRouter
+can also change model availability and limits.
 
 ### The two-model setup (default)
 
@@ -97,7 +125,7 @@ Proxima uses two NVIDIA models, automatically:
 
 | Role | Default model | Setting |
 | --- | --- | --- |
-| Normal answers (text, code, analysis) | `nvidia/nemotron-3-ultra-550b-a55b` | `NVIDIA_MODEL` |
+| Normal answers (text, analysis, code without OpenRouter) | `nvidia/nemotron-3-ultra-550b-a55b` | `NVIDIA_MODEL` |
 | Reading attached pictures (OCR, screenshots, charts) | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | `NVIDIA_VISION_MODEL` |
 
 A text-only message never calls the vision model. A message with a picture
