@@ -76,6 +76,12 @@ export const POST = withApi(async (request: Request) => {
   const modeConfig = resolveModeConfig(answerMode);
   /** Temporary chats are never written to the database and never touch memory. */
   const temporary = input.temporary === true;
+  if (
+    input.codingContinue &&
+    (!userId || temporary || !input.conversationId || !input.retry || !input.codingStep)
+  ) {
+    throw apiErrors.badRequest("Invalid coding continuation.");
+  }
 
   // ── Guest demo rules ──
   if (!userId) {
@@ -166,6 +172,13 @@ export const POST = withApi(async (request: Request) => {
         last.generationProgress !== null &&
         previous?.role === "user" &&
         previous.content === input.message;
+      if (input.codingContinue && (!canResume || !readCodingTaskProgress(last?.generationProgress))) {
+        throw new ApiError(
+          409,
+          "stale_checkpoint",
+          "The coding checkpoint is no longer available. Reload the conversation before retrying.",
+        );
+      }
       if (canResume) {
         resumedAssistant = { id: last.id, content: last.content, progress: last.generationProgress };
         resumeCodingProgress = readCodingTaskProgress(last.generationProgress);
@@ -392,6 +405,21 @@ export const POST = withApi(async (request: Request) => {
             sentText = raw;
             sse.send("file-preview", { path: file.path, text: "" });
             sse.send("token", { text: fileText });
+            // The checkpoint is durable before asking the browser to start a
+            // fresh invocation with its own time budget. Older clients and
+            // unsaved guest/temporary chats retain the original one-stream path.
+            if (
+              input.codingStep &&
+              conversationId &&
+              nextProgress.completedFiles.length < nextProgress.files.length
+            ) {
+              sse.send("coding-continue", {
+                conversationId,
+                completedFiles: nextProgress.completedFiles.length,
+                retry: false,
+              });
+              return;
+            }
           }
 
           const completed = new Set(codingProgress.completedFiles);
@@ -485,6 +513,7 @@ export const POST = withApi(async (request: Request) => {
             ? { kind: "stream", version: 1, state: "interrupted", mode: answerMode }
             : (resumedAssistant?.progress ?? null);
         const partialText = finalAnswer() || sentText || raw;
+        let checkpointSaved = false;
         if (conversationId && (partialText || incompleteProgress !== null)) {
           const progress = incompleteProgress ?? {
             kind: "stream",
@@ -492,9 +521,11 @@ export const POST = withApi(async (request: Request) => {
             state: "interrupted",
             mode: answerMode,
           };
-          await saveIncomplete(partialText, progress as Prisma.InputJsonValue).catch(() => {
+          const saved = await saveIncomplete(partialText, progress as Prisma.InputJsonValue).catch(() => {
             console.error("[chat] could not save interrupted reply progress");
+            return null;
           });
+          checkpointSaved = Boolean(saved);
         }
         if (clientGone.signal.aborted) return;
         const code: AiErrorCode =
@@ -502,6 +533,21 @@ export const POST = withApi(async (request: Request) => {
         // Log only the failure type and status, never prompts, provider responses or keys.
         const status = error instanceof AiProviderError ? error.status : undefined;
         console.error(`[chat] ${provider.id} failed (${code}${status ? `, HTTP ${status}` : ""})`);
+        if (
+          code === "timeout" &&
+          input.codingStep &&
+          checkpointSaved &&
+          conversationId &&
+          codingProgress?.currentFile
+        ) {
+          sse.send("file-preview", { path: codingProgress.currentFile, text: "" });
+          sse.send("coding-continue", {
+            conversationId,
+            completedFiles: codingProgress.completedFiles.length,
+            retry: true,
+          });
+          return;
+        }
         const message =
           codingProgress?.currentFile && code !== "aborted"
             ? `${code === "timeout" ? "The engine stopped responding or ran out of time while writing" : "Could not finish"} ${codingProgress.currentFile}. ${conversationId ? "Your completed files are saved; retry to resume from this file." : "Retry to start again."}`

@@ -209,7 +209,7 @@ describe("multi-file coding tasks", () => {
         completedContent: "",
       });
       const assertion = expect(pending).rejects.toMatchObject({ code: "timeout" });
-      await vi.advanceTimersByTimeAsync(90_001);
+      await vi.advanceTimersByTimeAsync(180_001);
       await assertion;
     } finally {
       vi.useRealTimers();

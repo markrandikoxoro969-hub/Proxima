@@ -83,7 +83,9 @@ A `401` means the key is wrong; a `404` means the model name is wrong.
 | `NVIDIA_TIMEOUT_MS`      | `45000`                                    | Switch to Render if NVIDIA produces no first token in time; a live answer may run on |
 | `AI_API_URL`             | `https://sujancoreapi.onrender.com/chat`   | Render fallback address                                     |
 | `AI_TIMEOUT_MS`          | `110000`                                   | Total budget for non-coding replies                          |
-| `AI_CODING_TIMEOUT_MS`   | `290000`                                   | Coding deadline in ms (capped at 295000)                     |
+| `AI_CODING_TIMEOUT_MS`   | `290000`                                   | Per-request Coding deadline in ms (capped at 295000)         |
+| `AI_CODING_IDLE_TIMEOUT_MS` | `180000`                                | No-output coding timeout in ms (capped at 275000)            |
+| `OPENROUTER_TIMEOUT_MS`  | `150000`                                   | OpenRouter first-token deadline in ms (capped at 275000)     |
 
 Request shape (`src/lib/ai/providers/nvidia.ts`): `stream: true`; `temperature`,
 `top_p` and `max_tokens` come from the selected answer mode (Thinking, Fast,
@@ -114,10 +116,13 @@ separate NVIDIA vision reader if configured, otherwise the model is told it
 cannot see them.
 
 65,536 is the requested **per-call ceiling**, not a guaranteed response length.
-The default Coding deadline is 290 seconds and this route requests a 300-second
-hosting limit; your hosting plan can impose a shorter limit. A slow model, a
-long multi-file task, or an interrupted connection may need a resume. OpenRouter
-can also change model availability and limits.
+The default Coding deadline is 290 seconds per request and this route requests a
+300-second hosting limit; your hosting plan can impose a shorter limit. Signed-in
+saved projects checkpoint each file, and the browser automatically starts a new
+request with a fresh deadline for the next file. It also retries a timed-out file
+up to twice from the last saved checkpoint. A single file can still exceed the
+request limit; its unverified draft is not resumed across requests. OpenRouter
+can change model availability and limits, and multiple requests consume quota.
 
 Coding mode first produces a planned folder tree, then outputs each file with
 its relative path and a separate code block. The tree is a plan, not a claim
@@ -130,8 +135,9 @@ older content is marked as omitted. Plans are limited to 12 files. Generated
 code should still be reviewed and run before use. While a file
 is being generated, a live draft may be shown separately; it is unverified and
 is not saved until the whole file passes the completion check. A silent coding
-stream is stopped after 90 seconds without provider activity, allowing a saved
-chat to retry from its last completed file. The overall request and hosting
+stream is stopped after 180 seconds without model output or internal continuation
+activity by default; OpenRouter's SSE keep-alive comments alone do not reset this
+limit. A saved chat can then retry from its last completed file. The overall request and hosting
 deadlines still apply, even if the model is actively generating.
 
 ### The two-model setup (default)

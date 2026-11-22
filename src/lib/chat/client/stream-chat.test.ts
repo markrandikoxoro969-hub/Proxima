@@ -111,6 +111,84 @@ describe("streamChat", () => {
     expect(events).toEqual(["text:first", "preview:draft", "preview:", "text:second"]);
   });
 
+  it("automatically continues checkpointed files in fresh requests without duplicating saved text", async () => {
+    const responses = [
+      sse(
+        ["meta", { mode: "user", conversationId: "c1", title: "T", userMessageId: "u1" }],
+        ["token", { text: "file one\n" }],
+        ["coding-continue", { conversationId: "c1", completedFiles: 1, retry: false }],
+      ),
+      sse(
+        [
+          "meta",
+          { mode: "user", conversationId: "c1", title: "T", userMessageId: "u1", resumeText: "file one\n" },
+        ],
+        ["token", { text: "file two\n" }],
+        ["done", { messageId: "m1", latencyMs: 5, source: "mock", text: "file one\nfile two\n" }],
+      ),
+    ];
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      void url;
+      void init;
+      return responses.shift()!;
+    });
+    vi.stubGlobal("fetch", fetch);
+    const h = handlers();
+    await streamChat({ message: "Build a project", mode: "coding" }, h);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const second = JSON.parse(String(fetch.mock.calls[1][1]?.body));
+    expect(second).toMatchObject({
+      conversationId: "c1",
+      retry: true,
+      codingContinue: true,
+      codingStep: true,
+    });
+    expect(h.onMeta).toHaveBeenCalledOnce();
+    expect(h.onText.mock.calls.map((c) => c[0]).join("")).toBe("file one\nfile two\n");
+    expect(h.onDone).toHaveBeenCalledOnce();
+    expect(h.onError).not.toHaveBeenCalled();
+  });
+
+  it("automatically retries a timed-out file at most twice", async () => {
+    const fetch = vi.fn(async () =>
+      sse(["coding-continue", { conversationId: "c1", completedFiles: 1, retry: true }]),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const h = handlers();
+    await streamChat({ message: "Build project", mode: "coding" }, h);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(h.onError).toHaveBeenCalledOnce();
+    expect(h.onError).toHaveBeenCalledWith(expect.objectContaining({ code: "timeout", retryable: true }));
+    expect(h.onDone).not.toHaveBeenCalled();
+  });
+
+  it("does not continue a non-advancing file checkpoint", async () => {
+    const fetch = vi.fn(async () =>
+      sse(["coding-continue", { conversationId: "c1", completedFiles: 1, retry: false }]),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const h = handlers();
+    await streamChat({ message: "project" }, h);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(h.onError).toHaveBeenCalledWith(expect.objectContaining({ code: "interrupted" }));
+  });
+
+  it("stops before the next file when cancelled at a checkpoint", async () => {
+    const controller = new AbortController();
+    const fetch = vi.fn(async () =>
+      sse(
+        ["token", { text: "one" }],
+        ["coding-continue", { conversationId: "c1", completedFiles: 1, retry: false }],
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const h = handlers();
+    h.onStatus.mockImplementation(() => controller.abort());
+    await streamChat({ message: "project" }, { ...h, signal: controller.signal });
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(h.onAbort).toHaveBeenCalledOnce();
+  });
+
   it("turns HTTP errors (e.g. rate limit) into a friendly error", async () => {
     vi.stubGlobal(
       "fetch",

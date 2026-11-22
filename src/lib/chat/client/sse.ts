@@ -24,6 +24,8 @@ export type ChatStreamEvent =
   | { event: "token"; data: { text: string } }
   /** Temporary, unverified file draft. Empty text clears the preview. */
   | { event: "file-preview"; data: { path: string; text: string } }
+  /** Durable checkpoint: start a new request rather than finishing the answer. */
+  | { event: "coding-continue"; data: { conversationId: string; completedFiles: number; retry: boolean } }
   /** Only sent when the user turned on Settings → Show reasoning. */
   | { event: "reasoning"; data: { text: string } }
   | {
