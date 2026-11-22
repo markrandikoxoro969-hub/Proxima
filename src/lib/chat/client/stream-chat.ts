@@ -17,6 +17,9 @@ export type ChatRequestBody = {
   images?: { id: string }[];
   demoSessionId?: string;
   retry?: boolean;
+  /** Internal protocol: checkpoint one file per request. */
+  codingStep?: boolean;
+  codingContinue?: boolean;
   /** Ask the server to stream the model's private reasoning (off by default). */
   showReasoning?: boolean;
   /** Answer style: fast / thinking / coding / analyze. */
@@ -50,6 +53,52 @@ export async function streamChat(
   body: ChatRequestBody,
   { signal, ...handlers }: StreamHandlers & { signal?: AbortSignal },
 ): Promise<void> {
+  let current: ChatRequestBody = { ...body, codingStep: true };
+  let lastCompleted = -1;
+  let retries = 0;
+  // At most 12 files and two automatic timeout retries per file.
+  for (let step = 0; step < 36; step++) {
+    if (signal?.aborted) return handlers.onAbort?.();
+    const next = await streamChatOnce(current, { ...handlers, signal }, step > 0);
+    if (!next) return;
+    if (next.completedFiles < lastCompleted || (!next.retry && next.completedFiles === lastCompleted)) {
+      handlers.onError({
+        code: "interrupted",
+        message: "The project checkpoint did not advance. Retry to resume.",
+        retryable: true,
+      });
+      return;
+    }
+    if (next.completedFiles > lastCompleted) retries = 0;
+    lastCompleted = next.completedFiles;
+    if (next.retry && ++retries > 2) {
+      handlers.onError({
+        code: "timeout",
+        message: "The current file timed out repeatedly. Your completed files are saved; retry to resume.",
+        retryable: true,
+      });
+      return;
+    }
+    current = { ...current, conversationId: next.conversationId, retry: true, codingContinue: true };
+    handlers.onStatus?.({
+      state: "thinking",
+      message: next.retry
+        ? "The file timed out. Retrying from the saved checkpoint…"
+        : "Saved the file. Continuing the project…",
+    });
+  }
+  handlers.onError({
+    code: "interrupted",
+    message: "The project paused after too many continuation steps. Retry to resume.",
+    retryable: true,
+  });
+}
+
+async function streamChatOnce(
+  body: ChatRequestBody,
+  { signal, ...handlers }: StreamHandlers & { signal?: AbortSignal },
+  continuing: boolean,
+): Promise<Data<"coding-continue"> | undefined> {
   let res: Response;
   try {
     res = await fetch("/api/chat", {
@@ -60,23 +109,28 @@ export async function streamChat(
       cache: "no-store",
     });
   } catch {
-    if (signal?.aborted) return handlers.onAbort?.();
-    return handlers.onError({
+    if (signal?.aborted) {
+      handlers.onAbort?.();
+      return;
+    }
+    handlers.onError({
       code: "offline",
       message: "You seem to be offline. Check your connection and try again.",
       retryable: true,
     });
+    return;
   }
 
   if (!res.ok || !res.body) {
     const error = await toApiError(res);
-    return handlers.onError({
+    handlers.onError({
       code: error.code,
       message: error.message,
       status: error.status,
       // 429 / 5xx can succeed later; bad input or no login won't.
       retryable: error.status === 429 || error.status >= 500,
     });
+    return;
   }
 
   const batcher = new FrameBatcher(handlers.onText);
@@ -85,7 +139,7 @@ export async function streamChat(
     for await (const event of readChatStream(res.body)) {
       switch (event.event) {
         case "meta":
-          handlers.onMeta?.(event.data);
+          if (!continuing) handlers.onMeta?.(event.data);
           break;
         case "status":
           batcher.flush(); // Keep progress updates ordered after earlier file text.
@@ -94,6 +148,25 @@ export async function streamChat(
         case "token":
           batcher.push(event.data.text);
           break;
+        case "coding-continue":
+          batcher.flush();
+          finished = true;
+          if (
+            typeof event.data.conversationId !== "string" ||
+            !event.data.conversationId ||
+            !Number.isInteger(event.data.completedFiles) ||
+            event.data.completedFiles < 0 ||
+            event.data.completedFiles >= 12 ||
+            typeof event.data.retry !== "boolean"
+          ) {
+            handlers.onError({
+              code: "interrupted",
+              message: "The project checkpoint was invalid. Retry to resume.",
+              retryable: true,
+            });
+            return;
+          }
+          return event.data;
         case "file-preview":
           batcher.flush();
           handlers.onFilePreview?.(event.data);

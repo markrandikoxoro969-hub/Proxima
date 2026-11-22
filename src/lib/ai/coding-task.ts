@@ -21,7 +21,10 @@ const MAX_FILE_REPAIRS = 2;
 const MAX_PROJECT_CONTEXT_CHARS = 400_000;
 const MAX_REPAIR_CONTEXT_CHARS = 200_000;
 /** Bound a silent/stalled provider even when it ignores AbortSignal. */
-const CODING_IDLE_TIMEOUT_MS = 90_000;
+const codingIdleTimeoutMs = () => {
+  const value = Number(process.env.AI_CODING_IDLE_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? Math.min(value, 275_000) : 180_000;
+};
 const MAX_DRAFT_CHARS = 100_000;
 
 const PLAN_INSTRUCTIONS = [
@@ -344,7 +347,7 @@ async function collectText(
           signal.addEventListener("abort", onAbort, { once: true });
           timer = setTimeout(
             () => idle.abort(Object.assign(new Error("Coding stream stalled"), { name: "TimeoutError" })),
-            CODING_IDLE_TIMEOUT_MS,
+            codingIdleTimeoutMs(),
           );
         });
         const result = await Promise.race([iterator.next(), interrupted]);

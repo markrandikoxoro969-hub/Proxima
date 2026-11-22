@@ -105,7 +105,9 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
       apiKey: settings.apiKey,
       baseURL: settings.baseURL,
       // We control timeouts ourselves (AbortSignal) so the fallback can start fast.
-      timeout: 90_000,
+      // The SDK timeout covers the HTTP response headers, not streamed tokens.
+      // Free OpenRouter capacity may take longer than NVIDIA to start.
+      timeout: isOpenRouter ? 180_000 : 90_000,
       maxRetries: 0,
     });
     return client;

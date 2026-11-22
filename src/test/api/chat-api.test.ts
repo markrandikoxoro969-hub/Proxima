@@ -7,6 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { createTestDb, type TestDb } from "@/test/test-db";
 import { ctx, readSse, reasoningText, replyText, req } from "./helpers";
 import { readChatStream } from "@/lib/chat/client/sse";
+import { streamChat } from "@/lib/chat/client/stream-chat";
 
 // ── Fakes ──────────────────────────────────────────────────────────
 const state = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ const state = vi.hoisted(() => ({
   stream: null as ({ type: "text" | "reasoning"; text: string } | Error)[] | null,
   responses: [] as (string | string[] | Error)[],
   fileGate: null as Promise<void> | null,
+  fileDelayMs: 0,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -91,6 +93,9 @@ vi.mock("@/lib/ai", async (importOriginal) => {
             return;
           }
           if (typeof response === "string") {
+            if (state.fileDelayMs && request.system?.includes("Required final marker:")) {
+              await new Promise((resolve) => setTimeout(resolve, state.fileDelayMs));
+            }
             const marker =
               request.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1] ?? "";
             yield { type: "text", text: response.replaceAll("{{MARKER}}", marker) };
@@ -138,6 +143,7 @@ beforeEach(async () => {
   state.stream = null;
   state.responses = [];
   state.fileGate = null;
+  state.fileDelayMs = 0;
   await t.prisma.rateLimit.deleteMany();
   await t.prisma.userSkill.deleteMany();
 });
@@ -232,6 +238,153 @@ describe("POST /api/chat — signed in", () => {
     expect(replyText(events)).toContain("### `hello.py`");
     expect(events.at(-1)?.event).toBe("done");
     expect(await t.prisma.message.count()).toBe(count);
+  });
+
+  it("automatically generates each saved file in a fresh request without duplicating messages", async () => {
+    state.userId = alice;
+    state.responses = [
+      JSON.stringify({ files: [{ path: "src/a.ts" }, { path: "public/index.html" }, { path: "src/c.ts" }] }),
+      "```ts\nexport const a = 1;\n```\n{{MARKER}}",
+      "```html\n<h1>Hi</h1>\n```\n{{MARKER}}",
+      "```ts\nexport const c = 3;\n```\n{{MARKER}}",
+    ];
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (_url, init) => send(JSON.parse(String(init?.body))));
+    const texts: string[] = [];
+    const done = vi.fn();
+    const error = vi.fn();
+    let conversationId = "";
+    try {
+      await streamChat(
+        { message: "Build a project", mode: "coding" },
+        {
+          onMeta: (meta) => {
+            conversationId = meta.conversationId!;
+          },
+          onText: (text) => texts.push(text),
+          onDone: done,
+          onError: error,
+        },
+      );
+      expect(fetch).toHaveBeenCalledTimes(3);
+    } finally {
+      fetch.mockRestore();
+    }
+    expect(done).toHaveBeenCalledOnce();
+    expect(error).not.toHaveBeenCalled();
+    const messages = await t.prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(messages).toHaveLength(2);
+    const saved = messages.find((message) => message.role === "assistant")!;
+    expect(saved.generationProgress).toBeNull();
+    expect(saved.content).toBe(texts.join(""));
+    for (const path of ["src/a.ts", "public/index.html", "src/c.ts"])
+      expect(saved.content.split(`### \`${path}\``)).toHaveLength(2);
+    expect(state.calls).toHaveLength(4);
+  });
+
+  it("gives each file a fresh deadline when total project time exceeds one request budget", async () => {
+    state.userId = alice;
+    state.fileDelayMs = 320;
+    state.responses = [
+      JSON.stringify({ files: [{ path: "src/a.ts" }, { path: "public/index.html" }] }),
+      "```ts\nexport const a = 1;\n```\n{{MARKER}}",
+      "```html\n<h1>Done</h1>\n```\n{{MARKER}}",
+    ];
+    vi.stubEnv("AI_CODING_TIMEOUT_MS", "500");
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (_url, init) => send(JSON.parse(String(init?.body))));
+    const done = vi.fn();
+    const error = vi.fn();
+    const started = Date.now();
+    try {
+      await streamChat(
+        { message: "Build project", mode: "coding" },
+        { onText: () => {}, onDone: done, onError: error },
+      );
+      expect(Date.now() - started).toBeGreaterThan(500);
+      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(done).toHaveBeenCalledOnce();
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      fetch.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("automatically retries a timed-out second file from its saved checkpoint", async () => {
+    state.userId = alice;
+    state.responses = [
+      JSON.stringify({ files: [{ path: "src/a.ts" }, { path: "public/index.html" }] }),
+      "```ts\nexport const a = 1;\n```\n{{MARKER}}",
+      new AiProviderError("no tokens", "timeout"),
+      "```html\n<h1>Complete</h1>\n```\n{{MARKER}}",
+    ];
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (_url, init) => send(JSON.parse(String(init?.body))));
+    const done = vi.fn();
+    const error = vi.fn();
+    const status = vi.fn();
+    let id = "";
+    try {
+      await streamChat(
+        { message: "Build the project", mode: "coding" },
+        {
+          onMeta: (meta) => {
+            id = meta.conversationId!;
+          },
+          onText: () => {},
+          onStatus: status,
+          onDone: done,
+          onError: error,
+        },
+      );
+      expect(fetch).toHaveBeenCalledTimes(3);
+    } finally {
+      fetch.mockRestore();
+    }
+    expect(done).toHaveBeenCalledOnce();
+    expect(error).not.toHaveBeenCalled();
+    expect(status).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining("Retrying") }),
+    );
+    const saved = await t.prisma.message.findFirstOrThrow({
+      where: { conversationId: id, role: "assistant" },
+    });
+    expect(saved.content.split("### `src/a.ts`")).toHaveLength(2);
+    expect(saved.content.split("### `public/index.html`")).toHaveLength(2);
+    expect(saved.generationProgress).toBeNull();
+  });
+
+  it("rejects stale automatic continuations without creating another user message", async () => {
+    state.userId = alice;
+    const convo = await t.prisma.conversation.create({
+      data: {
+        userId: alice,
+        title: "Test",
+        messages: {
+          create: [
+            { role: "user", content: "Build project" },
+            { role: "assistant", content: "Already complete" },
+          ],
+        },
+      },
+    });
+    const response = await send({
+      message: "Build project",
+      conversationId: convo.id,
+      mode: "coding",
+      retry: true,
+      codingStep: true,
+      codingContinue: true,
+    });
+    expect(response.status).toBe(409);
+    expect(await t.prisma.message.count({ where: { conversationId: convo.id } })).toBe(2);
   });
 
   it("shows the second file live without saving its incomplete draft", async () => {

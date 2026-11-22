@@ -69,6 +69,10 @@ export const chatRequestSchema = z.object({
    * this same user message, reply to it instead of saving it a second time.
    */
   retry: z.boolean().optional(),
+  /** Opt in to one checkpointed coding file per HTTP request. */
+  codingStep: z.boolean().optional(),
+  /** Internal continuation: never save a new user message on a stale checkpoint. */
+  codingContinue: z.boolean().optional(),
   /**
    * Ask the server to stream the model's private reasoning. Off by default:
    * when false, reasoning never leaves the server and is never stored.

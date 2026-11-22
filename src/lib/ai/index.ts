@@ -25,6 +25,12 @@ const create: Record<NormalizedProviderId, (url: string) => AiProvider> = {
   mock: createMockProvider,
 };
 
+/** Give the free OpenRouter endpoint more time to produce its first token. */
+export function openRouterFirstTokenTimeoutMs(env: Record<string, string | undefined> = process.env): number {
+  const value = Number(env.OPENROUTER_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? Math.min(value, 275_000) : 150_000;
+}
+
 let cached: { key: string; provider: AiProvider } | undefined;
 
 function cacheKey(mode?: ChatMode): string {
@@ -41,6 +47,7 @@ function cacheKey(mode?: ChatMode): string {
     String(nvidia.maxTokens),
     String(nvidia.enableThinking),
     String(nvidia.firstTokenTimeoutMs),
+    String(openRouterFirstTokenTimeoutMs()),
     // Never put the key itself in a string that could end up in a log. "separate"
     // (not just "yes") matters: adding a vision key must bust the cache even
     // though the shared fallback made visionApiKey truthy all along.
@@ -80,7 +87,7 @@ export function getAiProvider(mode?: ChatMode): AiProvider {
     provider = createFallbackProvider({
       primary: createOpenRouterProvider(),
       fallback: provider,
-      primaryTimeoutMs: resolveNvidiaSettings().firstTokenTimeoutMs,
+      primaryTimeoutMs: openRouterFirstTokenTimeoutMs(),
     });
   }
 
