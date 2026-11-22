@@ -88,6 +88,29 @@ describe("streamChat", () => {
     expect(order).toEqual(["text", "status"]);
   });
 
+  it("delivers file previews in order without appending them to saved text", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        sse(
+          ["token", { text: "first" }],
+          ["file-preview", { path: "src/b.ts", text: "draft" }],
+          ["file-preview", { path: "src/b.ts", text: "" }],
+          ["token", { text: "second" }],
+          ["done", { messageId: null, latencyMs: 1, source: "mock" }],
+        ),
+      ),
+    );
+    const events: string[] = [];
+    const h = handlers();
+    h.onText.mockImplementation((text) => events.push(`text:${text}`));
+    await streamChat(
+      { message: "code" },
+      { ...h, onFilePreview: (data) => events.push(`preview:${data.text}`) },
+    );
+    expect(events).toEqual(["text:first", "preview:draft", "preview:", "text:second"]);
+  });
+
   it("turns HTTP errors (e.g. rate limit) into a friendly error", async () => {
     vi.stubGlobal(
       "fetch",

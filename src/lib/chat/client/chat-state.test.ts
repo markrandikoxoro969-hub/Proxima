@@ -72,6 +72,39 @@ describe("chatReducer", () => {
     expect(s.sessions[0]).toMatchObject({ id: "c1", messageCount: 2 });
   });
 
+  it.each(["failed", "stopped", "done"] as const)("discards an unsaved draft on %s", (ending) => {
+    let s = start();
+    s = chatReducer(s, {
+      type: "sendStart",
+      key: DRAFT,
+      assistant: msg("ai", "assistant", "saved file", { status: "streaming" }),
+    });
+    s = chatReducer(s, { type: "filePreview", key: DRAFT, id: "ai", path: "src/two.ts", text: "unverified" });
+    expect(s.conversations[DRAFT].messages[0]).toMatchObject({
+      content: "saved file",
+      filePreview: { text: "unverified" },
+    });
+    if (ending === "done")
+      s = chatReducer(s, {
+        type: "done",
+        key: DRAFT,
+        id: "ai",
+        newId: null,
+        latencyMs: 1,
+        text: "saved file",
+      });
+    else if (ending === "failed")
+      s = chatReducer(s, {
+        type: "failed",
+        key: DRAFT,
+        id: "ai",
+        error: { code: "timeout", message: "timeout", retryable: true },
+      });
+    else s = chatReducer(s, { type: "stopped", key: DRAFT, id: "ai" });
+    expect(s.conversations[DRAFT].messages[0].filePreview).toBeUndefined();
+    expect(s.conversations[DRAFT].messages[0].content).toBe("saved file");
+  });
+
   it("moves an existing chat to the top when you message it", () => {
     let s = start();
     s = chatReducer(s, { type: "select", key: "b" });

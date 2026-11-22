@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb, type TestDb } from "@/test/test-db";
 import { ctx, readSse, reasoningText, replyText, req } from "./helpers";
+import { readChatStream } from "@/lib/chat/client/sse";
 
 // ── Fakes ──────────────────────────────────────────────────────────
 const state = vi.hoisted(() => ({
@@ -20,7 +21,8 @@ const state = vi.hoisted(() => ({
   }[],
   reply: "Hello from the **fake** AI." as string | Error,
   stream: null as ({ type: "text" | "reasoning"; text: string } | Error)[] | null,
-  responses: [] as (string | Error)[],
+  responses: [] as (string | string[] | Error)[],
+  fileGate: null as Promise<void> | null,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -79,6 +81,15 @@ vi.mock("@/lib/ai", async (importOriginal) => {
           record(request);
           const response = state.responses.shift();
           if (response instanceof Error) throw response;
+          if (Array.isArray(response)) {
+            const marker =
+              request.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1] ?? "";
+            for (const [index, part] of response.entries()) {
+              yield { type: "text", text: part.replaceAll("{{MARKER}}", marker) };
+              if (index === 0 && state.fileGate) await state.fileGate;
+            }
+            return;
+          }
           if (typeof response === "string") {
             const marker =
               request.system?.match(/Required final marker: (<<<PROXIMA_FILE_COMPLETE:[^>]+>>>)/)?.[1] ?? "";
@@ -126,6 +137,7 @@ beforeEach(async () => {
   state.reply = "Hello from the **fake** AI.";
   state.stream = null;
   state.responses = [];
+  state.fileGate = null;
   await t.prisma.rateLimit.deleteMany();
   await t.prisma.userSkill.deleteMany();
 });
@@ -220,6 +232,49 @@ describe("POST /api/chat — signed in", () => {
     expect(replyText(events)).toContain("### `hello.py`");
     expect(events.at(-1)?.event).toBe("done");
     expect(await t.prisma.message.count()).toBe(count);
+  });
+
+  it("shows the second file live without saving its incomplete draft", async () => {
+    state.userId = alice;
+    let release!: () => void;
+    state.fileGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    state.responses = [
+      JSON.stringify({ files: [{ path: "src/a.ts" }, { path: "src/b.ts" }] }),
+      "```ts\nexport const a = 1;\n```\n{{MARKER}}",
+      ["```ts\nexport const b = ", "2;\n```\n{{MARKER}}"],
+    ];
+    const response = await send({ message: "Create src/a.ts and src/b.ts", mode: "coding" });
+    const events = readChatStream(response.body!);
+    let conversationId = "";
+    let sawDraft = false;
+    try {
+      for await (const event of events) {
+        if (event.event === "meta") conversationId = event.data.conversationId!;
+        if (event.event === "file-preview" && event.data.path === "src/b.ts" && event.data.text) {
+          sawDraft = true;
+          expect(event.data.text).toBe("export const b = ");
+          const saved = await t.prisma.message.findFirstOrThrow({
+            where: { conversationId, role: "assistant" },
+          });
+          expect(saved.content).toContain("src/a.ts");
+          expect(saved.content).not.toContain("export const b =");
+          expect(saved.generationProgress).toMatchObject({
+            completedFiles: ["src/a.ts"],
+            currentFile: "src/b.ts",
+          });
+          release();
+        }
+        if (event.event === "done") break;
+      }
+    } finally {
+      release();
+    }
+    expect(sawDraft).toBe(true);
+    const final = await t.prisma.message.findFirstOrThrow({ where: { conversationId, role: "assistant" } });
+    expect(final.content).toContain("export const b = 2;");
+    expect(final.generationProgress).toBeNull();
   });
 
   it("generates multi-file coding work one file at a time and resumes from saved checkpoints", async () => {

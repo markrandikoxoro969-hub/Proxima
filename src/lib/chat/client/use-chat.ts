@@ -234,6 +234,8 @@ export function useChat({
             }
             dispatch({ type: "append", key: currentKey, id: assistantId, text: t });
           },
+          onFilePreview: (draft) =>
+            dispatch({ type: "filePreview", key: currentKey, id: assistantId, ...draft }),
           onReasoning: (t) => dispatch({ type: "reasoning", key: currentKey, id: assistantId, text: t }),
           onDone: (d) => {
             dispatch({
