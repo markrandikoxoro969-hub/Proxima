@@ -30,7 +30,7 @@ export type ModeConfig = {
   thinking: boolean;
   temperature: number;
   topP: number;
-  /** Upper bound; NVIDIA_MAX_TOKENS can lower it, never raise it past this. */
+  /** Upper bound; the selected provider may apply a lower ceiling. */
   maxTokens: number;
   /** How many earlier turns are sent as context. */
   historyLimit: number;
@@ -72,7 +72,7 @@ export const MODE_CONFIG: Record<ChatMode, ModeConfig> = {
     topP: 0.9,
     // Multi-file tasks are planned and emitted one file at a time; a large
     // individual file can still use the provider's continuation path.
-    maxTokens: 16_384,
+    maxTokens: 65_536,
     historyLimit: 16,
   },
 

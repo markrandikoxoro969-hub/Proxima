@@ -1,4 +1,4 @@
-import { AI_TIMEOUT_MS, AiProviderError, getAiProvider } from "@/lib/ai";
+import { AI_CODING_TIMEOUT_MS, AI_TIMEOUT_MS, AiProviderError, getAiProvider } from "@/lib/ai";
 import { LeadingCleanGate, stripFiller } from "@/lib/ai/clean-reply";
 import { resolveChatMode, resolveModeConfig } from "@/lib/ai/modes";
 import { modeSystemPrompt } from "@/lib/ai/mode-prompts";
@@ -45,7 +45,7 @@ import { chatRequestSchema, LIMITS } from "@/lib/validation";
  * Answer text is stored; reasoning never touches the database. Incomplete replies
  * retain progress so the UI can offer a safe resume instead of presenting them as finished.
  */
-export const maxDuration = 120; // seconds (Render cold starts can be slow)
+export const maxDuration = 300; // seconds; hosting plans may enforce a lower limit
 
 const WAKING_AFTER_MS = 4_000;
 const HEARTBEAT_MS = 15_000;
@@ -233,12 +233,12 @@ export const POST = withApi(async (request: Request) => {
   );
 
   // ── Stream the reply ──
-  const provider = getAiProvider();
+  const provider = getAiProvider(answerMode);
   const prompt = composePrompt(input.message, attachments, pictures.length);
   const sessionId = conversationId ?? `demo-${input.demoSessionId ?? crypto.randomUUID()}`;
 
   const clientGone = new AbortController();
-  const timeout = AbortSignal.timeout(AI_TIMEOUT_MS());
+  const timeout = AbortSignal.timeout(answerMode === "coding" ? AI_CODING_TIMEOUT_MS() : AI_TIMEOUT_MS());
   const signal = AbortSignal.any([clientGone.signal, timeout]);
   const interruptedError = () =>
     timeout.aborted

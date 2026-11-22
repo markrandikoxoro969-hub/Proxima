@@ -1,5 +1,6 @@
 import "server-only";
 import { AiProviderError, getAiProvider, resolveAiSettings } from "@/lib/ai";
+import { openRouterConfigured, OPENROUTER_CODING_MODEL } from "@/lib/ai/providers/openrouter";
 import { resolveNvidiaSettings } from "@/lib/ai/settings";
 import {
   nvidiaEditingKey,
@@ -109,6 +110,7 @@ export async function runSetupCheck(origin: string): Promise<{ ok: boolean; chec
   }
 
   checks.push(await checkAi());
+  checks.push(codingEngineStatus(env));
   checks.push(pictureReaderStatus(env));
   checks.push(imageEngineStatus(env));
 
@@ -119,6 +121,24 @@ export async function runSetupCheck(origin: string): Promise<{ ok: boolean; chec
   });
 
   return { ok: checks.every((check) => check.ok), checks };
+}
+
+/** Shows configuration only; this does not verify the OpenRouter key or quota. */
+export function codingEngineStatus(env: Record<string, string | undefined> = process.env): SetupCheck {
+  const name = "Coding engine";
+  if (resolveAiSettings(env).id === "mock")
+    return { name, ok: true, detail: "Mock mode overrides OpenRouter." };
+  return openRouterConfigured(env)
+    ? {
+        name,
+        ok: true,
+        detail: `Configured: OpenRouter ${OPENROUTER_CODING_MODEL}, up to 65536 output tokens per call. Key and quota not verified.`,
+      }
+    : {
+        name,
+        ok: true,
+        detail: "Using the normal AI engine. Set OPENROUTER_API_KEY for OpenRouter Coding mode.",
+      };
 }
 
 /**

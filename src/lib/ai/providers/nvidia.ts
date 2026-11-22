@@ -36,6 +36,9 @@ export type VisionRead = {
 export type NvidiaOptions = {
   /** Pass a pre-configured client (tests) or a partial settings override. */
   client?: OpenAI;
+  /** OpenRouter uses the same streaming API but different reasoning options. */
+  protocol?: "nvidia" | "openrouter";
+  visionBaseURL?: string;
   /** Separate client for the picture reader (tests, or a different account). */
   visionClient?: OpenAI;
   settings?: Partial<NvidiaSettings>;
@@ -91,6 +94,8 @@ const CONTINUE_INSTRUCTION = [
 
 export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
   const settings = { ...resolveNvidiaSettings(), ...options.settings };
+  const isOpenRouter = options.protocol === "openrouter";
+  const providerName = isOpenRouter ? "OpenRouter" : "NVIDIA";
 
   // Created on first use, so a missing key fails with our own clear error
   // instead of a crash while the module loads.
@@ -113,7 +118,7 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
   const getVisionClient = () => {
     visionClient ??= new OpenAI({
       apiKey: settings.visionApiKey,
-      baseURL: settings.baseURL,
+      baseURL: options.visionBaseURL ?? settings.baseURL,
       timeout: 90_000,
       maxRetries: 0,
     });
@@ -129,15 +134,20 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
 
   async function* stream(request: AiRequest): AsyncGenerator<AiDelta> {
     if (!settings.apiKey && !options.client) {
-      throw new AiProviderError("NVIDIA_API_KEY is not set", "unavailable");
+      throw new AiProviderError(
+        `${isOpenRouter ? "OPENROUTER_API_KEY" : "NVIDIA_API_KEY"} is not set`,
+        "unavailable",
+      );
     }
 
     // The composer's mode decides how much room and reasoning the model gets.
-    // NVIDIA_MAX_TOKENS stays the hard ceiling, so a small env value still wins.
+    // The selected provider supplies the hard ceiling for each request.
     const mode = resolveChatMode(request.mode);
-    const tuning = modeModelSettings(mode, settings.maxTokens);
+    const ceiling =
+      !isOpenRouter && mode === "coding" ? Math.min(settings.maxTokens, 16_384) : settings.maxTokens;
+    const tuning = modeModelSettings(mode, ceiling);
     const pictures = request.images ?? [];
-    const directVision = supportsVision(settings.model);
+    const directVision = isOpenRouter ? false : supportsVision(settings.model);
     const model = settings.model;
     let message = request.message;
     let promptImages = pictures;
@@ -147,7 +157,13 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
      * its observations to the main model. If the vision model is unavailable,
      * we keep the honest note instead of failing the whole reply.
      */
-    if (pictures.length > 0 && !directVision && settings.visionModel && settings.visionModel !== model) {
+    if (
+      pictures.length > 0 &&
+      !directVision &&
+      (!isOpenRouter || settings.visionApiKey || options.visionClient) &&
+      settings.visionModel &&
+      settings.visionModel !== model
+    ) {
       try {
         const description = await describeImages(getVisionClient(), {
           images: pictures,
@@ -158,7 +174,7 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
         message = withImageDescription(request.message, description, pictures.length);
         promptImages = [];
       } catch (error) {
-        if (request.signal.aborted) throw toProviderError(error, request.signal);
+        if (request.signal.aborted) throw toProviderError(error, request.signal, providerName);
         console.warn(`[nvidia] vision reader unavailable: ${(error as Error).message}`);
       }
     }
@@ -195,24 +211,25 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
         top_p: tuning.topP,
         max_tokens: tuning.maxTokens,
         stream: true,
-        // NVIDIA-specific: let the model reason privately first. Behind a flag so
-        // it can be switched off without a code change.
-        ...(attemptThinking
-          ? ({ chat_template_kwargs: { enable_thinking: true } } satisfies ChatTemplateKwargs)
-          : {}),
+        // The two APIs use different flags for private reasoning.
+        ...(isOpenRouter
+          ? { reasoning: { enabled: attemptThinking } }
+          : attemptThinking
+            ? ({ chat_template_kwargs: { enable_thinking: true } } satisfies ChatTemplateKwargs)
+            : {}),
       };
 
       let iterable: AsyncIterable<unknown>;
       try {
         iterable = await createStream(getClient(), body, request.signal);
       } catch (error) {
-        if (request.signal.aborted) throw toProviderError(error, request.signal);
+        if (request.signal.aborted) throw toProviderError(error, request.signal, providerName);
         if (!isTransientNvidiaError(error) || transientRetries >= MAX_TRANSIENT_RETRIES) {
-          throw toProviderError(error, request.signal);
+          throw toProviderError(error, request.signal, providerName);
         }
         transientRetries += 1;
         await retryWait(retryDelay(error, transientRetries), request.signal);
-        if (request.signal.aborted) throw toProviderError(error, request.signal);
+        if (request.signal.aborted) throw toProviderError(error, request.signal, providerName);
         continue;
       }
 
@@ -224,6 +241,11 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
       try {
         for await (const raw of iterable) {
           if (request.signal.aborted) throw request.signal.reason ?? new Error("Request cancelled");
+          if (isOpenRouter && raw && typeof raw === "object" && "error" in raw) {
+            const upstream = (raw as { error?: { code?: unknown } }).error;
+            const status = typeof upstream?.code === "number" ? upstream.code : undefined;
+            throw new AiProviderError("OpenRouter stream failed", "upstream", status);
+          }
           const delta = readDelta(raw);
           if (!delta) continue;
           if (delta.finishReason) finishReason = delta.finishReason;
@@ -253,43 +275,48 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
       }
 
       if (streamError) {
-        if (request.signal.aborted) throw toProviderError(streamError, request.signal);
-        if (!isTransientNvidiaError(streamError)) throw toProviderError(streamError, request.signal);
+        if (request.signal.aborted) throw toProviderError(streamError, request.signal, providerName);
+        if (!isTransientNvidiaError(streamError))
+          throw toProviderError(streamError, request.signal, providerName);
         if (!attemptText && transientRetries < MAX_TRANSIENT_RETRIES) {
           transientRetries += 1;
           await retryWait(retryDelay(streamError, transientRetries), request.signal);
-          if (request.signal.aborted) throw toProviderError(streamError, request.signal);
+          if (request.signal.aborted) throw toProviderError(streamError, request.signal, providerName);
           continue;
         }
         if (continuations >= MAX_CONTINUATIONS) {
-          throw incompleteStreamError();
+          throw incompleteStreamError(providerName);
         }
         continuations += 1;
         transientRetries = 0;
         attemptMessages = continuationMessages(baseMessages, partialAnswer);
         await retryWait(retryDelay(streamError, 1), request.signal);
-        if (request.signal.aborted) throw toProviderError(streamError, request.signal);
+        if (request.signal.aborted) throw toProviderError(streamError, request.signal, providerName);
         continue;
       }
 
       transientRetries = 0;
       const hasOpenFence = partialAnswer.length > 0 && hasUnclosedCodeFence(partialAnswer);
-      if (finishReason === "stop" && !hasOpenFence) return;
+      if (finishReason === "stop" && !hasOpenFence) {
+        if (!partialAnswer.trim())
+          throw new AiProviderError(`${providerName} returned no answer`, "bad_response");
+        return;
+      }
       if (finishReason && finishReason !== "length" && finishReason !== "stop") {
-        throw new AiProviderError(`NVIDIA stopped the answer (${finishReason})`, "bad_response");
+        throw new AiProviderError(`${providerName} stopped the answer (${finishReason})`, "bad_response");
       }
       // A missing finish reason means the stream ended unexpectedly. A length
       // finish (including reasoning-only output) or an open code fence needs a
       // continuation; neither is a successful answer.
-      if (continuations >= MAX_CONTINUATIONS) throw incompleteStreamError();
+      if (continuations >= MAX_CONTINUATIONS) throw incompleteStreamError(providerName);
       continuations += 1;
       attemptMessages = continuationMessages(baseMessages, partialAnswer);
     }
   }
 
   return {
-    id: "nvidia",
-    label: `NVIDIA (${settings.model})`, // modes are applied per request, not per provider
+    id: isOpenRouter ? "openrouter" : "nvidia",
+    label: `${providerName} (${settings.model})`, // modes are applied per request, not per provider
     stream,
 
     async ping(signal) {
@@ -308,6 +335,7 @@ export function createNvidiaProvider(options: NvidiaOptions = {}): AiProvider {
 type StreamDelta = {
   content?: string | null;
   reasoning_content?: string | null;
+  reasoning?: string | null;
   finishReason?: string;
 };
 
@@ -322,8 +350,14 @@ function readDelta(raw: unknown): StreamDelta | null {
   const delta = choice.delta;
   if (!delta || typeof delta !== "object") return finishReason ? { finishReason } : null;
   const d = delta as Omit<StreamDelta, "finishReason">;
-  if (!d.content && !d.reasoning_content && !finishReason) return null;
-  return finishReason ? { ...d, finishReason } : d;
+  const reasoning_content =
+    typeof d.reasoning_content === "string"
+      ? d.reasoning_content
+      : typeof d.reasoning === "string"
+        ? d.reasoning
+        : undefined;
+  if (!d.content && !reasoning_content && !finishReason) return null;
+  return { content: d.content, reasoning_content, finishReason };
 }
 
 function continuationMessages(
@@ -409,33 +443,31 @@ async function waitForRetry(milliseconds: number, signal: AbortSignal): Promise<
   });
 }
 
-function incompleteStreamError(): AiProviderError {
+function incompleteStreamError(providerName: string): AiProviderError {
   return new AiProviderError(
-    "NVIDIA reached the continuation safety limit before finishing the answer. Retry to resume the saved progress.",
+    `${providerName} reached the continuation safety limit before finishing the answer. Retry to resume the saved progress.`,
     "upstream",
   );
 }
 
 /** Turns SDK/network failures into the small set of codes the UI understands. */
-function toProviderError(error: unknown, signal: AbortSignal): AiProviderError {
+function toProviderError(error: unknown, signal: AbortSignal, providerName: string): AiProviderError {
   if (signal.aborted) {
     const reason = signal.reason as { name?: string } | undefined;
     return reason?.name === "TimeoutError"
-      ? new AiProviderError("NVIDIA request timed out", "timeout")
+      ? new AiProviderError(`${providerName} request timed out`, "timeout")
       : new AiProviderError("Request was cancelled", "aborted");
   }
+  if (error instanceof AiProviderError) return error;
   const status = (error as { status?: number })?.status;
   if (typeof status === "number") {
-    return new AiProviderError(`NVIDIA responded with HTTP ${status}`, "upstream", status);
+    return new AiProviderError(`${providerName} responded with HTTP ${status}`, "upstream", status);
   }
   const name = (error as { name?: string })?.name;
   if (name === "APIConnectionTimeoutError") {
-    return new AiProviderError("NVIDIA request timed out", "timeout");
+    return new AiProviderError(`${providerName} request timed out`, "timeout");
   }
-  return new AiProviderError(
-    `NVIDIA request failed: ${(error as Error)?.message ?? "unknown error"}`,
-    "unavailable",
-  );
+  return new AiProviderError(`${providerName} request failed`, "unavailable");
 }
 
 /** The note the main model reads when a vision reader described the picture. */

@@ -21,6 +21,7 @@ export const CLEANED_ENV_KEYS = [
   "AI_PROVIDER",
   "AI_API_URL",
   "NVIDIA_API_KEY",
+  "OPENROUTER_API_KEY",
   "NVIDIA_MODEL",
   "NVIDIA_BASE_URL",
 ] as const;

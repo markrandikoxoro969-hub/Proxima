@@ -2,6 +2,8 @@ import "server-only";
 import { createFallbackProvider } from "./providers/chain";
 import { createMockProvider } from "./providers/mock";
 import { createNvidiaProvider, nvidiaConfigured } from "./providers/nvidia";
+import { createOpenRouterProvider, openRouterConfigured } from "./providers/openrouter";
+import type { ChatMode } from "./modes";
 import { createSujanCoreProvider } from "./providers/sujan-core";
 import { resolveAiSettings, resolveNvidiaSettings, type NormalizedProviderId } from "./settings";
 import type { AiProvider } from "./types";
@@ -25,11 +27,13 @@ const create: Record<NormalizedProviderId, (url: string) => AiProvider> = {
 
 let cached: { key: string; provider: AiProvider } | undefined;
 
-function cacheKey(): string {
+function cacheKey(mode?: ChatMode): string {
   const settings = resolveAiSettings();
   const nvidia = resolveNvidiaSettings();
   return [
     settings.id,
+    mode === "coding" ? "coding" : "other",
+    openRouterConfigured() ? "openrouter-key:yes" : "openrouter-key:no",
     settings.url,
     nvidia.model,
     nvidia.visionModel,
@@ -48,8 +52,8 @@ function cacheKey(): string {
 }
 
 /** The provider for this request, including the automatic fallback. */
-export function getAiProvider(): AiProvider {
-  const key = cacheKey();
+export function getAiProvider(mode?: ChatMode): AiProvider {
+  const key = cacheKey(mode);
   if (cached?.key === key) return cached.provider;
 
   const settings = resolveAiSettings();
@@ -72,6 +76,14 @@ export function getAiProvider(): AiProvider {
     }
   }
 
+  if (mode === "coding" && settings.id !== "mock" && openRouterConfigured()) {
+    provider = createFallbackProvider({
+      primary: createOpenRouterProvider(),
+      fallback: provider,
+      primaryTimeoutMs: resolveNvidiaSettings().firstTokenTimeoutMs,
+    });
+  }
+
   cached = { key, provider };
   return provider;
 }
@@ -85,5 +97,10 @@ export { resolveAiSettings } from "./settings";
 export { SYSTEM_PROMPT } from "./prompt";
 
 export const AI_TIMEOUT_MS = () => Number(process.env.AI_TIMEOUT_MS) || 110_000;
+/** Coding has more time for long streamed files; the hosting platform may enforce a lower cap. */
+export const AI_CODING_TIMEOUT_MS = () => {
+  const value = Number(process.env.AI_CODING_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? Math.min(value, 295_000) : 290_000;
+};
 
 export { AiProviderError, type AiDelta, type AiProvider, type AiRequest } from "./types";

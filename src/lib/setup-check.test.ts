@@ -4,7 +4,8 @@ const count = vi.fn();
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db", () => ({ db: { user: { count: () => count() } } }));
 
-const { imageEngineStatus, pictureReaderStatus, runSetupCheck } = await import("./setup-check");
+const { codingEngineStatus, imageEngineStatus, pictureReaderStatus, runSetupCheck } =
+  await import("./setup-check");
 
 const GOOD = {
   AUTH_SECRET: "x".repeat(44),
@@ -155,5 +156,18 @@ describe("imageEngineStatus", () => {
   it("reuses the generation key for editing when IMAGE_EDITING is empty", () => {
     const check = imageEngineStatus({ IMAGE_GENERATION: "gen" });
     expect(check.detail).toContain("black-forest-labs/flux.1-kontext-dev");
+  });
+});
+
+describe("codingEngineStatus", () => {
+  it("reports configuration without exposing the key or claiming a verified connection", () => {
+    const configured = codingEngineStatus({ OPENROUTER_API_KEY: "sk-or-secret" });
+    expect(configured.detail).toContain("65536");
+    expect(configured.detail).toContain("not verified");
+    expect(configured.detail).not.toContain("sk-or-secret");
+    expect(codingEngineStatus({}).detail).toContain("OPENROUTER_API_KEY");
+    expect(codingEngineStatus({ AI_PROVIDER: "mock", OPENROUTER_API_KEY: "sk-or-secret" }).detail).toContain(
+      "Mock",
+    );
   });
 });
