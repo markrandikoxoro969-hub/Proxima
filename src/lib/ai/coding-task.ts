@@ -15,6 +15,11 @@ export type CodingTaskProgress = {
 };
 
 const MAX_PLANNED_FILES = 12;
+/** Bounded retries avoid looping forever or consuming an entire free-tier quota. */
+const MAX_FILE_REPAIRS = 2;
+/** Preserve substantial prior code without overflowing a model's context window. */
+const MAX_PROJECT_CONTEXT_CHARS = 400_000;
+const MAX_REPAIR_CONTEXT_CHARS = 200_000;
 
 const PLAN_INSTRUCTIONS = [
   "Plan this coding task as files, but do not write any source code yet.",
@@ -126,11 +131,13 @@ export async function generateCodingFile(
     files,
     completedFiles,
     completedContent,
+    onRepair,
   }: {
     file: CodingFilePlan;
     files: CodingFilePlan[];
     completedFiles: string[];
     completedContent: string;
+    onRepair?: (attempt: number) => void;
   },
 ): Promise<string> {
   const marker = `<<<PROXIMA_FILE_COMPLETE:${randomUUID()}>>>`;
@@ -151,34 +158,74 @@ export async function generateCodingFile(
     completedPaths.length
       ? `Already completed and saved; do not regenerate:\n${completedPaths.join("\n")}`
       : "No files have been completed yet.",
+    ...(completedContent
+      ? [`Previously completed files (context only, do not reproduce):\n${projectContext(completedContent)}`]
+      : []),
     `Generate only this file now:\n${file.path}\nPurpose: ${file.purpose}`,
     "Keep exported names and interfaces compatible with the files already saved above.",
   ].join("\n\n");
-  const history = [...(request.history ?? [])];
-  if (completedContent) history.push({ role: "assistant", content: completedContent });
+  let previousOutput = "";
+  for (let attempt = 0; attempt <= MAX_FILE_REPAIRS; attempt++) {
+    if (request.signal.aborted) throw interruptedError(request.signal);
+    if (attempt > 0) onRepair?.(attempt);
+    const repairPrompt = attempt
+      ? [
+          "The previous response was not a complete, correctly formatted file.",
+          "Return the entire file again, with any missing code completed. Do not return a patch or only a suffix.",
+          "Include the exact completion marker as the final line after the complete file.",
+          previousOutput
+            ? `Previous attempt (unverified; do not assume it is complete):\n${previousOutput.slice(0, MAX_REPAIR_CONTEXT_CHARS)}${previousOutput.length > MAX_REPAIR_CONTEXT_CHARS ? "\n[Previous attempt truncated for context.]" : ""}`
+            : "The previous attempt returned no usable file.",
+        ].join("\n\n")
+      : "";
+    try {
+      previousOutput = await collectText(provider, {
+        ...request,
+        mode: "coding",
+        system: `${request.system ?? ""}\n\n${fileInstructions}`.trim(),
+        message: [prompt, repairPrompt].filter(Boolean).join("\n\n"),
+      });
+      return parseCodingFile(previousOutput, marker, file.path);
+    } catch (error) {
+      if (request.signal.aborted) throw interruptedError(request.signal);
+      // Retry invalid model output only; authentication, quota and network errors
+      // already have provider-level retry/fallback and should not burn more calls.
+      if (
+        !(error instanceof AiProviderError) ||
+        error.code !== "bad_response" ||
+        attempt === MAX_FILE_REPAIRS
+      ) {
+        throw error;
+      }
+    }
+  }
+  throw new AiProviderError(
+    `The model could not complete ${file.path}. Saved files can be resumed.`,
+    "bad_response",
+  );
+}
 
-  const raw = await collectText(provider, {
-    ...request,
-    mode: "coding",
-    history,
-    system: `${request.system ?? ""}\n\n${fileInstructions}`.trim(),
-    message: prompt,
-  });
+function parseCodingFile(raw: string, marker: string, path: string): string {
   const markerAt = raw.lastIndexOf(marker);
   if (markerAt < 0 || raw.slice(markerAt + marker.length).trim()) {
     throw new AiProviderError(
-      `The model did not finish ${file.path}. Its progress is saved; retry to resume.`,
+      `The model did not finish ${path}. Its progress is saved; retry to resume.`,
       "bad_response",
     );
   }
   const code = extractSource(raw.slice(0, markerAt));
   if (!code.trim()) {
     throw new AiProviderError(
-      `The model returned an empty file for ${file.path}. Retry to resume.`,
+      `The model returned an empty file for ${path}. Retry to resume.`,
       "bad_response",
     );
   }
   return code;
+}
+
+function projectContext(content: string): string {
+  if (content.length <= MAX_PROJECT_CONTEXT_CHARS) return content;
+  return `[Earlier project content omitted to fit the context budget.]\n${content.slice(-MAX_PROJECT_CONTEXT_CHARS)}`;
 }
 
 export function formatCodingFile(path: string, code: string): string {
@@ -212,7 +259,10 @@ function extractSource(response: string): string {
   let closeIndex = -1;
   for (let i = openIndex + 1; i < lines.length; i++) {
     const closing = /^\s{0,3}(`{3,}|~{3,})\s*$/.exec(lines[i])?.[1];
-    if (closing && closing[0] === opening[0] && closing.length >= opening.length) closeIndex = i;
+    if (closing && closing[0] === opening[0] && closing.length >= opening.length) {
+      closeIndex = i;
+      break;
+    }
   }
   if (closeIndex < 0 || lines.slice(closeIndex + 1).some((line) => line.trim())) {
     throw new AiProviderError("The model returned an unfinished code fence", "bad_response");
