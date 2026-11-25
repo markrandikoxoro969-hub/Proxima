@@ -1444,6 +1444,18 @@ html[data-fx="static"] .tb-media-drift {
 /* ---------- Aesthetic media themes (live video & photo backdrops) ---------- */
 .theme-backdrop--media {
   background-color: var(--bg);
+  contain: strict;
+  /* Pure opacity fade — no full-screen blur filter over a decoding video. */
+  animation: media-fade-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes media-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .tb-media-el {
@@ -1452,11 +1464,11 @@ html[data-fx="static"] .tb-media-drift {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: translate3d(0, 0, 0) scale(1.03);
-  filter: saturate(1.08) contrast(1.03);
+  /* No CSS filter or transform scale on <video> so browsers keep native
+     hardware zero-copy video compositing at 60fps. */
 }
 
-/* Slow, hypnotic Ken Burns float for static aesthetic photo themes (Night Drive). */
+/* Slow, smooth Ken Burns float for static aesthetic photo themes (Night Drive). */
 .tb-media-drift {
   animation: media-ken-burns 34s ease-in-out infinite alternate;
 }
@@ -1470,45 +1482,45 @@ html[data-fx="static"] .tb-media-drift {
   }
 }
 
-/* Readability scrim: keeps central chat text crisp while art shines around it. */
+/* Single lightweight readability scrim — keeps central text crisp while art shines. */
 .theme-backdrop--media .tb-media-scrim {
   inset: 0;
   background:
     radial-gradient(
-      80% 75% at 50% 48%,
-      color-mix(in oklab, var(--bg) 56%, transparent) 0%,
+      76% 70% at 50% 45%,
+      color-mix(in oklab, var(--bg) 52%, transparent) 0%,
       color-mix(in oklab, var(--bg) 78%, transparent) 100%
     ),
     linear-gradient(
       180deg,
-      color-mix(in oklab, var(--bg) 54%, transparent) 0%,
-      color-mix(in oklab, var(--bg) 28%, transparent) 46%,
-      color-mix(in oklab, var(--bg) 76%, transparent) 100%
+      color-mix(in oklab, var(--bg) 48%, transparent) 0%,
+      color-mix(in oklab, var(--bg) 24%, transparent) 46%,
+      color-mix(in oklab, var(--bg) 74%, transparent) 100%
     );
 }
 
 .theme-backdrop--media[data-theme-mode="light"] .tb-media-scrim {
   background:
     radial-gradient(
-      82% 76% at 50% 48%,
-      color-mix(in oklab, var(--bg) 62%, transparent) 0%,
+      80% 74% at 50% 46%,
+      color-mix(in oklab, var(--bg) 58%, transparent) 0%,
       color-mix(in oklab, var(--bg) 82%, transparent) 100%
     ),
     linear-gradient(
       180deg,
-      color-mix(in oklab, var(--bg) 58%, transparent) 0%,
-      color-mix(in oklab, var(--bg) 36%, transparent) 48%,
-      color-mix(in oklab, var(--bg) 78%, transparent) 100%
+      color-mix(in oklab, var(--bg) 54%, transparent) 0%,
+      color-mix(in oklab, var(--bg) 32%, transparent) 48%,
+      color-mix(in oklab, var(--bg) 76%, transparent) 100%
     );
 }
 
-.theme-backdrop--media .tb-media-glow {
-  inset: 0;
-  background: radial-gradient(
-    55% 48% at 50% 0%,
-    color-mix(in oklab, var(--accent) 18%, transparent) 0%,
-    transparent 70%
-  );
+/* Performance critical: blurring a live playing <video> with backdrop-filter
+   re-blurs the entire composer/header/sidebar on every video frame and causes
+   severe lag. Over media themes, use crisp tinted glass without live blur. */
+html[data-scene="media"] .glass {
+  background-color: color-mix(in oklab, var(--surface-solid) 84%, transparent);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* ---------- Chat typing box memes & peeking companion ---------- */

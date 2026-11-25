@@ -1,4 +1,5 @@
 import { Logo } from "@/components/brand/logo";
+import { ThemeAudioToggle } from "@/components/theme/theme-audio-toggle";
 import { ThemeMenu } from "@/components/theme/theme-menu";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { ButtonLink } from "@/components/ui/button";
@@ -34,6 +35,7 @@ export function SiteHeader() {
           <ButtonLink href="/login" variant="ghost" className="hidden whitespace-nowrap sm:inline-flex">
             Sign in
           </ButtonLink>
+          <ThemeAudioToggle />
           <ThemeMenu syncAccount={false} />
           <ThemeToggle />
           <ButtonLink href="/app" className="px-3.5 whitespace-nowrap min-[380px]:px-4">

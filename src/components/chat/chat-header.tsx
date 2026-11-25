@@ -4,6 +4,7 @@ import { DownloadSimple, List, NotePencil } from "@phosphor-icons/react";
 import { memo, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { exportUrl } from "@/lib/chat/client/api";
 import { cn } from "@/lib/cn";
+import { ThemeAudioToggle } from "@/components/theme/theme-audio-toggle";
 import { ThemeMenu } from "@/components/theme/theme-menu";
 import { site } from "@/lib/site";
 
@@ -68,6 +69,7 @@ export const ChatHeader = memo(function ChatHeader({
       >
         <NotePencil weight="bold" className="size-5" aria-hidden />
       </button>
+      <ThemeAudioToggle />
       <ThemeMenu />
       {/* Export yields its place to the two voice controls on narrower phones. */}
       <div className="hidden min-[430px]:block">
