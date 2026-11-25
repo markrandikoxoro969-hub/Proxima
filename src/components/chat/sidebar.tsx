@@ -17,6 +17,7 @@ import Link from "next/link";
 import { memo, useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import type { ThemePreference } from "@/lib/theme";
+import { useMuffleThemeAudio } from "@/lib/theme/use-theme-audio";
 import type { EngineStatus, Profile, SessionSummary } from "@/lib/chat/types";
 import { cn } from "@/lib/cn";
 import { SPRING } from "@/lib/motion/tokens";
@@ -60,6 +61,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
   const panelRef = useRef<HTMLElement>(null);
   const controls = useDragControls();
   const hidden = !isDesktop && !open;
+  useMuffleThemeAudio(!isDesktop && open, "mobile-sidebar");
 
   // Mobile: Escape closes the drawer, and focus moves into it when opened.
   useEffect(() => {

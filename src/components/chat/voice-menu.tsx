@@ -12,6 +12,7 @@ import {
   type VoiceEngine,
 } from "@/lib/chat/client/voice";
 import type { VoiceSettings } from "@/lib/chat/client/use-voice-mode";
+import { useMuffleThemeAudio } from "@/lib/theme/use-theme-audio";
 
 /**
  * The speaker button in the chat header: on/off, girl or boy voice, natural or
@@ -41,6 +42,7 @@ export function VoiceMenu({
 }) {
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  useMuffleThemeAudio(open, "voice-menu");
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -111,7 +113,7 @@ export function VoiceMenu({
         }
         title={settings.enabled ? "Voice mode on" : "Voice mode"}
         className={cn(
-          "relative inline-flex tap items-center justify-center rounded-xl px-3 transition-colors duration-200",
+          "relative inline-flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors duration-200 sm:size-11",
           "hover:bg-surface-hover hover:text-fg",
           settings.enabled ? "text-[var(--accent-text)]" : "text-muted",
         )}

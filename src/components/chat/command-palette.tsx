@@ -5,6 +5,7 @@ import { AnimatePresence, m } from "motion/react";
 import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { EASE, SPRING } from "@/lib/motion/tokens";
+import { useMuffleThemeAudio } from "@/lib/theme/use-theme-audio";
 
 export type Command = {
   id: string;
@@ -31,6 +32,7 @@ export const CommandPalette = memo(function CommandPalette({
   onClose: () => void;
   commands: Command[];
 }) {
+  useMuffleThemeAudio(open, "command-palette");
   return (
     <AnimatePresence>
       {open && (

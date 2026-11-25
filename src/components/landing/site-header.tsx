@@ -31,14 +31,14 @@ export function SiteHeader() {
             ))}
           </ul>
         </nav>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 sm:gap-1">
           <ButtonLink href="/login" variant="ghost" className="hidden whitespace-nowrap sm:inline-flex">
             Sign in
           </ButtonLink>
           <ThemeAudioToggle />
           <ThemeMenu syncAccount={false} />
-          <ThemeToggle />
-          <ButtonLink href="/app" className="px-3.5 whitespace-nowrap min-[380px]:px-4">
+          <ThemeToggle className="hidden sm:inline-flex" />
+          <ButtonLink href="/app" className="ml-0.5 px-3 whitespace-nowrap min-[380px]:px-4 sm:ml-0">
             Open app
           </ButtonLink>
         </div>
