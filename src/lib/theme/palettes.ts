@@ -70,8 +70,20 @@ export const THEME_TOKEN_VARS: Record<ThemeTokenKey, string> = {
 
 export const THEME_TOKEN_KEYS = Object.keys(THEME_TOKEN_VARS) as ThemeTokenKey[];
 
-/** A painted, slowly moving backdrop that belongs to a theme. */
-export type ThemeScene = "sky" | "ocean" | "nature";
+/** A painted or media-backed backdrop that belongs to a theme. */
+export type ThemeScene = "sky" | "ocean" | "nature" | "media";
+
+/** Optional ambient video or aesthetic photo backing a theme. */
+export type ThemeMedia = {
+  kind: "video" | "image";
+  src: string;
+  /** Still frame shown immediately while video buffers or under reduced motion. */
+  poster?: string;
+  /** CSS object-position so key focal points stay nicely framed. */
+  position?: string;
+  /** Visibility of the underlying media before the readability scrim (0–1). */
+  opacity?: number;
+};
 
 /** Which voice a theme uses. `site` = PROXIMA's normal Montserrat. */
 export type ThemeDisplay = "geometric" | "rounded" | "site";
@@ -86,6 +98,8 @@ export type ThemePalette = {
   twin?: string;
   /** Animated background painted by <ThemeBackdrop />. */
   scene?: ThemeScene;
+  /** Ambient video or photo wallpaper painted by <ThemeBackdrop />. */
+  media?: ThemeMedia;
   /** Body/heading voice for this theme. */
   display?: ThemeDisplay;
   /** Three colours for the picker card: background, surface, accent. */
@@ -157,7 +171,7 @@ function theme(
   mode: ThemeMode,
   colors: ThemeColors,
   twin?: string,
-  extra: { scene?: ThemeScene; display?: ThemeDisplay } = {},
+  extra: { scene?: ThemeScene; display?: ThemeDisplay; media?: ThemeMedia } = {},
 ): ThemePalette {
   const tokens = deriveTokens(mode, colors);
   return {
@@ -166,7 +180,8 @@ function theme(
     description,
     mode,
     twin,
-    scene: extra.scene,
+    scene: extra.scene ?? (extra.media ? "media" : undefined),
+    media: extra.media,
     display: extra.display,
     swatch: [tokens.bg, tokens.surfaceSolid, tokens.accent],
     tokens,
@@ -326,7 +341,151 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
     "aurora",
     { scene: "nature", display: "site" },
   ),
+  // ── Aesthetic Media Themes (Live video & photo backdrops) ───────────────
+  // Each pairs a curated motion video or aesthetic photo with an AA-safe
+  // palette and a tinted readability scrim so chat text stays crisp.
+  theme(
+    "torn-veil",
+    "Torn Veil",
+    "Ink-black manga rift with luminous violet & cyan eyes.",
+    "dark",
+    {
+      bg: "#07060d",
+      fg: "#f4f3ff",
+      accent: "#38e8ff",
+      solid: "#11101d",
+    },
+    "blossom-sunbeam",
+    {
+      media: {
+        kind: "video",
+        src: "/media/themes/torn-veil.mp4",
+        poster: "/media/themes/torn-veil.jpg",
+        position: "50% 48%",
+        opacity: 0.44,
+      },
+      display: "geometric",
+    },
+  ),
+  theme(
+    "crimson-velvet",
+    "Crimson Velvet",
+    "Bold burgundy studio motion with rose-velvet energy.",
+    "dark",
+    {
+      bg: "#14060b",
+      fg: "#fff1f5",
+      accent: "#fb7185",
+      solid: "#200b13",
+    },
+    "blossom-sunbeam",
+    {
+      media: {
+        kind: "video",
+        src: "/media/themes/crimson-velvet.mp4",
+        poster: "/media/themes/crimson-velvet.jpg",
+        position: "50% 35%",
+        opacity: 0.36,
+      },
+      display: "geometric",
+    },
+  ),
+  theme(
+    "astral-eclipse",
+    "Astral Eclipse",
+    "Cinematic ember glow and sapphire-lit anime horizons.",
+    "dark",
+    {
+      bg: "#080a14",
+      fg: "#eef4ff",
+      accent: "#f59e0b",
+      solid: "#111526",
+    },
+    "azure-daydream",
+    {
+      media: {
+        kind: "video",
+        src: "/media/themes/astral-eclipse.mp4",
+        poster: "/media/themes/astral-eclipse.jpg",
+        position: "50% 45%",
+        opacity: 0.38,
+      },
+      display: "geometric",
+    },
+  ),
+  theme(
+    "night-drive",
+    "Night Drive",
+    "Late-night street glow, vintage teal steel and soft grain.",
+    "dark",
+    {
+      bg: "#081112",
+      fg: "#edf7f6",
+      accent: "#2dd4bf",
+      solid: "#101e20",
+    },
+    "azure-daydream",
+    {
+      media: {
+        kind: "image",
+        src: "/media/themes/night-drive.jpg",
+        poster: "/media/themes/night-drive.jpg",
+        position: "50% 34%",
+        opacity: 0.4,
+      },
+      display: "site",
+    },
+  ),
+  theme(
+    "azure-daydream",
+    "Azure Daydream",
+    "Sunlit sky bokeh, drifting clouds and soft daylight.",
+    "light",
+    {
+      bg: "#ebf7fc",
+      fg: "#0a2238",
+      accent: "#0284c7",
+      solid: "#f7fcff",
+    },
+    "astral-eclipse",
+    {
+      media: {
+        kind: "video",
+        src: "/media/themes/azure-daydream.mp4",
+        poster: "/media/themes/azure-daydream.jpg",
+        position: "50% 38%",
+        opacity: 0.32,
+      },
+      display: "rounded",
+    },
+  ),
+  theme(
+    "blossom-sunbeam",
+    "Blossom Sunbeam",
+    "Sakura bloom, rainbow lens flare and warm petal light.",
+    "light",
+    {
+      bg: "#fdf3f6",
+      fg: "#2b101b",
+      accent: "#be185d",
+      solid: "#fff9fb",
+    },
+    "torn-veil",
+    {
+      media: {
+        kind: "video",
+        src: "/media/themes/blossom-sunbeam.mp4",
+        poster: "/media/themes/blossom-sunbeam.jpg",
+        position: "50% 36%",
+        opacity: 0.3,
+      },
+      display: "site",
+    },
+  ),
 ] as const;
+
+/** Aesthetic themes backed by a live video or photo backdrop. */
+export const MEDIA_THEMES: readonly ThemePalette[] = THEME_PALETTES.filter((t) => Boolean(t.media));
 
 /** scene per built-in theme, for the pre-paint script and <html data-scene>. */
 export const BUILT_IN_THEME_SCENES: Record<string, ThemeScene> = Object.fromEntries(

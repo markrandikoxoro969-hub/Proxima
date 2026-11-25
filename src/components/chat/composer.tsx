@@ -26,10 +26,22 @@ import {
 } from "@/lib/chat/client/images";
 import { useSpeech } from "@/lib/chat/client/use-speech";
 import { useTemporaryChat } from "@/lib/chat/client/use-temporary";
+import {
+  COMPOSER_MEMES,
+  detectComposerMeme,
+  type ComposerMemeKind,
+} from "@/lib/chat/client/composer-memes";
+import { useComposerVibes } from "@/lib/chat/client/use-composer-vibes";
 import { cn } from "@/lib/cn";
 import { IMAGE_LIMITS } from "@/lib/image/limits";
 import { LIMITS } from "@/lib/limits";
 import { SPRING } from "@/lib/motion/tokens";
+import {
+  ComposerMemeStage,
+  ComposerPeeker,
+  VibeMenu,
+  type ActiveComposerMeme,
+} from "./composer-vibes";
 import { ModeMenu } from "./mode-menu";
 
 const MAX_HEIGHT = 200;
@@ -94,12 +106,71 @@ export const Composer = memo(function Composer({
 }) {
   const [text, setText] = useState("");
   const [temporary, setTemporary] = useTemporaryChat();
+  const [vibes] = useComposerVibes();
   const [files, setFiles] = useState<ReadFile[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [activeMeme, setActiveMeme] = useState<ActiveComposerMeme | null>(null);
+  const [pokeSignal, setPokeSignal] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const memeTimerRef = useRef<number | null>(null);
+  const memeIdRef = useRef(0);
+  const lastTriggerRef = useRef<string>("");
   const hintId = useId();
+
+  const triggerMeme = useCallback((kind: ComposerMemeKind, customCaption?: string) => {
+    const spec = COMPOSER_MEMES[kind];
+    const id = ++memeIdRef.current;
+    const caption =
+      customCaption ?? spec.captions[id % spec.captions.length] ?? spec.captions[0]!;
+    setActiveMeme({ id, kind, caption });
+    if (memeTimerRef.current) window.clearTimeout(memeTimerRef.current);
+    memeTimerRef.current = window.setTimeout(() => {
+      setActiveMeme((current) => (current?.id === id ? null : current));
+    }, spec.durationMs);
+  }, []);
+
+  const dismissMeme = useCallback(() => {
+    if (memeTimerRef.current) window.clearTimeout(memeTimerRef.current);
+    setActiveMeme(null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (memeTimerRef.current) window.clearTimeout(memeTimerRef.current);
+    };
+  }, []);
+
+  const handleTextChange = useCallback(
+    (next: string) => {
+      setText(next);
+      if (!next.trim()) {
+        lastTriggerRef.current = "";
+        return;
+      }
+      if (!vibes.memesEnabled) return;
+      if (next.length > LIMITS.messageMax) {
+        if (lastTriggerRef.current !== "limit") {
+          lastTriggerRef.current = "limit";
+          triggerMeme("wasted", "LIMIT EXCEEDED");
+        }
+        return;
+      }
+      const match = detectComposerMeme(next);
+      if (!match) {
+        lastTriggerRef.current = "";
+        return;
+      }
+      const signature = `${match.kind}:${match.matched}`;
+      if (signature !== lastTriggerRef.current) {
+        lastTriggerRef.current = signature;
+        triggerMeme(match.kind, match.caption);
+      }
+    },
+    [vibes.memesEnabled, triggerMeme],
+  );
 
   const length = text.length;
   const tooLong = length > LIMITS.messageMax;
@@ -380,6 +451,8 @@ export const Composer = memo(function Composer({
           "relative mx-auto w-full max-w-3xl rounded-[1.75rem] glass transition-[box-shadow,border-color] duration-300",
           "focus-within:border-line-strong focus-within:shadow-glow",
           dragging && "border-line-strong shadow-glow-strong",
+          activeMeme?.kind === "wasted" && "composer-wasted-ring",
+          activeMeme?.kind === "skull" && "composer-skull-ring",
         )}
         onSubmit={(e) => {
           e.preventDefault();
@@ -400,6 +473,13 @@ export const Composer = memo(function Composer({
           void addFiles(e.dataTransfer.files);
         }}
       >
+        <ComposerMemeStage active={activeMeme} onDismiss={dismissMeme} />
+        <ComposerPeeker
+          focused={focused}
+          typing={text.trim().length > 0}
+          streaming={streaming}
+          pokeSignal={pokeSignal}
+        />
         {(files.length > 0 || images.length > 0) && (
           <div className="flex flex-col gap-2 px-4 pt-3">
             {images.length > 0 && (
@@ -471,7 +551,9 @@ export const Composer = memo(function Composer({
           id="composer-input"
           ref={textareaRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => handleTextChange(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -561,6 +643,11 @@ export const Composer = memo(function Composer({
               pictureLimit={IMAGE_LIMITS.perMessage}
               fileLimit={LIMITS.attachmentsMax}
             />
+
+            <VibeMenu
+              onTriggerMeme={(kind) => triggerMeme(kind)}
+              onPokePeeker={() => setPokeSignal((n) => n + 1)}
+            />
           </div>
 
           <span className="relative inline-grid size-11 shrink-0 place-items-center">
@@ -569,7 +656,10 @@ export const Composer = memo(function Composer({
                 <m.button
                   key="stop"
                   type="button"
-                  onClick={onStop}
+                  onClick={() => {
+                    if (vibes.memesEnabled) triggerMeme("wasted", "STOPPED");
+                    onStop();
+                  }}
                   aria-label="Stop generating"
                   initial={{ opacity: 0, scale: 0.5, rotate: -90 }}
                   animate={{ opacity: 1, scale: 1, rotate: 0 }}

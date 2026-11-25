@@ -3,6 +3,7 @@ import { contrastRatio, parseHex } from "@/lib/color";
 import {
   CUSTOM_THEME_LIMIT,
   DEFAULT_THEME_FOR_MODE,
+  MEDIA_THEMES,
   THEME_PALETTES,
   THEME_TOKEN_KEYS,
   buildCustomTheme,
@@ -64,6 +65,23 @@ describe("built-in themes", () => {
     expect(themesForMode("dark").every((theme) => theme.mode === "dark")).toBe(true);
     expect(themesForMode("light").every((theme) => theme.mode === "light")).toBe(true);
     expect(themesForMode("dark").length + themesForMode("light").length).toBe(THEME_PALETTES.length);
+  });
+
+  it("includes all six aesthetic media themes with scene='media'", () => {
+    const ids = MEDIA_THEMES.map((theme) => theme.id);
+    expect(ids).toEqual([
+      "torn-veil",
+      "crimson-velvet",
+      "astral-eclipse",
+      "night-drive",
+      "azure-daydream",
+      "blossom-sunbeam",
+    ]);
+    for (const theme of MEDIA_THEMES) {
+      expect(theme.scene).toBe("media");
+      expect(theme.media?.src).toMatch(/^\/media\/themes\//);
+      expect(theme.media?.poster).toMatch(/^\/media\/themes\/.*\.jpg$/);
+    }
   });
 });
 

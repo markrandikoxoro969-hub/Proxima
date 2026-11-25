@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Drop, Moon, Plus, Sun, Trash } from "@phosphor-icons/react";
+import { Check, Drop, FilmStrip, Image as ImageIcon, Moon, Plus, Sun, Trash } from "@phosphor-icons/react";
 import { useId, useState } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { api } from "@/lib/chat/client/api";
 import { cn } from "@/lib/cn";
 import {
   CUSTOM_THEME_LIMIT,
+  MEDIA_THEMES,
   ThemeError,
   customThemeColors,
   customThemePayload,
@@ -95,6 +96,7 @@ export function ThemePicker({
   };
 
   const visibleCustom = customThemes.filter((t) => t.mode === resolved);
+  const classicForMode = themesForMode(resolved).filter((t) => !t.media);
 
   return (
     <div className={cn("flex flex-col gap-5", className)}>
@@ -124,16 +126,91 @@ export function ThemePicker({
         </div>
       </fieldset>
 
-      {/* Gallery */}
+      {/* Live Video & Photo Aesthetic Themes */}
       <fieldset>
         <div className="mb-2 flex items-baseline justify-between gap-2">
           <legend className="text-xs font-extrabold tracking-[0.2em] text-muted uppercase">
-            {resolved === "dark" ? "Dark themes" : "Light themes"}
+            Live &amp; aesthetic themes
+          </legend>
+          <span className="text-[11px] font-semibold text-subtle">Motion &amp; wallpapers</span>
+        </div>
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {MEDIA_THEMES.map((palette) => {
+            const active = theme.id === palette.id;
+            const thumb = palette.media?.poster ?? palette.media?.src;
+            const isVideo = palette.media?.kind === "video";
+            return (
+              <li key={palette.id}>
+                <button
+                  type="button"
+                  onClick={() => choosePalette(palette)}
+                  aria-pressed={active}
+                  className={cn(
+                    "group flex w-full flex-col gap-2 rounded-2xl border p-2 text-left transition-[border-color,background-color,transform] duration-200",
+                    active
+                      ? "border-fg/50 bg-surface-hover"
+                      : "border-line hover:border-line-strong hover:bg-surface-hover/60",
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className="relative flex h-16 w-full items-end justify-between overflow-hidden rounded-xl border border-line p-1.5"
+                    style={{ backgroundColor: palette.tokens.bg }}
+                  >
+                    {thumb && (
+                      // Static local poster from /public/media/themes.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={thumb}
+                        alt=""
+                        className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        style={{ objectPosition: palette.media?.position ?? "50% 40%" }}
+                      />
+                    )}
+                    <span
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          "linear-gradient(180deg, rgb(0 0 0 / 0.1) 0%, rgb(0 0 0 / 0.52) 100%)",
+                      }}
+                    />
+                    <span className="relative z-10 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wider text-white uppercase">
+                      {isVideo ? (
+                        <FilmStrip weight="fill" className="size-2.5" aria-hidden />
+                      ) : (
+                        <ImageIcon weight="fill" className="size-2.5" aria-hidden />
+                      )}
+                      {isVideo ? "Live" : "Photo"}
+                    </span>
+                    <span
+                      className="relative z-10 size-3.5 rounded-full ring-1 ring-white/60"
+                      style={{ backgroundColor: palette.tokens.accent }}
+                    />
+                  </span>
+                  <span className="flex items-center justify-between gap-1 px-0.5">
+                    <span className="truncate text-xs font-extrabold">{palette.name}</span>
+                    {active && <Check weight="bold" className="size-3.5 shrink-0" aria-hidden />}
+                  </span>
+                  <span className="line-clamp-2 px-0.5 text-[10px] leading-snug font-medium text-subtle">
+                    {palette.description}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </fieldset>
+
+      {/* Classic Gallery */}
+      <fieldset>
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <legend className="text-xs font-extrabold tracking-[0.2em] text-muted uppercase">
+            {resolved === "dark" ? "Dark palettes" : "Light palettes"}
           </legend>
           <span className="text-[11px] font-semibold text-subtle">Tap to preview</span>
         </div>
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {[...themesForMode(resolved), ...visibleCustom].map((palette) => {
+          {[...classicForMode, ...visibleCustom].map((palette) => {
             const active = theme.id === palette.id;
             return (
               <li key={palette.id} className="relative">

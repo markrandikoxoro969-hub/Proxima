@@ -330,4 +330,15 @@ describe("<Composer />", () => {
     await userEvent.type(input, "Review{Enter}");
     expect(onSend).toHaveBeenCalledWith("Review", [{ name: "app.py", content: "print('hi')" }], []);
   });
+
+  it("pops reactive memes on typing-box slang and lets you poke the peeking companion", async () => {
+    const { input } = setup();
+    expect(screen.getByRole("button", { name: "Poke typing-box companion" })).toBeInTheDocument();
+
+    await userEvent.type(input, "bruh");
+    expect(await screen.findByAltText("Glowing red-eye skull meme")).toBeInTheDocument();
+
+    await userEvent.type(input, " it crashed");
+    expect(await screen.findByAltText("Wasted meme overlay")).toBeInTheDocument();
+  });
 });

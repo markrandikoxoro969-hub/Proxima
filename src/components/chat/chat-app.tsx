@@ -7,6 +7,7 @@ import {
   ChatCircleText,
   Code,
   Copy,
+  FilmStrip,
   GearSix,
   ImageSquare,
   Lightning,
@@ -14,6 +15,7 @@ import {
   Moon,
   Plus,
   SlidersHorizontal,
+  SmileyWink,
   Sparkle,
   SpeakerHigh,
 } from "@phosphor-icons/react";
@@ -31,6 +33,7 @@ import { DRAFT } from "@/lib/chat/client/chat-state";
 import { draftFromImage, type DraftImage } from "@/lib/chat/client/images";
 import { useChat } from "@/lib/chat/client/use-chat";
 import { useChatMode } from "@/lib/chat/client/use-mode";
+import { useComposerVibes } from "@/lib/chat/client/use-composer-vibes";
 import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
 import { useVoiceMode } from "@/lib/chat/client/use-voice-mode";
 import { useVoiceOutput } from "@/lib/chat/client/use-voice-output";
@@ -39,7 +42,7 @@ import { EASE } from "@/lib/motion/tokens";
 import type { EngineStatus, MessagesPage, Profile, SessionSummary } from "@/lib/chat/types";
 import type { SelectedSkillSummary } from "@/lib/skills/catalog";
 import type { ImageDTO } from "@/lib/image/types";
-import type { ThemePreference } from "@/lib/theme";
+import { MEDIA_THEMES, type ThemePreference } from "@/lib/theme";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { ChatHeader } from "./chat-header";
 import type { Command } from "./command-palette";
@@ -122,8 +125,9 @@ function ChatScreen({
 }: ChatAppProps) {
   const notify = useToast();
   const router = useRouter();
-  const { theme, paletteId, syncFromAccount, setPreference, resolved } = useTheme();
+  const { theme, paletteId, syncFromAccount, setPreference, setPalette, resolved } = useTheme();
   const [showReasoning, setShowReasoning] = useShowReasoning();
+  const [vibes, setVibes] = useComposerVibes();
   const [mode, setMode] = useChatMode();
   const [voice, setVoice] = useVoiceMode();
   const isDesktop = useMediaQuery("(min-width: 1024px)", true);
@@ -444,6 +448,28 @@ function ChatScreen({
         keywords: "theme dark light appearance",
         run: () => setPreference(resolved === "dark" ? "light" : "dark"),
       },
+      ...MEDIA_THEMES.map((mediaTheme) => ({
+        id: `theme-${mediaTheme.id}`,
+        label: `Theme: ${mediaTheme.name}`,
+        hint: paletteId === mediaTheme.id ? "On" : mediaTheme.media?.kind === "video" ? "Live" : "Photo",
+        icon: <FilmStrip weight="bold" className="size-4" />,
+        keywords: `theme aesthetic video wallpaper anime ${mediaTheme.name} ${mediaTheme.description}`,
+        run: () => setPalette(mediaTheme.id),
+      })),
+      {
+        id: "toggle-memes",
+        label: vibes.memesEnabled ? "Turn off typing-box memes" : "Turn on typing-box memes",
+        icon: <SmileyWink weight={vibes.memesEnabled ? "fill" : "bold"} className="size-4" />,
+        keywords: "meme skull wasted typing box vibes companion",
+        run: () => setVibes({ memesEnabled: !vibes.memesEnabled }),
+      },
+      {
+        id: "toggle-peeker",
+        label: vibes.peekerEnabled ? "Hide peeking companion" : "Show peeking companion",
+        icon: <Sparkle weight={vibes.peekerEnabled ? "fill" : "bold"} className="size-4" />,
+        keywords: "peeker anime sticker companion typing box",
+        run: () => setVibes({ peekerEnabled: !vibes.peekerEnabled }),
+      },
       ...(
         [
           { id: "thinking", label: "Thinking", icon: <Brain weight="bold" className="size-4" /> },
@@ -525,7 +551,12 @@ function ChatScreen({
       openSkillsSettings,
       openStudio,
       resolved,
+      paletteId,
       setPreference,
+      setPalette,
+      vibes.memesEnabled,
+      vibes.peekerEnabled,
+      setVibes,
       mode,
       setMode,
       showReasoning,

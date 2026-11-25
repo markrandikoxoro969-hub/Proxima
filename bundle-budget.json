@@ -2,8 +2,9 @@
   "$comment": "Max first-load JavaScript per page in KB (gzip). Checked by `npm run check:bundle`. /settings is signed-in only and shares most code with /app.",
   "default": 170,
   "routes": {
-    "/": 210,
+    "/": 220,
     "/app": 260,
-    "/settings": 200
+    "/settings": 200,
+    "/settings/memory": 180
   }
 }

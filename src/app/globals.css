@@ -1426,7 +1426,8 @@ html[data-scene] .app-shell {
 html[data-fx="static"] .theme-backdrop {
   animation: none;
 }
-html[data-fx="static"] .theme-backdrop span {
+html[data-fx="static"] .theme-backdrop span,
+html[data-fx="static"] .tb-media-drift {
   animation: none !important;
   will-change: auto;
 }
@@ -1434,9 +1435,115 @@ html[data-fx="static"] .theme-backdrop span {
   .theme-backdrop {
     animation: none;
   }
-  .theme-backdrop span {
+  .theme-backdrop span,
+  .tb-media-drift {
     animation: none !important;
   }
+}
+
+/* ---------- Aesthetic media themes (live video & photo backdrops) ---------- */
+.theme-backdrop--media {
+  background-color: var(--bg);
+}
+
+.tb-media-el {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: translate3d(0, 0, 0) scale(1.03);
+  filter: saturate(1.08) contrast(1.03);
+}
+
+/* Slow, hypnotic Ken Burns float for static aesthetic photo themes (Night Drive). */
+.tb-media-drift {
+  animation: media-ken-burns 34s ease-in-out infinite alternate;
+}
+
+@keyframes media-ken-burns {
+  from {
+    transform: translate3d(-1.2%, -0.8%, 0) scale(1.04);
+  }
+  to {
+    transform: translate3d(1.2%, 1%, 0) scale(1.1);
+  }
+}
+
+/* Readability scrim: keeps central chat text crisp while art shines around it. */
+.theme-backdrop--media .tb-media-scrim {
+  inset: 0;
+  background:
+    radial-gradient(
+      80% 75% at 50% 48%,
+      color-mix(in oklab, var(--bg) 56%, transparent) 0%,
+      color-mix(in oklab, var(--bg) 78%, transparent) 100%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--bg) 54%, transparent) 0%,
+      color-mix(in oklab, var(--bg) 28%, transparent) 46%,
+      color-mix(in oklab, var(--bg) 76%, transparent) 100%
+    );
+}
+
+.theme-backdrop--media[data-theme-mode="light"] .tb-media-scrim {
+  background:
+    radial-gradient(
+      82% 76% at 50% 48%,
+      color-mix(in oklab, var(--bg) 62%, transparent) 0%,
+      color-mix(in oklab, var(--bg) 82%, transparent) 100%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--bg) 58%, transparent) 0%,
+      color-mix(in oklab, var(--bg) 36%, transparent) 48%,
+      color-mix(in oklab, var(--bg) 78%, transparent) 100%
+    );
+}
+
+.theme-backdrop--media .tb-media-glow {
+  inset: 0;
+  background: radial-gradient(
+    55% 48% at 50% 0%,
+    color-mix(in oklab, var(--accent) 18%, transparent) 0%,
+    transparent 70%
+  );
+}
+
+/* ---------- Chat typing box memes & peeking companion ---------- */
+.composer-peeker-float {
+  animation: peeker-breathe 4.4s ease-in-out infinite;
+}
+
+@keyframes peeker-breathe {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(0, -3px, 0) rotate(-1deg);
+  }
+}
+
+.meme-skull-pulse {
+  filter: drop-shadow(0 8px 22px rgb(239 68 68 / 0.42)) drop-shadow(0 0 12px rgb(248 113 113 / 0.3));
+}
+
+.meme-wasted-pulse {
+  filter: drop-shadow(0 10px 26px rgb(220 38 38 / 0.48)) drop-shadow(0 2px 6px rgb(0 0 0 / 0.55));
+}
+
+.composer-wasted-ring {
+  box-shadow:
+    0 0 0 1.5px rgb(239 68 68 / 0.55),
+    0 0 38px rgb(220 38 38 / 0.24) !important;
+}
+
+.composer-skull-ring {
+  box-shadow:
+    0 0 0 1.5px rgb(244 63 94 / 0.45),
+    0 0 34px rgb(244 63 94 / 0.2) !important;
 }
 
 /* Headings follow the theme's display voice (Ocean → rounded, others → Montserrat). */
