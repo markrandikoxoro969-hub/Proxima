@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
 import { cn } from "@/lib/cn";
 import { MEDIA_THEMES, getBuiltInTheme } from "@/lib/theme/palettes";
+import { useThemeAudio } from "@/lib/theme/use-theme-audio";
 
 /**
  * The top-bar theme picker: one tap to any Live Video / Photo Aesthetic theme
@@ -20,6 +21,7 @@ const QUICK_CLASSIC = [
 
 export function ThemeMenu({ syncAccount = true }: { syncAccount?: boolean }) {
   const { theme, setPalette } = useTheme();
+  const audio = useThemeAudio();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -85,6 +87,53 @@ export function ThemeMenu({ syncAccount = true }: { syncAccount?: boolean }) {
           aria-label="Theme"
           className="animate-fade-up absolute right-0 z-50 mt-2 max-h-[min(80dvh,32rem)] w-[min(21rem,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl border border-line bg-surface-solid p-2.5 shadow-glow-strong"
         >
+          {/* Theme Sound bar */}
+          <div className="mb-2.5 flex items-center gap-2 rounded-xl border border-line bg-surface-hover/60 px-2.5 py-2">
+            <button
+              type="button"
+              onClick={audio.toggle}
+              aria-pressed={audio.enabled && !audio.blocked}
+              aria-label={audio.enabled ? "Mute theme sound" : "Enable theme sound"}
+              className={cn(
+                "inline-flex size-7 shrink-0 items-center justify-center rounded-lg transition-colors",
+                audio.enabled && !audio.blocked
+                  ? "bg-[var(--accent)]/15 text-[var(--accent-text)]"
+                  : "text-muted hover:text-fg",
+              )}
+            >
+              {audio.enabled && !audio.blocked ? (
+                <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path d="M11 5 6 9H3v6h3l5 4V5Z" strokeLinejoin="round" />
+                  <path d="M15.5 8.5a5 5 0 0 1 0 7" strokeLinecap="round" />
+                  <path d="M18.5 5.5a9 9 0 0 1 0 13" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path d="M11 5 6 9H3v6h3l5 4V5Z" strokeLinejoin="round" />
+                  <path d="m22 9-6 6M16 9l6 6" strokeLinecap="round" />
+                </svg>
+              )}
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between text-[10px] font-extrabold tracking-wider text-muted uppercase">
+                <span>Theme Sound</span>
+                <span className="font-mono text-subtle">
+                  {audio.enabled ? `${Math.round(audio.volume * 100)}%` : "Off"}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={100}
+                step={5}
+                aria-label="Theme sound volume"
+                value={Math.round(audio.volume * 100)}
+                onChange={(e) => audio.setVolume(Number(e.target.value) / 100)}
+                className="mt-1 h-1.5 w-full cursor-pointer accent-[var(--accent)]"
+              />
+            </div>
+          </div>
+
           <p className="px-1.5 pt-0.5 pb-2 text-[10px] font-extrabold tracking-[0.2em] text-subtle uppercase">
             Live &amp; Aesthetic Themes
           </p>

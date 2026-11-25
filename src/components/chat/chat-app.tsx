@@ -43,6 +43,7 @@ import type { EngineStatus, MessagesPage, Profile, SessionSummary } from "@/lib/
 import type { SelectedSkillSummary } from "@/lib/skills/catalog";
 import type { ImageDTO } from "@/lib/image/types";
 import { MEDIA_THEMES, type ThemePreference } from "@/lib/theme";
+import { setThemeAudioDucked, useThemeAudio } from "@/lib/theme/use-theme-audio";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { ChatHeader } from "./chat-header";
 import type { Command } from "./command-palette";
@@ -126,6 +127,7 @@ function ChatScreen({
   const notify = useToast();
   const router = useRouter();
   const { theme, paletteId, syncFromAccount, setPreference, setPalette, resolved } = useTheme();
+  const themeAudio = useThemeAudio();
   const [showReasoning, setShowReasoning] = useShowReasoning();
   const [vibes, setVibes] = useComposerVibes();
   const [mode, setMode] = useChatMode();
@@ -189,6 +191,12 @@ function ChatScreen({
     stopSpeech();
     setSpeakingId(null);
   }, [stopSpeech]);
+
+  // Gently duck background theme audio while Proxima reads replies aloud.
+  useEffect(() => {
+    setThemeAudioDucked(voiceSpeaking);
+    return () => setThemeAudioDucked(false);
+  }, [voiceSpeaking]);
 
   // The newest finished reply. Streaming, stopped and failed replies are never read.
   const lastDone = useMemo(() => {
@@ -457,6 +465,13 @@ function ChatScreen({
         run: () => setPalette(mediaTheme.id),
       })),
       {
+        id: "toggle-theme-sound",
+        label: themeAudio.enabled ? "Mute theme sound" : "Unmute theme sound",
+        icon: <SpeakerHigh weight={themeAudio.enabled ? "fill" : "bold"} className="size-4" />,
+        keywords: "sound audio music volume mute theme ambient",
+        run: themeAudio.toggle,
+      },
+      {
         id: "toggle-memes",
         label: vibes.memesEnabled ? "Turn off typing-box memes" : "Turn on typing-box memes",
         icon: <SmileyWink weight={vibes.memesEnabled ? "fill" : "bold"} className="size-4" />,
@@ -554,6 +569,8 @@ function ChatScreen({
       paletteId,
       setPreference,
       setPalette,
+      themeAudio.enabled,
+      themeAudio.toggle,
       vibes.memesEnabled,
       vibes.peekerEnabled,
       setVibes,
@@ -645,9 +662,9 @@ function ChatScreen({
 
   return (
     <div className="app-shell relative isolate flex h-dvh overflow-hidden bg-bg">
-      {/* Ambient canvas is desktop-only: on a phone it is a constant repaint for
-          an effect you cannot see behind the chat. */}
-      {profile.particles && canShowParticles && <Particles />}
+      {/* Ambient canvas is desktop-only and skipped over live media themes so the
+          GPU stays free for smooth 60fps video playback. */}
+      {profile.particles && canShowParticles && !theme.media && <Particles />}
 
       {/* While onboarding is open, everything behind it is unreachable (keyboard + screen readers). */}
       <div className="flex min-w-0 flex-1" inert={!profile.onboarded || undefined}>

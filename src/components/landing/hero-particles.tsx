@@ -2,21 +2,19 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
+import { useTheme } from "@/components/theme/theme-provider";
 
 const Particles = dynamic(() => import("@/components/chat/particles"), { ssr: false });
 
 /**
- * The floating dots behind the hero. Loaded only after the page is idle, so
- * they never slow down the first paint, and not at all on phones (≤767px) or
- * with reduced motion. Max 2× pixel density, paused when off-screen or the tab
- * is hidden, 30fps — see particles.tsx.
+ * The floating dots behind the hero. Skipped on phones, reduced motion, and
+ * whenever a live media theme is active so the GPU stays smooth.
  */
 export function HeroParticles() {
+  const { theme } = useTheme();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Phones skip the canvas entirely: the CSS glow and orbit rings already
-    // give the hero depth, and this is a full-screen animated canvas.
     const small = window.matchMedia("(max-width: 767px)").matches;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (small || reduced) return;
@@ -28,7 +26,9 @@ export function HeroParticles() {
     return () => clearTimeout(id);
   }, []);
 
-  return ready ? (
+  if (!ready || theme.media) return null;
+
+  return (
     <Particles className="pointer-events-none absolute inset-0 -z-10 size-full [mask-image:linear-gradient(to_bottom,black_55%,transparent)]" />
-  ) : null;
+  );
 }
