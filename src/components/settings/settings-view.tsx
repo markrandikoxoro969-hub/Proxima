@@ -23,6 +23,7 @@ import { Button, ButtonLink, buttonClasses } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { ToastProvider, useToast } from "@/components/ui/toast";
 import { api } from "@/lib/chat/client/api";
+import { useComposerVibes } from "@/lib/chat/client/use-composer-vibes";
 import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
 import type { Profile } from "@/lib/chat/types";
 import type { SkillState } from "@/lib/skills/catalog";
@@ -152,7 +153,15 @@ function ProfileSection({ profile, onSaved }: { profile: Profile; onSaved: (p: P
   const [errors, setErrors] = useState<{ name?: string; age?: string }>({});
   const [saving, setSaving] = useState(false);
   const [showReasoning, setShowReasoning] = useShowReasoning();
-  const ids = { name: useId(), age: useId(), particles: useId(), reasoning: useId() };
+  const [vibes, setVibes] = useComposerVibes();
+  const ids = {
+    name: useId(),
+    age: useId(),
+    particles: useId(),
+    reasoning: useId(),
+    memes: useId(),
+    peeker: useId(),
+  };
 
   const save = async () => {
     const nextErrors = validateProfile(name, age);
@@ -194,6 +203,20 @@ function ProfileSection({ profile, onSaved }: { profile: Profile; onSaved: (p: P
       >
         <NameAgeFields ids={ids} name={name} age={age} errors={errors} onName={setName} onAge={setAge} />
         <ThemePicker notify={notify} />
+        <SwitchRow
+          id={ids.memes}
+          title="Typing-box memes"
+          hint="Pop reactive memes on the chat box when you type slang like bruh, cooked, wasted, or rip."
+          checked={vibes.memesEnabled}
+          onChange={(memesEnabled) => setVibes({ memesEnabled })}
+        />
+        <SwitchRow
+          id={ids.peeker}
+          title="Peeking companion"
+          hint="Keep the cute anime companion peeking from the edge of your typing box."
+          checked={vibes.peekerEnabled}
+          onChange={(peekerEnabled) => setVibes({ peekerEnabled })}
+        />
         <SwitchRow
           id={ids.particles}
           title="Background particles"

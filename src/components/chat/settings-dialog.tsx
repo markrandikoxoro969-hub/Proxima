@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { useTheme } from "@/components/theme/theme-provider";
 import { api } from "@/lib/chat/client/api";
+import { useComposerVibes } from "@/lib/chat/client/use-composer-vibes";
 import { useShowReasoning } from "@/lib/chat/client/use-show-reasoning";
 import type { Profile } from "@/lib/chat/types";
 import { NameAgeFields, SwitchRow, validateProfile } from "@/components/settings/fields";
@@ -76,7 +77,15 @@ function SettingsForm({
   const [clearing, setClearing] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; age?: string }>({});
   const [showReasoning, setShowReasoning] = useShowReasoning();
-  const ids = { name: useId(), age: useId(), particles: useId(), reasoning: useId() };
+  const [vibes, setVibes] = useComposerVibes();
+  const ids = {
+    name: useId(),
+    age: useId(),
+    particles: useId(),
+    reasoning: useId(),
+    memes: useId(),
+    peeker: useId(),
+  };
 
   const save = async () => {
     const ageNumber = Number(age);
@@ -117,6 +126,22 @@ function SettingsForm({
       <NameAgeFields ids={ids} name={name} age={age} errors={errors} onName={setName} onAge={setAge} />
 
       <ThemePicker notify={notify} />
+
+      <SwitchRow
+        id={ids.memes}
+        title="Typing-box memes"
+        hint="Pop reactive memes on the chat box when you type slang like bruh, cooked, wasted, or rip."
+        checked={vibes.memesEnabled}
+        onChange={(memesEnabled) => setVibes({ memesEnabled })}
+      />
+
+      <SwitchRow
+        id={ids.peeker}
+        title="Peeking companion"
+        hint="Keep the cute anime companion peeking from the edge of your typing box."
+        checked={vibes.peekerEnabled}
+        onChange={(peekerEnabled) => setVibes({ peekerEnabled })}
+      />
 
       <SwitchRow
         id={ids.particles}

@@ -3,6 +3,13 @@
 import { ArrowClockwise, ArrowUp, Planet, SpeakerHigh, Stop, WarningCircle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from "react";
+import { ComposerMemeStage, type ActiveComposerMeme } from "@/components/chat/composer-vibes";
+import {
+  COMPOSER_MEMES,
+  detectComposerMeme,
+  type ComposerMemeKind,
+} from "@/lib/chat/client/composer-memes";
+import { useComposerVibes } from "@/lib/chat/client/use-composer-vibes";
 import { streamChat } from "@/lib/chat/client/stream-chat";
 import { useVoiceOutput } from "@/lib/chat/client/use-voice-output";
 import { cn } from "@/lib/cn";
@@ -48,6 +55,56 @@ export function LiveDemo() {
   const [announcement, setAnnouncement] = useState("");
   const [Markdown, setMarkdown] = useState<MarkdownComponent | null>(null);
   const [speakingId, setSpeakingId] = useState<number | null>(null);
+  const [vibes] = useComposerVibes();
+  const [activeMeme, setActiveMeme] = useState<ActiveComposerMeme | null>(null);
+  const memeTimerRef = useRef<number | null>(null);
+  const memeIdRef = useRef(0);
+  const lastTriggerRef = useRef("");
+
+  const triggerMeme = useCallback((kind: ComposerMemeKind, customCaption?: string) => {
+    const spec = COMPOSER_MEMES[kind];
+    const id = ++memeIdRef.current;
+    const caption =
+      customCaption ?? spec.captions[id % spec.captions.length] ?? spec.captions[0]!;
+    setActiveMeme({ id, kind, caption });
+    if (memeTimerRef.current) window.clearTimeout(memeTimerRef.current);
+    memeTimerRef.current = window.setTimeout(() => {
+      setActiveMeme((current) => (current?.id === id ? null : current));
+    }, spec.durationMs);
+  }, []);
+
+  const dismissMeme = useCallback(() => {
+    if (memeTimerRef.current) window.clearTimeout(memeTimerRef.current);
+    setActiveMeme(null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (memeTimerRef.current) window.clearTimeout(memeTimerRef.current);
+    };
+  }, []);
+
+  const handleInputChange = useCallback(
+    (next: string) => {
+      setInput(next);
+      if (!next.trim()) {
+        lastTriggerRef.current = "";
+        return;
+      }
+      if (!vibes.memesEnabled) return;
+      const match = detectComposerMeme(next);
+      if (!match) {
+        lastTriggerRef.current = "";
+        return;
+      }
+      const sig = `${match.kind}:${match.matched}`;
+      if (sig !== lastTriggerRef.current) {
+        lastTriggerRef.current = sig;
+        triggerMeme(match.kind, match.caption);
+      }
+    },
+    [vibes.memesEnabled, triggerMeme],
+  );
   const {
     supported: canRead,
     speaking,
@@ -271,9 +328,16 @@ export function LiveDemo() {
             e.preventDefault();
             void send(input);
           }}
-          className="border-t border-line p-3 sm:p-4"
+          className="relative border-t border-line p-3 sm:p-4"
         >
-          <div className="flex items-center gap-2 rounded-2xl border border-line bg-bg py-1.5 pr-1.5 pl-4 transition-[border-color] duration-300 focus-within:border-line-strong">
+          <ComposerMemeStage active={activeMeme} onDismiss={dismissMeme} />
+          <div
+            className={cn(
+              "flex items-center gap-2 rounded-2xl border border-line bg-bg py-1.5 pr-1.5 pl-4 transition-[border-color,box-shadow] duration-300 focus-within:border-line-strong",
+              activeMeme?.kind === "wasted" && "composer-wasted-ring",
+              activeMeme?.kind === "skull" && "composer-skull-ring",
+            )}
+          >
             <label htmlFor="demo-input" className="sr-only">
               Message Proxima (demo)
             </label>
@@ -281,9 +345,9 @@ export function LiveDemo() {
               ref={inputRef}
               id="demo-input"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => handleInputChange(e.target.value)}
               onFocus={loadMarkdown}
-              placeholder="Message Proxima…"
+              placeholder="Message Proxima… (try typing bruh or wasted)"
               autoComplete="off"
               enterKeyHint="send"
               aria-invalid={tooLong || undefined}
@@ -318,9 +382,27 @@ export function LiveDemo() {
               </button>
             )}
           </div>
-          <p id="demo-hint" className="mt-2.5 px-1 text-center text-[11px] font-semibold text-subtle">
-            Demo · replies aren’t saved · {LIMITS.demoMessageMax} characters · 5 messages per minute
-          </p>
+          <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 px-1 text-[11px] font-semibold text-subtle">
+            <p id="demo-hint" className="text-center">
+              Demo · replies aren’t saved · {LIMITS.demoMessageMax} characters · 5 messages per minute
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => triggerMeme("skull")}
+                className="rounded-full border border-line bg-surface-hover/70 px-2 py-0.5 text-[10px] font-extrabold text-muted transition-colors hover:border-red-400/50 hover:text-fg"
+              >
+                Pop Skull
+              </button>
+              <button
+                type="button"
+                onClick={() => triggerMeme("wasted")}
+                className="rounded-full border border-line bg-surface-hover/70 px-2 py-0.5 text-[10px] font-extrabold text-muted transition-colors hover:border-red-400/50 hover:text-fg"
+              >
+                Pop Wasted
+              </button>
+            </div>
+          </div>
         </form>
       </div>
 

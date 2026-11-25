@@ -211,3 +211,8 @@ export function useTheme() {
   if (!ctx) throw new Error("useTheme must be used inside <ThemeProvider>");
   return ctx;
 }
+
+/** Safe variant for standalone components / tests rendered outside <ThemeProvider>. */
+export function useOptionalTheme() {
+  return useContext(ThemeContext);
+}
