@@ -1,18 +1,22 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
+import {
+  DEFAULT_PEEKER_ID,
+  isPeekerCompanionId,
+  type PeekerCompanionId,
+} from "./composer-memes";
 
 /**
  * Preferences for the chat typing-box memes & peeking companion.
  *
  * Stored in localStorage on this device and synced across tabs via `storage`
  * + a custom same-tab event (same pattern as `useShowReasoning`).
- * Both default to ON so the aesthetic features shine right away, and can be
- * toggled cleanly from the composer Vibes popover or Settings.
  */
 export type ComposerVibePrefs = {
   memesEnabled: boolean;
   peekerEnabled: boolean;
+  peekerId: PeekerCompanionId;
 };
 
 const KEY = "proxima:composer-vibes";
@@ -21,6 +25,7 @@ const EVENT = "proxima:composer-vibes-change";
 const DEFAULT_PREFS: ComposerVibePrefs = {
   memesEnabled: true,
   peekerEnabled: true,
+  peekerId: DEFAULT_PEEKER_ID,
 };
 
 let cache: { raw: string | null; value: ComposerVibePrefs } | null = null;
@@ -49,6 +54,7 @@ function getSnapshot(): ComposerVibePrefs {
       value = {
         memesEnabled: typeof parsed.memesEnabled === "boolean" ? parsed.memesEnabled : true,
         peekerEnabled: typeof parsed.peekerEnabled === "boolean" ? parsed.peekerEnabled : true,
+        peekerId: isPeekerCompanionId(parsed.peekerId) ? parsed.peekerId : DEFAULT_PEEKER_ID,
       };
     } catch {
       value = DEFAULT_PREFS;

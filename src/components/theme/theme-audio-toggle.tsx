@@ -32,15 +32,15 @@ export function ThemeAudioToggle({ className }: { className?: string }) {
       aria-pressed={active}
       title={label}
       className={cn(
-        "relative inline-flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors duration-200 hover:bg-surface-hover sm:size-11",
-        active ? "bg-[var(--accent)]/12 text-[var(--accent-text)]" : "text-muted hover:text-fg",
+        "relative inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-150 hover:bg-surface-hover",
+        active ? "bg-[var(--accent)]/15 text-[var(--accent-text)]" : "text-muted hover:text-fg",
         className,
       )}
     >
       {active ? (
         <svg
           viewBox="0 0 24 24"
-          className="size-[18px] sm:size-5"
+          className="size-4"
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
@@ -55,7 +55,7 @@ export function ThemeAudioToggle({ className }: { className?: string }) {
       ) : (
         <svg
           viewBox="0 0 24 24"
-          className="size-[18px] sm:size-5"
+          className="size-4"
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
@@ -72,7 +72,7 @@ export function ThemeAudioToggle({ className }: { className?: string }) {
       {blocked && (
         <span
           aria-hidden
-          className="absolute top-1.5 right-1.5 size-2 rounded-full bg-[var(--accent)] ring-2 ring-surface-solid"
+          className="absolute top-1 right-1 size-1.5 rounded-full bg-[var(--accent)] ring-1 ring-surface-solid"
         />
       )}
     </button>

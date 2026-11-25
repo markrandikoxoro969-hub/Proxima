@@ -67,12 +67,16 @@ describe("built-in themes", () => {
     expect(themesForMode("dark").length + themesForMode("light").length).toBe(THEME_PALETTES.length);
   });
 
-  it("includes all six aesthetic media themes with scene='media'", () => {
+  it("includes all ten aesthetic media themes with scene='media'", () => {
     const ids = MEDIA_THEMES.map((theme) => theme.id);
     expect(ids).toEqual([
       "torn-veil",
       "crimson-velvet",
       "astral-eclipse",
+      "emerald-mirage",
+      "sapphire-stage",
+      "cobalt-encore",
+      "rose-gaze",
       "night-drive",
       "azure-daydream",
       "blossom-sunbeam",
