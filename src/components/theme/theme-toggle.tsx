@@ -34,13 +34,13 @@ export function ThemeToggle({
       aria-label="Switch between dark and light theme"
       title="Switch theme"
       className={cn(
-        "relative inline-flex tap items-center justify-center overflow-hidden rounded-xl text-muted",
-        "transition-[color,background-color,transform] duration-300 ease-premium",
+        "relative inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg text-muted",
+        "transition-[color,background-color,transform] duration-200 ease-premium",
         "hover:bg-surface-hover hover:text-fg active:scale-95",
         className,
       )}
     >
-      <span className="relative grid size-5 place-items-center">
+      <span className="relative grid size-4 place-items-center">
         {/* CSS-only swap: this button appears on every page, including the
             legal ones, so it must not pull the whole motion library in. */}
         <span
@@ -49,9 +49,9 @@ export function ThemeToggle({
           className="theme-toggle-icon absolute inset-0 grid place-items-center"
         >
           {resolved === "dark" ? (
-            <Sun weight="bold" className="size-5" />
+            <Sun weight="bold" className="size-4" />
           ) : (
-            <Moon weight="bold" className="size-5" />
+            <Moon weight="bold" className="size-4" />
           )}
         </span>
       </span>

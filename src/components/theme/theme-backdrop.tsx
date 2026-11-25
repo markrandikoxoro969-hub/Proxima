@@ -18,7 +18,7 @@ import {
 import type { AmbientController, AmbientKind } from "@/lib/theme/ambient-sound";
 
 function ambientKindFor(themeId: string, scene?: string): AmbientKind | null {
-  if (themeId === "night-drive") return "night-drive";
+  if (themeId === "night-drive" || themeId === "rose-gaze") return "night-drive";
   if (scene === "ocean" || scene === "sky" || scene === "nature") return scene;
   return null;
 }
@@ -375,8 +375,13 @@ export function ThemeBackdrop() {
     };
   }, []);
 
-  const targetOpacity = media?.opacity ?? (theme.mode === "dark" ? 0.38 : 0.3);
+  const targetOpacity = media?.opacity ?? (theme.mode === "dark" ? 0.42 : 0.36);
+  // Convert media visibility (0–1) into a crisp scrim strength so the <video>
+  // itself renders at opacity: 1 (enabling zero-copy hardware video overlays).
+  const scrimCenter = Math.round(Math.min(76, Math.max(38, (1 - targetOpacity) * 95)));
+  const scrimEdge = Math.round(Math.min(90, scrimCenter + 22));
   const objectPosition = media?.position ?? "50% 50%";
+  const showPoster = Boolean(media && (!isVideoTheme || !videoReady));
 
   return (
     <>
@@ -384,20 +389,26 @@ export function ThemeBackdrop() {
         className="theme-backdrop theme-backdrop--media"
         data-scene={media ? "media" : undefined}
         data-theme-mode={theme.mode}
-        style={{ display: media ? "block" : "none" }}
+        style={
+          {
+            display: media ? "block" : "none",
+            "--media-scrim-center": `${scrimCenter}%`,
+            "--media-scrim-edge": `${scrimEdge}%`,
+          } as React.CSSProperties
+        }
         aria-hidden
       >
-        {media && (
-          // Poster / photo base layer: renders immediately on theme switch so
-          // there is zero black flash while the next video buffers.
+        {media && showPoster && (
+          // Poster / photo base layer: hidden the instant HD video is playing so
+          // browsers promote <video> to a zero-copy hardware overlay plane.
           // eslint-disable-next-line @next/next/no-img-element
           <img
             key={media.poster ?? media.src}
             src={media.poster ?? media.src}
             alt=""
             decoding="async"
-            className={media.kind === "image" ? "tb-media-el tb-media-drift" : "tb-media-el"}
-            style={{ objectPosition, opacity: targetOpacity }}
+            className="tb-media-el"
+            style={{ objectPosition }}
           />
         )}
         <video
@@ -424,7 +435,7 @@ export function ThemeBackdrop() {
           style={{
             display: isVideoTheme ? "block" : "none",
             objectPosition,
-            opacity: isVideoTheme && videoReady ? targetOpacity : 0,
+            opacity: isVideoTheme && videoReady ? 1 : 0,
           }}
         />
         {media && <span className="tb-media-scrim" />}

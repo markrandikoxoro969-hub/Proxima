@@ -113,19 +113,19 @@ export function VoiceMenu({
         }
         title={settings.enabled ? "Voice mode on" : "Voice mode"}
         className={cn(
-          "relative inline-flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors duration-200 sm:size-11",
+          "relative inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-150",
           "hover:bg-surface-hover hover:text-fg",
           settings.enabled ? "text-[var(--accent-text)]" : "text-muted",
         )}
       >
         {settings.enabled ? (
-          <SpeakerHigh weight="fill" className="size-5" aria-hidden />
+          <SpeakerHigh weight="fill" className="size-4" aria-hidden />
         ) : (
-          <SpeakerSlash weight="bold" className="size-5" aria-hidden />
+          <SpeakerSlash weight="bold" className="size-4" aria-hidden />
         )}
         <span className="sr-only">{settings.enabled ? "Voice mode on" : "Voice mode off"}</span>
         {settings.enabled && (
-          <span aria-hidden className="absolute top-2 right-2 size-1.5 rounded-full bg-[var(--accent)]" />
+          <span aria-hidden className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-[var(--accent)]" />
         )}
       </button>
 

@@ -30,54 +30,66 @@ export const ChatHeader = memo(function ChatHeader({
   voiceMenu?: ReactNode;
 }) {
   return (
-    <header className="flex items-center gap-1 border-b border-line px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 sm:gap-2 sm:px-5">
+    <header className="flex items-center gap-1.5 border-b border-line px-2.5 pt-[max(0.4rem,env(safe-area-inset-top))] pb-1.5 sm:gap-2 sm:px-4">
       <button
         type="button"
         onClick={onOpenSidebar}
         aria-label="Open chat sessions"
         aria-controls="sidebar"
         aria-expanded={isDesktop ? undefined : sidebarOpen}
-        className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg sm:size-11 lg:hidden"
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-fg sm:size-8 lg:hidden"
       >
-        <List weight="bold" className="size-5" aria-hidden />
+        <List weight="bold" className="size-[18px]" aria-hidden />
       </button>
 
-      <div className="min-w-0 flex-1 px-1">
-        <h1 className="flex items-center gap-1.5 text-base font-black tracking-tight sm:gap-2 sm:text-lg">
+      <div className="min-w-0 flex-1 px-0.5">
+        <h1 className="flex items-center gap-1.5 text-sm font-black tracking-tight sm:text-[15px]">
           {site.shortName} {/* ✦ drawn as SVG: not every phone font has the symbol. */}
           <svg
             viewBox="0 0 16 16"
             aria-hidden
-            className="hidden size-3 align-[0.1em] min-[400px]:inline-block"
+            className="hidden size-2.5 align-[0.1em] min-[400px]:inline-block"
             fill="currentColor"
           >
             <path d="M8 0c.5 4.2 3.8 7.5 8 8-4.2.5-7.5 3.8-8 8-.5-4.2-3.8-7.5-8-8 4.2-.5 7.5-3.8 8-8Z" />
           </svg>
           {title && (
-            <span className="hidden min-w-0 truncate text-sm font-semibold text-muted md:inline">
+            <span className="hidden min-w-0 truncate text-xs font-semibold text-muted md:inline">
               · {title}
             </span>
           )}
         </h1>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+      <div className="flex shrink-0 items-center gap-1.5">
         <button
           type="button"
           onClick={onNewChat}
           aria-label="New chat"
-          className="hidden size-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg min-[400px]:inline-flex sm:size-11 lg:hidden"
+          title="New chat"
+          className="hidden size-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-fg min-[400px]:inline-flex sm:size-8 lg:hidden"
         >
-          <NotePencil weight="bold" className="size-5" aria-hidden />
+          <NotePencil weight="bold" className="size-[17px]" aria-hidden />
         </button>
-        <ThemeAudioToggle />
-        <ThemeMenu />
-        {/* Export yields its place to the two voice controls on narrower phones. */}
-        <div className="hidden min-[480px]:block">
+
+        {/* Grouped Appearance pill: Theme Sound + Theme Picker */}
+        <div className="flex items-center gap-0.5 rounded-xl border border-line bg-surface-hover/40 p-0.5">
+          <ThemeAudioToggle />
+          <ThemeMenu />
+        </div>
+
+        {/* Grouped Voice pill: Mic Input + Voice Mode */}
+        {(voiceInput || voiceMenu) && (
+          <div className="flex items-center gap-0.5 rounded-xl border border-line bg-surface-hover/40 p-0.5">
+            {voiceInput}
+            {voiceMenu}
+          </div>
+        )}
+
+        {/* Export yields its place on narrower phones */}
+        <div className="hidden min-[520px]:block">
           <ExportMenu activeId={activeId} />
         </div>
-        {voiceInput}
-        {voiceMenu}
       </div>
     </header>
   );
@@ -128,11 +140,11 @@ function ExportMenu({ activeId }: { activeId: string | null }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        className="inline-flex tap items-center justify-center gap-2 rounded-xl px-3 text-xs font-extrabold tracking-[0.15em] text-muted uppercase transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+        aria-label="Export chats"
+        title="Export chats"
+        className="inline-flex size-8 items-center justify-center rounded-lg border border-line bg-surface-hover/40 text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-fg"
       >
-        <DownloadSimple weight="bold" className="size-5" aria-hidden />
-        <span className="hidden sm:inline">Export</span>
-        <span className="sr-only sm:hidden">Export chats</span>
+        <DownloadSimple weight="bold" className="size-4" aria-hidden />
       </button>
       <div
         id={menuId}
