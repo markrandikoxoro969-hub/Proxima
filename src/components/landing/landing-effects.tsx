@@ -63,27 +63,55 @@ export function LandingEffects() {
 
     if (!rich) return () => cleanups.forEach((fn) => fn());
 
-    // 3) Smooth scrolling (Lenis) — desktop only -----------------------------
-    // Lenis is downloaded only here, so phones never pay for it.
+    // 3) Smooth scrolling (Lenis) — desktop only, paused over live media themes
+    // so native OS compositor scrolling never fights video decoding for frames.
+    const isMediaScene = () => document.documentElement.dataset.scene === "media";
     let lenis: Lenis | null = null;
     let disposed = false;
-    void import("lenis").then(({ default: LenisClass }) => {
-      if (disposed) return;
-      lenis = new LenisClass({
-        autoRaf: true,
-        lerp: 0.12,
-        anchors: { offset: -88 },
-        stopInertiaOnNavigate: true,
+
+    const mountLenis = () => {
+      if (disposed || lenis || isMediaScene()) return;
+      void import("lenis").then(({ default: LenisClass }) => {
+        if (disposed || lenis || isMediaScene()) return;
+        lenis = new LenisClass({
+          autoRaf: true,
+          lerp: 0.12,
+          anchors: { offset: -88 },
+          stopInertiaOnNavigate: true,
+        });
       });
+    };
+
+    const destroyLenis = () => {
+      if (!lenis) return;
+      lenis.destroy();
+      lenis = null;
+    };
+
+    const syncSceneEffects = () => {
+      if (isMediaScene()) {
+        destroyLenis();
+        setCursor(false);
+      } else {
+        mountLenis();
+        setCursor(true);
+      }
+    };
+
+    const sceneObserver = new MutationObserver(syncSceneEffects);
+    sceneObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-scene"],
     });
     cleanups.push(() => {
       disposed = true;
-      lenis?.destroy();
+      sceneObserver.disconnect();
+      destroyLenis();
     });
 
-    // 4) Card spotlight (one delegated listener) ------------------------------
+    // 4) Card spotlight (one delegated listener, skipped over media themes) ----
     const onMove = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse") return;
+      if (e.pointerType !== "mouse" || isMediaScene()) return;
       const target = e.target instanceof Element ? e.target : null;
       const card = target?.closest<HTMLElement>(".spotlight");
       if (!card) return;
@@ -94,9 +122,9 @@ export function LandingEffects() {
     document.addEventListener("pointermove", onMove, { passive: true });
     cleanups.push(() => document.removeEventListener("pointermove", onMove));
 
-    // 5) Custom cursor (rendered below)
-    const showCursor = requestAnimationFrame(() => setCursor(true));
-    cleanups.push(() => cancelAnimationFrame(showCursor));
+    // 5) Initial sync on next frame (starts Lenis + custom cursor if non-media)
+    const initFrame = requestAnimationFrame(syncSceneEffects);
+    cleanups.push(() => cancelAnimationFrame(initFrame));
 
     return () => cleanups.forEach((fn) => fn());
   }, []);

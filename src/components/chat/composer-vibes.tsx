@@ -341,13 +341,13 @@ export function VibeMenu({
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         className={cn(
-          "inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-[color,background-color,transform] duration-150 active:scale-95 sm:size-8",
+          "inline-flex tap shrink-0 items-center justify-center rounded-2xl transition-[color,background-color,transform] duration-200 active:scale-95",
           open || prefs.memesEnabled
             ? "text-[var(--accent-text)] hover:bg-surface-hover"
             : "text-muted hover:bg-surface-hover hover:text-fg",
         )}
       >
-        <SmileyWink weight={open ? "fill" : "bold"} className="size-[18px]" aria-hidden />
+        <SmileyWink weight={open ? "fill" : "bold"} className="size-5" aria-hidden />
       </button>
 
       {open && (

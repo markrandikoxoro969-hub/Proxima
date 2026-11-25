@@ -376,10 +376,9 @@ export function ThemeBackdrop() {
   }, []);
 
   const targetOpacity = media?.opacity ?? (theme.mode === "dark" ? 0.42 : 0.36);
-  // Convert media visibility (0–1) into a crisp scrim strength so the <video>
-  // itself renders at opacity: 1 (enabling zero-copy hardware video overlays).
-  const scrimCenter = Math.round(Math.min(76, Math.max(38, (1 - targetOpacity) * 95)));
-  const scrimEdge = Math.round(Math.min(90, scrimCenter + 22));
+  // Single flat scrim alpha so `<video>` stays at opacity: 1 (hardware overlay)
+  // without paying dual radial/linear fragment-shader cost on every video frame.
+  const scrimAlpha = Math.round(Math.min(76, Math.max(44, (1 - targetOpacity) * 96)));
   const objectPosition = media?.position ?? "50% 50%";
   const showPoster = Boolean(media && (!isVideoTheme || !videoReady));
 
@@ -392,8 +391,7 @@ export function ThemeBackdrop() {
         style={
           {
             display: media ? "block" : "none",
-            "--media-scrim-center": `${scrimCenter}%`,
-            "--media-scrim-edge": `${scrimEdge}%`,
+            "--media-scrim-alpha": `${scrimAlpha}%`,
           } as React.CSSProperties
         }
         aria-hidden
@@ -417,7 +415,7 @@ export function ThemeBackdrop() {
           loop
           muted
           playsInline
-          preload="auto"
+          preload={isVideoTheme ? "auto" : "metadata"}
           disablePictureInPicture
           disableRemotePlayback
           onLoadedData={(e) => {

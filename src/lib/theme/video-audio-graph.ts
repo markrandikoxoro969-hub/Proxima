@@ -77,9 +77,15 @@ export async function ensureVideoAudioGraph(
 
   let ctx: AudioContext;
   try {
-    ctx = new AudioCtx();
+    // "playback" uses a larger hardware audio buffer (fewer CPU audio interrupts
+    // per second), preventing frame drops or audio stutter while HD video decodes.
+    ctx = new AudioCtx({ latencyHint: "playback" });
   } catch {
-    return null;
+    try {
+      ctx = new AudioCtx();
+    } catch {
+      return null;
+    }
   }
 
   if (ctx.state === "suspended") {

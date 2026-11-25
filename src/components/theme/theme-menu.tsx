@@ -78,14 +78,14 @@ export function ThemeMenu({ syncAccount = true }: { syncAccount?: boolean }) {
         aria-controls={open ? menuId : undefined}
         title="Change theme"
         className={cn(
-          "relative inline-flex size-8 shrink-0 items-center justify-center gap-1.5 rounded-lg text-xs font-bold transition-colors duration-150 hover:bg-surface-hover sm:h-8 sm:w-auto sm:px-2",
+          "relative inline-flex size-10 shrink-0 items-center justify-center gap-2 rounded-xl text-xs font-extrabold tracking-[0.14em] uppercase transition-colors duration-200 hover:bg-surface-hover sm:h-11 sm:w-auto sm:px-3",
           open || theme.media ? "text-fg" : "text-muted hover:text-fg",
         )}
       >
         <span className="relative inline-flex items-center justify-center">
           <svg
             viewBox="0 0 24 24"
-            className="size-4"
+            className="size-[19px] sm:size-5"
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
@@ -101,12 +101,12 @@ export function ThemeMenu({ syncAccount = true }: { syncAccount?: boolean }) {
           {theme.media && (
             <span
               aria-hidden
-              className="absolute -right-0.5 -bottom-0.5 size-1.5 rounded-full ring-1 ring-surface-solid"
+              className="absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2 ring-surface-solid"
               style={{ backgroundColor: theme.tokens.accent }}
             />
           )}
         </span>
-        <span className="hidden max-w-[7.5rem] truncate sm:inline">{theme.scene ? theme.name : "Theme"}</span>
+        <span className="hidden sm:inline">{theme.scene ? theme.name : "Theme"}</span>
         <span className="sr-only sm:hidden">Change theme</span>
       </button>
 
@@ -220,7 +220,7 @@ export function ThemeMenu({ syncAccount = true }: { syncAccount?: boolean }) {
                         : "border-line hover:border-line-strong",
                     )}
                   >
-                    <span className="relative block h-14 w-full overflow-hidden bg-surface-hover">
+                    <span className="relative block h-16 w-full overflow-hidden bg-surface-hover">
                       {thumb && (
                         // Static local thumbnail from /public/media/themes.
                         // eslint-disable-next-line @next/next/no-img-element

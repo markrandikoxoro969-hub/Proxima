@@ -616,14 +616,14 @@ function ChatScreen({
               : "Voice input isn't supported in this browser"
         }
         className={cn(
-          "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors duration-150",
+          "inline-flex size-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors duration-200 sm:size-11",
           "hover:bg-surface-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-40",
           listening && "bg-red-500/15 text-red-500 hover:bg-red-500/20 hover:text-red-500",
         )}
       >
         <Microphone
           weight={listening ? "fill" : "bold"}
-          className={cn("size-4", listening && "animate-pulse")}
+          className={cn("size-5", listening && "animate-pulse")}
           aria-hidden
         />
       </button>

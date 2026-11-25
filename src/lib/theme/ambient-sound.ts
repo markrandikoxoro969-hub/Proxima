@@ -60,9 +60,13 @@ export async function startAmbientSound(
 
   let ctx: AudioContext;
   try {
-    ctx = new AudioCtx();
+    ctx = new AudioCtx({ latencyHint: "playback" });
   } catch {
-    return null;
+    try {
+      ctx = new AudioCtx();
+    } catch {
+      return null;
+    }
   }
 
   if (ctx.state === "suspended") {

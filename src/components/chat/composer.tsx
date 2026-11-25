@@ -448,7 +448,7 @@ export const Composer = memo(function Composer({
 
       <form
         className={cn(
-          "relative mx-auto w-full max-w-3xl rounded-2xl glass transition-[box-shadow,border-color] duration-200",
+          "relative mx-auto w-full max-w-3xl rounded-[1.75rem] glass transition-[box-shadow,border-color] duration-300",
           "focus-within:border-line-strong focus-within:shadow-glow",
           dragging && "border-line-strong shadow-glow-strong",
           activeMeme?.kind === "wasted" && "composer-wasted-ring",
@@ -569,21 +569,21 @@ export const Composer = memo(function Composer({
           spellCheck
           aria-describedby={hintId}
           aria-invalid={tooLong || undefined}
-          className="block max-h-[200px] w-full resize-none bg-transparent px-4 pt-3 pb-1.5 text-[15px] leading-relaxed placeholder:text-subtle focus:outline-none focus-visible:outline-none"
+          className="block max-h-[200px] w-full resize-none bg-transparent px-5 pt-4 pb-2 text-base leading-relaxed placeholder:text-subtle focus:outline-none focus-visible:outline-none"
         />
         {interim && (
-          <p className="px-4 pb-1 text-sm text-subtle italic" aria-live="polite">
+          <p className="px-5 pb-1 text-sm text-subtle italic" aria-live="polite">
             {interim}
           </p>
         )}
         {tooLong && (
-          <p role="alert" className="px-4 pb-1.5 text-xs font-semibold text-red-500">
+          <p role="alert" className="px-5 pb-2 text-xs font-semibold text-red-500">
             Too long by {length - LIMITS.messageMax} characters. Shorten it to send.
           </p>
         )}
 
         <div role="group" aria-label="Message actions" className="flex items-center gap-1 px-2 pb-2">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             <ModeMenu mode={mode} onChange={onModeChange} className="shrink-0" />
 
             <button
@@ -598,17 +598,15 @@ export const Composer = memo(function Composer({
               }}
               title={temporary ? "Temporary chat is on. Messages are not saved." : "Start a temporary chat"}
               className={cn(
-                "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold transition-[color,background-color] duration-150",
+                "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl px-2.5 text-xs font-bold transition-[color,background-color] duration-200",
                 temporary
-                  ? "bg-[var(--accent)]/15 text-[var(--accent-text)]"
+                  ? "bg-[var(--accent)]/12 text-[var(--accent-text)]"
                   : "text-subtle hover:bg-surface-hover hover:text-fg",
               )}
             >
-              <EyeSlash weight={temporary ? "fill" : "bold"} className="size-3.5" aria-hidden />
-              <span className="hidden sm:inline">{temporary ? "Temporary" : "Temp"}</span>
+              <EyeSlash weight={temporary ? "fill" : "bold"} className="size-4" aria-hidden />
+              <span className="hidden sm:inline">{temporary ? "Temporary on" : "Temporary"}</span>
             </button>
-
-            <span aria-hidden className="mx-1 h-4 w-px bg-line" />
 
             <input
               ref={fileInputRef}
@@ -652,7 +650,7 @@ export const Composer = memo(function Composer({
             />
           </div>
 
-          <span className="relative inline-grid size-8 shrink-0 place-items-center sm:size-9">
+          <span className="relative inline-grid size-11 shrink-0 place-items-center">
             <AnimatePresence initial={false} mode="popLayout">
               {streaming ? (
                 <m.button
@@ -663,14 +661,14 @@ export const Composer = memo(function Composer({
                     onStop();
                   }}
                   aria-label="Stop generating"
-                  initial={{ opacity: 0, scale: 0.6, rotate: -90 }}
+                  initial={{ opacity: 0, scale: 0.5, rotate: -90 }}
                   animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                  exit={{ opacity: 0, scale: 0.6, rotate: 90 }}
+                  exit={{ opacity: 0, scale: 0.5, rotate: 90 }}
                   transition={SPRING.snappy}
                   whileTap={{ scale: 0.92 }}
-                  className="col-start-1 row-start-1 inline-flex size-8 items-center justify-center rounded-xl bg-inverse text-on-inverse sm:size-9"
+                  className="col-start-1 row-start-1 inline-flex size-11 items-center justify-center rounded-2xl bg-inverse text-on-inverse"
                 >
-                  <Stop weight="fill" className="size-3.5" aria-hidden />
+                  <Stop weight="fill" className="size-4" aria-hidden />
                 </m.button>
               ) : (
                 <m.button
@@ -678,14 +676,14 @@ export const Composer = memo(function Composer({
                   type="submit"
                   disabled={!canSend}
                   aria-label="Send message"
-                  initial={{ opacity: 0, scale: 0.6, rotate: 90 }}
+                  initial={{ opacity: 0, scale: 0.5, rotate: 90 }}
                   animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                  exit={{ opacity: 0, scale: 0.6, rotate: -90 }}
+                  exit={{ opacity: 0, scale: 0.5, rotate: -90 }}
                   transition={SPRING.snappy}
                   whileTap={{ scale: 0.92 }}
-                  className="col-start-1 row-start-1 inline-flex size-8 items-center justify-center rounded-xl bg-inverse text-on-inverse shadow-sm disabled:opacity-45 disabled:shadow-none sm:size-9"
+                  className="col-start-1 row-start-1 inline-flex size-11 items-center justify-center rounded-2xl bg-inverse text-on-inverse shadow-glow disabled:opacity-50 disabled:shadow-none"
                 >
-                  <ArrowUp weight="bold" className="size-4" aria-hidden />
+                  <ArrowUp weight="bold" className="size-5" aria-hidden />
                 </m.button>
               )}
             </AnimatePresence>
@@ -781,7 +779,7 @@ function AttachMenu({
     // running off the right edge.
     <div ref={rootRef} className="contents">
       <IconButton label="Add a picture or file" onClick={() => setOpen((value) => !value)} pressed={open}>
-        <Paperclip weight="bold" className="size-[17px]" aria-hidden />
+        <Paperclip weight="bold" className="size-5" aria-hidden />
       </IconButton>
 
       {open && (
@@ -848,8 +846,8 @@ function IconButton({
       title={label}
       aria-pressed={pressed}
       className={cn(
-        "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted",
-        "transition-[color,background-color,transform] duration-150 hover:bg-surface-hover hover:text-fg active:scale-95 disabled:opacity-30",
+        "inline-flex tap shrink-0 items-center justify-center rounded-2xl text-muted",
+        "transition-[color,background-color,transform] duration-200 hover:bg-surface-hover hover:text-fg active:scale-95 disabled:opacity-30",
         className,
       )}
     >
