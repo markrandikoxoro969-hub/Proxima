@@ -68,9 +68,9 @@ function UserMessage({ message }: { message: UiMessage }) {
   return (
     <m.div
       className="flex justify-end"
-      initial={message.fresh ? { opacity: 0, y: 8, filter: "blur(6px)" } : false}
-      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      transition={{ duration: 0.4, ease: EASE }}
+      initial={message.fresh ? { opacity: 0, y: 8 } : false}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.32, ease: EASE }}
     >
       <div className="flex max-w-[88%] flex-col items-end gap-2 sm:max-w-[80%]">
         {pictures.length > 0 && (
@@ -148,9 +148,9 @@ function AssistantMessage({
   return (
     <m.div
       className="flex gap-3 sm:gap-4"
-      initial={message.fresh ? { opacity: 0, y: 8, filter: "blur(6px)" } : false}
-      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      transition={{ duration: 0.45, ease: EASE }}
+      initial={message.fresh ? { opacity: 0, y: 8 } : false}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: EASE }}
     >
       <div
         aria-hidden

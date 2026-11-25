@@ -8,8 +8,13 @@ import { useThemeAudio } from "@/lib/theme/use-theme-audio";
 
 /**
  * The top-bar theme picker: one tap to any Live Video / Photo Aesthetic theme
- * or classic / procedural scene theme. Uses inline SVG glyphs so pages that
- * mount the header (like `/`) stay lean on first load.
+ * or classic / procedural scene theme.
+ *
+ * Mobile UX:
+ * - Compact square icon button on phones (`size-10`) matching adjacent toolbar
+ *   controls, expanding to an icon + name pill on `sm+`.
+ * - Panel pins cleanly across the viewport (`fixed inset-x-3`) on phones so it
+ *   never clips off the left edge when voice controls sit to its right.
  */
 const QUICK_CLASSIC = [
   { id: "proxima", label: "Default", hint: "Quiet dark" },
@@ -24,6 +29,7 @@ export function ThemeMenu({ syncAccount = true }: { syncAccount?: boolean }) {
   const audio = useThemeAudio();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
 
   useEffect(() => {
@@ -34,7 +40,7 @@ export function ThemeMenu({ syncAccount = true }: { syncAccount?: boolean }) {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setOpen(false);
-      rootRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+      triggerRef.current?.focus();
     };
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
@@ -59,197 +65,272 @@ export function ThemeMenu({ syncAccount = true }: { syncAccount?: boolean }) {
     setOpen(false);
   };
 
+  const soundActive = audio.enabled && !audio.blocked;
+
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative shrink-0">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         title="Change theme"
-        className="inline-flex tap items-center justify-center gap-2 rounded-xl px-3 text-xs font-extrabold tracking-[0.15em] text-muted uppercase transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+        className={cn(
+          "relative inline-flex size-10 shrink-0 items-center justify-center gap-2 rounded-xl text-xs font-extrabold tracking-[0.14em] uppercase transition-colors duration-200 hover:bg-surface-hover sm:h-11 sm:w-auto sm:px-3",
+          open || theme.media ? "text-fg" : "text-muted hover:text-fg",
+        )}
       >
-        <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-          <path d="M12 3a9 9 0 0 0 0 18h1.5a2.5 2.5 0 0 0 0-5H12a2 2 0 0 1 0-4h4.5A4.5 4.5 0 0 0 21 7.5 9 9 0 0 0 12 3Z" />
-          <circle cx="8" cy="10" r="1" fill="currentColor" stroke="none" />
-          <circle cx="11.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
-          <circle cx="15.5" cy="8.5" r="1" fill="currentColor" stroke="none" />
-        </svg>
+        <span className="relative inline-flex items-center justify-center">
+          <svg
+            viewBox="0 0 24 24"
+            className="size-[19px] sm:size-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M12 3a9 9 0 0 0 0 18h1.5a2.5 2.5 0 0 0 0-5H12a2 2 0 0 1 0-4h4.5A4.5 4.5 0 0 0 21 7.5 9 9 0 0 0 12 3Z" />
+            <circle cx="8" cy="10" r="1" fill="currentColor" stroke="none" />
+            <circle cx="11.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
+            <circle cx="15.5" cy="8.5" r="1" fill="currentColor" stroke="none" />
+          </svg>
+          {theme.media && (
+            <span
+              aria-hidden
+              className="absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2 ring-surface-solid"
+              style={{ backgroundColor: theme.tokens.accent }}
+            />
+          )}
+        </span>
         <span className="hidden sm:inline">{theme.scene ? theme.name : "Theme"}</span>
         <span className="sr-only sm:hidden">Change theme</span>
       </button>
 
       {open && (
-        <div
-          id={menuId}
-          role="menu"
-          aria-label="Theme"
-          className="animate-fade-up absolute right-0 z-50 mt-2 max-h-[min(80dvh,32rem)] w-[min(21rem,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl border border-line bg-surface-solid p-2.5 shadow-glow-strong"
-        >
-          {/* Theme Sound bar */}
-          <div className="mb-2.5 flex items-center gap-2 rounded-xl border border-line bg-surface-hover/60 px-2.5 py-2">
-            <button
-              type="button"
-              onClick={audio.toggle}
-              aria-pressed={audio.enabled && !audio.blocked}
-              aria-label={audio.enabled ? "Mute theme sound" : "Enable theme sound"}
-              className={cn(
-                "inline-flex size-7 shrink-0 items-center justify-center rounded-lg transition-colors",
-                audio.enabled && !audio.blocked
-                  ? "bg-[var(--accent)]/15 text-[var(--accent-text)]"
-                  : "text-muted hover:text-fg",
-              )}
+        <>
+          <div
+            aria-hidden
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-40 bg-black/35 sm:hidden"
+          />
+          <div
+            id={menuId}
+            role="menu"
+            aria-label="Theme"
+            className="animate-fade-up fixed inset-x-3 top-[calc(max(0.5rem,env(safe-area-inset-top))+3.75rem)] z-50 max-h-[min(78dvh,34rem)] overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface-solid p-3 shadow-glow-strong sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-[22rem] sm:p-2.5"
+          >
+            {/* Theme Sound bar */}
+            <div
+              data-theme-audio-control="true"
+              className="mb-3 flex items-center gap-2.5 rounded-xl border border-line bg-surface-hover/60 px-2.5 py-2"
             >
-              {audio.enabled && !audio.blocked ? (
-                <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <path d="M11 5 6 9H3v6h3l5 4V5Z" strokeLinejoin="round" />
-                  <path d="M15.5 8.5a5 5 0 0 1 0 7" strokeLinecap="round" />
-                  <path d="M18.5 5.5a9 9 0 0 1 0 13" strokeLinecap="round" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <path d="M11 5 6 9H3v6h3l5 4V5Z" strokeLinejoin="round" />
-                  <path d="m22 9-6 6M16 9l6 6" strokeLinecap="round" />
-                </svg>
-              )}
-            </button>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between text-[10px] font-extrabold tracking-wider text-muted uppercase">
-                <span>Theme Sound</span>
-                <span className="font-mono text-subtle">
-                  {audio.enabled ? `${Math.round(audio.volume * 100)}%` : "Off"}
-                </span>
+              <button
+                type="button"
+                data-theme-audio-control="true"
+                onClick={audio.toggle}
+                aria-pressed={soundActive}
+                aria-label={audio.enabled ? "Mute theme sound" : "Enable theme sound"}
+                className={cn(
+                  "inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+                  soundActive
+                    ? "bg-[var(--accent)]/15 text-[var(--accent-text)]"
+                    : "text-muted hover:text-fg",
+                )}
+              >
+                {soundActive ? (
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="size-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M9 18V6l11-2v12" />
+                    <circle cx="6.5" cy="18" r="2.5" />
+                    <circle cx="17.5" cy="16" r="2.5" />
+                  </svg>
+                ) : (
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="size-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M9 18V9m0-3 11-2v10" />
+                    <circle cx="6.5" cy="18" r="2.5" />
+                    <circle cx="17.5" cy="16" r="2.5" />
+                    <path d="m3 3 18 18" />
+                  </svg>
+                )}
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between text-[10px] font-extrabold tracking-wider text-muted uppercase">
+                  <span>Theme Sound</span>
+                  <span className="font-mono text-subtle">
+                    {!audio.enabled
+                      ? "Off"
+                      : audio.blocked
+                        ? "Tap to play"
+                        : `${Math.round(audio.volume * 100)}%`}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={5}
+                  max={100}
+                  step={5}
+                  data-theme-audio-control="true"
+                  aria-label="Theme sound volume"
+                  value={Math.round(audio.volume * 100)}
+                  onChange={(e) => audio.setVolume(Number(e.target.value) / 100)}
+                  className="mt-1 h-1.5 w-full cursor-pointer accent-[var(--accent)]"
+                />
               </div>
-              <input
-                type="range"
-                min={5}
-                max={100}
-                step={5}
-                aria-label="Theme sound volume"
-                value={Math.round(audio.volume * 100)}
-                onChange={(e) => audio.setVolume(Number(e.target.value) / 100)}
-                className="mt-1 h-1.5 w-full cursor-pointer accent-[var(--accent)]"
-              />
             </div>
-          </div>
 
-          <p className="px-1.5 pt-0.5 pb-2 text-[10px] font-extrabold tracking-[0.2em] text-subtle uppercase">
-            Live &amp; Aesthetic Themes
-          </p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {MEDIA_THEMES.map((palette) => {
-              const active = theme.id === palette.id;
-              const thumb = palette.media?.poster ?? palette.media?.src;
-              const isVideo = palette.media?.kind === "video";
-              return (
-                <button
-                  key={palette.id}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => choose(palette.id)}
-                  className={cn(
-                    "group relative flex flex-col overflow-hidden rounded-xl border text-left transition-[border-color,transform] duration-200 active:scale-[0.98]",
-                    active
-                      ? "border-[var(--accent)] ring-1 ring-[var(--accent)]/40"
-                      : "border-line hover:border-line-strong",
-                  )}
-                >
-                  <span className="relative block h-16 w-full overflow-hidden bg-surface-hover">
-                    {thumb && (
-                      // Static local thumbnail from /public/media/themes.
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={thumb}
-                        alt=""
-                        className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        style={{ objectPosition: palette.media?.position ?? "50% 40%" }}
-                      />
+            <p className="px-1 pt-0.5 pb-2 text-[10px] font-extrabold tracking-[0.2em] text-subtle uppercase">
+              Live &amp; Aesthetic Themes
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:gap-1.5">
+              {MEDIA_THEMES.map((palette) => {
+                const active = theme.id === palette.id;
+                const thumb = palette.media?.poster ?? palette.media?.src;
+                const isVideo = palette.media?.kind === "video";
+                return (
+                  <button
+                    key={palette.id}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => choose(palette.id)}
+                    className={cn(
+                      "group relative flex flex-col overflow-hidden rounded-xl border text-left transition-[border-color,transform] duration-200 active:scale-[0.98]",
+                      active
+                        ? "border-[var(--accent)] ring-1 ring-[var(--accent)]/40"
+                        : "border-line hover:border-line-strong",
                     )}
+                  >
+                    <span className="relative block h-16 w-full overflow-hidden bg-surface-hover">
+                      {thumb && (
+                        // Static local thumbnail from /public/media/themes.
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={thumb}
+                          alt=""
+                          decoding="async"
+                          className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          style={{ objectPosition: palette.media?.position ?? "50% 40%" }}
+                        />
+                      )}
+                      <span
+                        aria-hidden
+                        className="absolute inset-0"
+                        style={{
+                          background:
+                            "linear-gradient(180deg, rgb(0 0 0 / 0.08) 0%, rgb(0 0 0 / 0.72) 100%)",
+                        }}
+                      />
+                      <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wider text-white uppercase">
+                        {isVideo ? "▶ Live" : "✦ Photo"}
+                      </span>
+                      {active && (
+                        <span
+                          aria-hidden
+                          className="absolute top-1.5 right-1.5 grid size-5 place-items-center rounded-full bg-white text-black shadow"
+                        >
+                          <svg
+                            viewBox="0 0 16 16"
+                            className="size-3"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                          >
+                            <path
+                              d="M3.5 8.5 6.5 11.5 12.5 5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </span>
+                      )}
+                      <span className="absolute inset-x-2 bottom-1.5 flex items-center justify-between gap-1">
+                        <span className="truncate text-xs font-extrabold text-white drop-shadow">
+                          {palette.name}
+                        </span>
+                        <span
+                          aria-hidden
+                          className="size-2.5 shrink-0 rounded-full ring-1 ring-white/50"
+                          style={{ backgroundColor: palette.tokens.accent }}
+                        />
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mt-3 px-1 pb-1.5 text-[10px] font-extrabold tracking-[0.2em] text-subtle uppercase">
+              Classic &amp; Scenes
+            </p>
+            <div className="grid grid-cols-2 gap-1 sm:flex sm:flex-col sm:gap-0.5">
+              {QUICK_CLASSIC.map((item) => {
+                const palette = getBuiltInTheme(item.id);
+                const active = theme.id === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => choose(item.id)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left transition-colors sm:py-1.5",
+                      active ? "bg-surface-hover" : "hover:bg-surface-hover",
+                    )}
+                  >
                     <span
                       aria-hidden
-                      className="absolute inset-0"
+                      className="size-5 shrink-0 rounded-full border border-line"
                       style={{
-                        background:
-                          "linear-gradient(180deg, rgb(0 0 0 / 0.08) 0%, rgb(0 0 0 / 0.68) 100%)",
+                        backgroundColor: palette?.tokens.bg,
+                        boxShadow: `inset 0 0 0 3px ${palette?.tokens.accent ?? "transparent"}`,
                       }}
                     />
-                    <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wider text-white uppercase backdrop-blur-xs">
-                      {isVideo ? "▶ Live" : "✦ Photo"}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-extrabold">{item.label}</span>
+                      <span className="block truncate text-[10px] text-subtle">{item.hint}</span>
                     </span>
                     {active && (
-                      <span
+                      <svg
+                        viewBox="0 0 16 16"
+                        className="size-4 shrink-0 text-[var(--accent-text)]"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
                         aria-hidden
-                        className="absolute top-1.5 right-1.5 grid size-5 place-items-center rounded-full bg-white text-black shadow"
                       >
-                        <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth="2.4">
-                          <path d="M3.5 8.5 6.5 11.5 12.5 5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
+                        <path
+                          d="M3.5 8.5 6.5 11.5 12.5 5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
                     )}
-                    <span className="absolute inset-x-2 bottom-1.5 flex items-center justify-between gap-1">
-                      <span className="truncate text-xs font-extrabold text-white drop-shadow">
-                        {palette.name}
-                      </span>
-                      <span
-                        aria-hidden
-                        className="size-2.5 shrink-0 rounded-full ring-1 ring-white/50"
-                        style={{ backgroundColor: palette.tokens.accent }}
-                      />
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-
-          <p className="mt-3 px-1.5 pb-1.5 text-[10px] font-extrabold tracking-[0.2em] text-subtle uppercase">
-            Classic &amp; Scenes
-          </p>
-          <div className="flex flex-col gap-0.5">
-            {QUICK_CLASSIC.map((item) => {
-              const palette = getBuiltInTheme(item.id);
-              const active = theme.id === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => choose(item.id)}
-                  className={cn(
-                    "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left transition-colors",
-                    active ? "bg-surface-hover" : "hover:bg-surface-hover",
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className="size-5 shrink-0 rounded-full border border-line"
-                    style={{
-                      backgroundColor: palette?.tokens.bg,
-                      boxShadow: `inset 0 0 0 3px ${palette?.tokens.accent ?? "transparent"}`,
-                    }}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-extrabold">{item.label}</span>
-                    <span className="block truncate text-[10px] text-subtle">{item.hint}</span>
-                  </span>
-                  {active && (
-                    <svg
-                      viewBox="0 0 16 16"
-                      className="size-4 shrink-0 text-[var(--accent-text)]"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      aria-hidden
-                    >
-                      <path d="M3.5 8.5 6.5 11.5 12.5 5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        </>
       )}
     </div>
   );

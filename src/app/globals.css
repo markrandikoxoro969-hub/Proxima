@@ -314,11 +314,9 @@ html.dark {
 @keyframes stream-block-in {
   from {
     opacity: 0;
-    filter: blur(1.5px);
   }
   to {
     opacity: 1;
-    filter: blur(0);
   }
 }
 
@@ -1445,17 +1443,8 @@ html[data-fx="static"] .tb-media-drift {
 .theme-backdrop--media {
   background-color: var(--bg);
   contain: strict;
-  /* Pure opacity fade — no full-screen blur filter over a decoding video. */
-  animation: media-fade-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes media-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  isolation: isolate;
+  transform: translate3d(0, 0, 0);
 }
 
 .tb-media-el {
@@ -1466,6 +1455,11 @@ html[data-fx="static"] .tb-media-drift {
   object-fit: cover;
   /* No CSS filter or transform scale on <video> so browsers keep native
      hardware zero-copy video compositing at 60fps. */
+}
+
+.tb-media-video {
+  transition: opacity 220ms ease-out;
+  transform: translate3d(0, 0, 0);
 }
 
 /* Slow, smooth Ken Burns float for static aesthetic photo themes (Night Drive). */
@@ -1514,13 +1508,18 @@ html[data-fx="static"] .tb-media-drift {
     );
 }
 
-/* Performance critical: blurring a live playing <video> with backdrop-filter
-   re-blurs the entire composer/header/sidebar on every video frame and causes
-   severe lag. Over media themes, use crisp tinted glass without live blur. */
+/* Performance critical: blurring or alpha-masking over a live playing <video>
+   forces full GPU re-compositing on every frame and causes streaming stutters.
+   Over media themes, use crisp tinted glass and skip streaming masks. */
 html[data-scene="media"] .glass {
-  background-color: color-mix(in oklab, var(--surface-solid) 84%, transparent);
+  background-color: color-mix(in oklab, var(--surface-solid) 86%, transparent);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+html[data-scene="media"] .markdown.is-streaming {
+  mask-image: none;
+  -webkit-mask-image: none;
 }
 
 /* ---------- Chat typing box memes & peeking companion ---------- */

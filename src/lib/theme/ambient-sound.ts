@@ -2,16 +2,31 @@
  * Lightweight Web Audio API soundscapes for non-video themes (Night Drive photo
  * theme and the procedural Sky / Ocean / Nature scenes).
  *
- * Zero network downloads and tiny CPU footprint: one filtered noise buffer plus
- * a quiet low-passed harmonic pad. Cleans up completely when stopped.
+ * Includes a master low-pass `BiquadFilterNode` so ambient soundscapes get the
+ * exact same warm "covered / dimmed" acoustic sweep as video themes when
+ * Settings, dialogs, or drawers open.
+ *
+ * Maintains a singleton active controller so overlapping or zombie ambient
+ * soundscapes can never occur across rapid theme switches or mutes.
  */
+
+import { resolveAudioMix, type AudioMixState } from "./video-audio-graph";
 
 export type AmbientKind = "night-drive" | "ocean" | "sky" | "nature";
 
 export type AmbientController = {
-  setVolume: (volume: number) => void;
+  kind: AmbientKind;
+  applyMix: (mix: AudioMixState) => void;
   stop: () => void;
 };
+
+let activeController: AmbientController | null = null;
+
+export function stopAllAmbientSounds(): void {
+  const prev = activeController;
+  activeController = null;
+  prev?.stop();
+}
 
 function createNoiseBuffer(ctx: AudioContext, seconds = 3): AudioBuffer {
   const length = Math.floor(ctx.sampleRate * seconds);
@@ -33,30 +48,52 @@ function createNoiseBuffer(ctx: AudioContext, seconds = 3): AudioBuffer {
 
 export async function startAmbientSound(
   kind: AmbientKind,
-  initialVolume: number,
+  initialMix: AudioMixState,
 ): Promise<AmbientController | null> {
+  // Always kill any previous soundscape synchronously first.
+  stopAllAmbientSounds();
+
   const AudioCtx =
     window.AudioContext ||
     (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AudioCtx) return null;
 
-  const ctx = new AudioCtx();
+  let ctx: AudioContext;
+  try {
+    ctx = new AudioCtx();
+  } catch {
+    return null;
+  }
+
   if (ctx.state === "suspended") {
     try {
       await ctx.resume();
     } catch {
-      await ctx.close().catch(() => {});
+      void ctx.close().catch(() => {});
       return null;
     }
   }
   if (ctx.state !== "running") {
-    await ctx.close().catch(() => {});
+    void ctx.close().catch(() => {});
     return null;
   }
 
+  const initial = resolveAudioMix(initialMix);
+
+  // Master low-pass muffle stage (smoothly covers sound when Settings/modals open)
+  const muffleFilter = ctx.createBiquadFilter();
+  muffleFilter.type = "lowpass";
+  muffleFilter.frequency.value = initial.cutoffHz;
+  muffleFilter.Q.value = initial.q;
+
   const master = ctx.createGain();
   master.gain.setValueAtTime(0.0001, ctx.currentTime);
-  master.gain.linearRampToValueAtTime(Math.max(0.0001, initialVolume * 0.28), ctx.currentTime + 0.6);
+  master.gain.linearRampToValueAtTime(
+    Math.max(0.0001, initial.gain * 0.28),
+    ctx.currentTime + 0.35,
+  );
+
+  muffleFilter.connect(master);
   master.connect(ctx.destination);
 
   const noise = ctx.createBufferSource();
@@ -81,7 +118,7 @@ export async function startAmbientSound(
     const padGain = ctx.createGain();
     padGain.gain.value = 0.14;
     padFilter.connect(padGain);
-    padGain.connect(master);
+    padGain.connect(muffleFilter);
 
     for (const freq of [130.81, 155.56, 196.0, 233.08]) {
       const osc = ctx.createOscillator();
@@ -92,7 +129,7 @@ export async function startAmbientSound(
       oscs.push(osc);
     }
   } else if (kind === "ocean") {
-    // Slow rolling ocean surf with an LFO modulating cutoff + gain
+    // Slow rolling ocean surf with an LFO modulating cutoff
     filter.type = "lowpass";
     filter.frequency.value = 420;
     filter.Q.value = 0.7;
@@ -115,7 +152,7 @@ export async function startAmbientSound(
 
     const padGain = ctx.createGain();
     padGain.gain.value = 0.08;
-    padGain.connect(master);
+    padGain.connect(muffleFilter);
     for (const freq of [220, 329.63]) {
       const osc = ctx.createOscillator();
       osc.type = "sine";
@@ -143,34 +180,52 @@ export async function startAmbientSound(
 
   noise.connect(filter);
   filter.connect(noiseGain);
-  noiseGain.connect(master);
+  noiseGain.connect(muffleFilter);
   noise.start();
 
   let closed = false;
 
-  return {
-    setVolume(vol: number) {
+  const controller: AmbientController = {
+    kind,
+    applyMix(mix: AudioMixState) {
       if (closed) return;
-      const target = Math.max(0.0001, vol * 0.28);
-      master.gain.setTargetAtTime(target, ctx.currentTime, 0.12);
+      const now = ctx.currentTime;
+      const resolved = resolveAudioMix(mix);
+      if (!mix.enabled) {
+        controller.stop();
+        return;
+      }
+      const targetGain = Math.max(0.0001, resolved.gain * 0.28);
+      master.gain.cancelScheduledValues(now);
+      master.gain.setTargetAtTime(targetGain, now, 0.1);
+      muffleFilter.frequency.cancelScheduledValues(now);
+      muffleFilter.frequency.setTargetAtTime(resolved.cutoffHz, now, 0.13);
+      muffleFilter.Q.cancelScheduledValues(now);
+      muffleFilter.Q.setTargetAtTime(resolved.q, now, 0.13);
     },
     stop() {
       if (closed) return;
       closed = true;
+      if (activeController === controller) activeController = null;
+      // Instant zero + disconnect + close so cutting sound NEVER lingers.
       try {
-        master.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.08);
+        const now = ctx.currentTime;
+        master.gain.cancelScheduledValues(now);
+        master.gain.setValueAtTime(0, now);
+        master.disconnect();
       } catch {
         /* ignore */
       }
-      window.setTimeout(() => {
-        try {
-          noise.stop();
-          for (const osc of oscs) osc.stop();
-        } catch {
-          /* already stopped */
-        }
-        void ctx.close().catch(() => {});
-      }, 220);
+      try {
+        noise.stop();
+        for (const osc of oscs) osc.stop();
+      } catch {
+        /* already stopped */
+      }
+      void ctx.close().catch(() => {});
     },
   };
+
+  activeController = controller;
+  return controller;
 }

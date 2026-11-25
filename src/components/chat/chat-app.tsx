@@ -43,7 +43,7 @@ import type { EngineStatus, MessagesPage, Profile, SessionSummary } from "@/lib/
 import type { SelectedSkillSummary } from "@/lib/skills/catalog";
 import type { ImageDTO } from "@/lib/image/types";
 import { MEDIA_THEMES, type ThemePreference } from "@/lib/theme";
-import { setThemeAudioDucked, useThemeAudio } from "@/lib/theme/use-theme-audio";
+import { setThemeAudioDucked, toggleThemeAudio } from "@/lib/theme/use-theme-audio";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { ChatHeader } from "./chat-header";
 import type { Command } from "./command-palette";
@@ -127,7 +127,6 @@ function ChatScreen({
   const notify = useToast();
   const router = useRouter();
   const { theme, paletteId, syncFromAccount, setPreference, setPalette, resolved } = useTheme();
-  const themeAudio = useThemeAudio();
   const [showReasoning, setShowReasoning] = useShowReasoning();
   const [vibes, setVibes] = useComposerVibes();
   const [mode, setMode] = useChatMode();
@@ -466,10 +465,10 @@ function ChatScreen({
       })),
       {
         id: "toggle-theme-sound",
-        label: themeAudio.enabled ? "Mute theme sound" : "Unmute theme sound",
-        icon: <SpeakerHigh weight={themeAudio.enabled ? "fill" : "bold"} className="size-4" />,
-        keywords: "sound audio music volume mute theme ambient",
-        run: themeAudio.toggle,
+        label: "Toggle theme sound (mute / unmute)",
+        icon: <SpeakerHigh weight="bold" className="size-4" />,
+        keywords: "sound audio music volume mute unmute theme ambient",
+        run: toggleThemeAudio,
       },
       {
         id: "toggle-memes",
@@ -569,8 +568,6 @@ function ChatScreen({
       paletteId,
       setPreference,
       setPalette,
-      themeAudio.enabled,
-      themeAudio.toggle,
       vibes.memesEnabled,
       vibes.peekerEnabled,
       setVibes,
@@ -619,7 +616,7 @@ function ChatScreen({
               : "Voice input isn't supported in this browser"
         }
         className={cn(
-          "inline-flex size-11 tap shrink-0 items-center justify-center rounded-xl text-muted transition-colors duration-200",
+          "inline-flex size-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors duration-200 sm:size-11",
           "hover:bg-surface-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-40",
           listening && "bg-red-500/15 text-red-500 hover:bg-red-500/20 hover:text-red-500",
         )}
@@ -706,10 +703,10 @@ function ChatScreen({
           <AnimatePresence mode="wait" initial={false}>
             <m.div
               key={`${state.activeKey}:${active?.status ?? "none"}:${isEmpty ? "empty" : "chat"}`}
-              initial={{ opacity: 0, filter: "blur(6px)" }}
-              animate={{ opacity: 1, filter: "blur(0px)" }}
-              exit={{ opacity: 0, filter: "blur(4px)" }}
-              transition={{ duration: 0.22, ease: EASE }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: EASE }}
               className="flex min-h-0 flex-1 flex-col"
             >
               {active?.status === "loading" ? (

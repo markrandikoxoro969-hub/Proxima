@@ -3,6 +3,7 @@
 import { X } from "@phosphor-icons/react";
 import { useEffect, useId, useRef } from "react";
 import { cn } from "@/lib/cn";
+import { useMuffleThemeAudio } from "@/lib/theme/use-theme-audio";
 import { Button } from "./button";
 
 /**
@@ -32,6 +33,7 @@ export function Dialog({
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const descId = useId();
+  useMuffleThemeAudio(open, "dialog");
 
   useEffect(() => {
     const dialog = ref.current;

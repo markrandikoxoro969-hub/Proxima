@@ -15,6 +15,7 @@ import { useComposerVibes } from "@/lib/chat/client/use-composer-vibes";
 import { cn } from "@/lib/cn";
 import { SPRING } from "@/lib/motion/tokens";
 import { MEDIA_THEMES, getBuiltInTheme } from "@/lib/theme/palettes";
+import { useMuffleThemeAudio } from "@/lib/theme/use-theme-audio";
 
 export type ActiveComposerMeme = {
   id: number;
@@ -54,7 +55,7 @@ export function ComposerMemeStage({
             }}
             exit={{ opacity: 0, y: 10, scale: 0.7, rotate: 8 }}
             transition={SPRING.snappy}
-            className="pointer-events-auto mr-auto ml-1 flex items-center gap-2.5 rounded-2xl border border-red-500/35 bg-surface-solid/95 py-1.5 pr-3.5 pl-2 shadow-glow-strong backdrop-blur-md"
+            className="pointer-events-auto mr-auto ml-1 flex items-center gap-2.5 rounded-2xl border border-red-500/35 bg-surface-solid py-1.5 pr-3.5 pl-2 shadow-glow-strong"
           >
             {/* Static transparent cutout from /public/media/memes. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -84,7 +85,7 @@ export function ComposerMemeStage({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.88, y: 6 }}
             transition={{ type: "spring", stiffness: 360, damping: 24 }}
-            className="pointer-events-auto relative flex flex-col items-center gap-1 overflow-hidden rounded-2xl border border-red-500/40 bg-black/80 px-6 py-2.5 shadow-glow-strong backdrop-blur-md"
+            className="pointer-events-auto relative flex flex-col items-center gap-1 overflow-hidden rounded-2xl border border-red-500/40 bg-black/90 px-6 py-2.5 shadow-glow-strong"
           >
             <span
               aria-hidden
@@ -255,6 +256,7 @@ export function VibeMenu({
 }) {
   const [open, setOpen] = useState(false);
   const [prefs, updatePrefs] = useComposerVibes();
+  useMuffleThemeAudio(open, "vibe-menu");
   const themeCtx = useOptionalTheme();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);

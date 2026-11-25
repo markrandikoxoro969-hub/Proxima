@@ -30,25 +30,25 @@ export const ChatHeader = memo(function ChatHeader({
   voiceMenu?: ReactNode;
 }) {
   return (
-    <header className="flex items-center gap-2 border-b border-line px-3 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 sm:px-5">
+    <header className="flex items-center gap-1 border-b border-line px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 sm:gap-2 sm:px-5">
       <button
         type="button"
         onClick={onOpenSidebar}
         aria-label="Open chat sessions"
         aria-controls="sidebar"
         aria-expanded={isDesktop ? undefined : sidebarOpen}
-        className="inline-flex tap items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg lg:hidden"
+        className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg sm:size-11 lg:hidden"
       >
         <List weight="bold" className="size-5" aria-hidden />
       </button>
 
       <div className="min-w-0 flex-1 px-1">
-        <h1 className="flex items-center gap-2 text-base font-black tracking-tight sm:text-lg">
+        <h1 className="flex items-center gap-1.5 text-base font-black tracking-tight sm:gap-2 sm:text-lg">
           {site.shortName} {/* ✦ drawn as SVG: not every phone font has the symbol. */}
           <svg
             viewBox="0 0 16 16"
             aria-hidden
-            className="hidden size-3 align-[0.1em] min-[380px]:inline-block"
+            className="hidden size-3 align-[0.1em] min-[400px]:inline-block"
             fill="currentColor"
           >
             <path d="M8 0c.5 4.2 3.8 7.5 8 8-4.2.5-7.5 3.8-8 8-.5-4.2-3.8-7.5-8-8 4.2-.5 7.5-3.8 8-8Z" />
@@ -61,22 +61,24 @@ export const ChatHeader = memo(function ChatHeader({
         </h1>
       </div>
 
-      <button
-        type="button"
-        onClick={onNewChat}
-        aria-label="New chat"
-        className="hidden tap items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg min-[380px]:inline-flex lg:hidden"
-      >
-        <NotePencil weight="bold" className="size-5" aria-hidden />
-      </button>
-      <ThemeAudioToggle />
-      <ThemeMenu />
-      {/* Export yields its place to the two voice controls on narrower phones. */}
-      <div className="hidden min-[430px]:block">
-        <ExportMenu activeId={activeId} />
+      <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+        <button
+          type="button"
+          onClick={onNewChat}
+          aria-label="New chat"
+          className="hidden size-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg min-[400px]:inline-flex sm:size-11 lg:hidden"
+        >
+          <NotePencil weight="bold" className="size-5" aria-hidden />
+        </button>
+        <ThemeAudioToggle />
+        <ThemeMenu />
+        {/* Export yields its place to the two voice controls on narrower phones. */}
+        <div className="hidden min-[480px]:block">
+          <ExportMenu activeId={activeId} />
+        </div>
+        {voiceInput}
+        {voiceMenu}
       </div>
-      {voiceInput}
-      {voiceMenu}
     </header>
   );
 });

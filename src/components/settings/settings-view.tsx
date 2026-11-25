@@ -30,6 +30,7 @@ import type { SkillState } from "@/lib/skills/catalog";
 import { site } from "@/lib/site";
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { customThemePayload } from "@/lib/theme/palettes";
+import { useMuffleThemeAudio } from "@/lib/theme/use-theme-audio";
 import { NameAgeFields, SwitchRow, validateProfile } from "./fields";
 import { SkillPreferences } from "./skill-preferences";
 
@@ -61,6 +62,7 @@ function SettingsScreen({
 }) {
   const [profile, setProfile] = useState(initialProfile);
   const [chatCount, setChatCount] = useState(initialChatCount);
+  useMuffleThemeAudio(true, "settings-page");
 
   return (
     <div className="min-h-dvh pt-safe pr-safe pb-safe pl-safe">

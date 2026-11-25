@@ -47,6 +47,7 @@ export function MessageList({
   const { messages } = conversation;
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
+  const scrollRafRef = useRef<number | null>(null);
   const [showJump, setShowJump] = useState(false);
 
   // TanStack Virtual manages its own memoization (expected warning with React Compiler rules).
@@ -70,10 +71,27 @@ export function MessageList({
     if (el) el.scrollTop = el.scrollHeight;
   }, []);
 
-  // Follow the conversation while pinned to the bottom.
-  useLayoutEffect(() => {
-    if (atBottom.current) scrollToBottom();
-  }, [totalSize, lastLength, messages.length, scrollToBottom]);
+  const scheduleScrollToBottom = useCallback(() => {
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = window.requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      if (atBottom.current) scrollToBottom();
+    });
+  }, [scrollToBottom]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current !== null) {
+        window.cancelAnimationFrame(scrollRafRef.current);
+      }
+    };
+  }, []);
+
+  // Follow the conversation while pinned to the bottom (coalesced to one write
+  // per animation frame so streaming over live video never thrashes layout).
+  useEffect(() => {
+    if (atBottom.current) scheduleScrollToBottom();
+  }, [totalSize, lastLength, messages.length, scheduleScrollToBottom]);
 
   // Sending a message always brings you to the bottom.
   useLayoutEffect(() => {
@@ -125,7 +143,7 @@ export function MessageList({
         // Never inside a smooth-scroll (Lenis) wrapper: the chat scrolls natively.
         data-lenis-prevent
         onScroll={onScroll}
-        className="h-full overflow-y-auto overscroll-contain [overflow-anchor:none]"
+        className="h-full overflow-y-auto overscroll-contain [contain:layout_style] [overflow-anchor:none]"
         aria-label="Conversation"
         role="region"
         tabIndex={0}
