@@ -100,6 +100,14 @@ const nextConfig: NextConfig = {
     return [
       { source: "/(.*)", headers: securityHeaders },
       {
+        // Static theme videos, posters, and meme stickers cache locally so
+        // looping and switching themes never stalls on repeat downloads.
+        source: "/media/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
+        ],
+      },
+      {
         // The service worker must never be cached, so phones always get the latest one.
         source: "/sw.js",
         headers: [
