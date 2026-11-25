@@ -103,8 +103,8 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
         className={cn(
           // Phones: a bottom sheet, dragged down to dismiss.
           "fixed inset-x-0 bottom-0 z-50 flex h-[86dvh] flex-col rounded-t-3xl border-t border-line bg-surface-solid pb-safe",
-          // Desktop: sleek compact sidebar rail.
-          "lg:static lg:z-auto lg:h-auto lg:w-64 lg:shrink-0 lg:translate-y-0 lg:rounded-none lg:border-t-0 lg:border-r lg:glass lg:bg-transparent lg:pb-0 lg:shadow-none lg:backdrop-blur-none",
+          // Desktop: the normal sidebar.
+          "lg:static lg:z-auto lg:h-auto lg:w-72 lg:shrink-0 lg:translate-y-0 lg:rounded-none lg:border-t-0 lg:border-r lg:glass lg:bg-transparent lg:pb-0 lg:shadow-none lg:backdrop-blur-none",
         )}
       >
         {/* Drag handle: only this strip starts the dismiss gesture, so the
@@ -146,47 +146,47 @@ function SidebarContent({
 
   return (
     <>
-      <div className="flex items-center justify-between px-4 pt-3.5 pb-3">
-        <div className="flex items-center gap-2">
-          <Planet weight="fill" className="size-6" aria-hidden />
-          <span className="text-base font-extrabold tracking-[0.18em]">{site.name}</span>
+      <div className="flex items-center justify-between px-5 pt-5 pb-4">
+        <div className="flex items-center gap-2.5">
+          <Planet weight="fill" className="size-7" aria-hidden />
+          <span className="text-lg font-extrabold tracking-[0.2em]">{site.name}</span>
         </div>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close sidebar"
-          className="inline-flex size-8 items-center justify-center rounded-lg text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-fg lg:hidden"
+          className="inline-flex tap items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg lg:hidden"
         >
-          <X weight="bold" className="size-4" aria-hidden />
+          <X weight="bold" className="size-5" aria-hidden />
         </button>
       </div>
 
-      <div className="px-3">
+      <div className="px-4">
         <button
           type="button"
           onClick={onNewChat}
-          className="group flex h-9 w-full items-center justify-center gap-1.5 rounded-xl bg-inverse px-3 text-xs font-extrabold text-on-inverse shadow-sm transition-[transform,opacity] duration-200 ease-premium hover:opacity-95 active:scale-[0.98]"
+          className="group flex tap w-full items-center justify-center gap-2 rounded-2xl bg-inverse px-4 py-3 text-sm font-extrabold text-on-inverse shadow-glow transition-[transform,box-shadow] duration-300 ease-premium hover:shadow-glow-strong active:scale-[0.98]"
         >
           <Plus
             weight="bold"
-            className="size-3.5 transition-transform duration-200 ease-premium group-hover:rotate-90"
+            className="size-4 transition-transform duration-300 ease-premium group-hover:rotate-90"
             aria-hidden
           />
           New Chat
         </button>
       </div>
 
-      <nav className="mt-4 flex min-h-0 flex-1 flex-col" aria-label="Recent sessions">
-        <h2 className="px-4 pb-1.5 text-[10px] font-extrabold tracking-[0.24em] text-subtle uppercase">
+      <nav className="mt-6 flex min-h-0 flex-1 flex-col" aria-label="Recent sessions">
+        <h2 className="px-5 pb-2 text-[10px] font-extrabold tracking-[0.3em] text-subtle uppercase">
           Recent Sessions
         </h2>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 pb-2">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3">
           {sessions.length === 0 ? (
-            <p className="px-3 py-5 text-center text-xs text-subtle">
+            <p className="px-3 py-6 text-center text-xs text-subtle">
               No chats yet. Your conversations will appear here.
             </p>
           ) : (
-            <ul className="flex flex-col gap-0.5">
+            <ul className="flex flex-col gap-1">
               {sessions.map((session) => (
                 <SessionItem
                   key={session.id}
@@ -204,7 +204,7 @@ function SidebarContent({
             <button
               type="button"
               onClick={onLoadMore}
-              className="mt-1.5 h-8 w-full rounded-lg text-xs font-bold text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-fg"
+              className="mt-2 tap w-full rounded-xl text-xs font-bold text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
             >
               Load more
             </button>
@@ -212,56 +212,54 @@ function SidebarContent({
         </div>
       </nav>
 
-      <div className="flex flex-col gap-0.5 border-t border-line px-2.5 pt-2 pb-3">
-        <div className="flex items-center gap-2 px-2.5 py-1.5" role="status" aria-live="polite">
+      <div className="flex flex-col gap-1 border-t border-line px-3 pt-3 pb-4">
+        <div className="flex items-center gap-2.5 px-3 py-2" role="status" aria-live="polite">
           <span className={cn("size-2 rounded-full", ENGINE_DOT[engine])} aria-hidden />
-          <span className="text-[10px] font-extrabold tracking-[0.2em] text-muted uppercase">
+          <span className="text-[10px] font-extrabold tracking-[0.25em] text-muted uppercase">
             {ENGINE_LABEL[engine]}
           </span>
-        </div>
-        <div className="grid grid-cols-2 gap-1">
-          <Link
-            href="/skills"
-            onClick={onClose}
-            className="flex h-8 items-center gap-2 rounded-lg px-2.5 text-xs font-bold text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-fg"
-          >
-            <Sparkle weight="bold" className="size-4 shrink-0" aria-hidden />
-            Skills
-          </Link>
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="flex h-8 items-center gap-2 rounded-lg px-2.5 text-xs font-bold text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-fg"
-          >
-            <GearSix weight="bold" className="size-4 shrink-0" aria-hidden />
-            Settings
-          </button>
         </div>
         <a
           href={site.links.facebook}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex h-8 items-center gap-2 rounded-lg px-2.5 text-xs font-bold text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-fg"
+          className="flex tap items-center gap-3 rounded-xl px-3 text-xs font-bold tracking-[0.15em] text-muted uppercase transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
         >
-          <FacebookLogo weight="fill" className="size-4 shrink-0" aria-hidden />
+          <FacebookLogo weight="fill" className="size-5" aria-hidden />
           Dev Facebook
           <span className="sr-only">(opens in a new tab)</span>
         </a>
+        <Link
+          href="/skills"
+          onClick={onClose}
+          className="flex tap items-center gap-3 rounded-xl px-3 text-xs font-bold tracking-[0.15em] text-muted uppercase transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+        >
+          <Sparkle weight="bold" className="size-5" aria-hidden />
+          Skills
+        </Link>
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="flex tap items-center gap-3 rounded-xl px-3 text-xs font-bold tracking-[0.15em] text-muted uppercase transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+        >
+          <GearSix weight="bold" className="size-5" aria-hidden />
+          Settings
+        </button>
 
-        <div className="mt-1.5 flex items-center gap-2.5 rounded-xl border border-line bg-surface-hover/60 p-2">
+        <div className="mt-2 flex items-center gap-3 rounded-2xl border border-line bg-surface-hover p-2.5">
           {profile.image ? (
-            <Image src={profile.image} alt="" width={32} height={32} className="size-8 rounded-lg" />
+            <Image src={profile.image} alt="" width={40} height={40} className="size-10 rounded-xl" />
           ) : (
             <div
               aria-hidden
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-inverse text-xs font-black text-on-inverse"
+              className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-inverse text-base font-black text-on-inverse"
             >
               {shownName.charAt(0).toUpperCase()}
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-extrabold">{shownName}</p>
-            <p className="text-[10px] font-semibold text-subtle">Personal account</p>
+            <p className="truncate text-sm font-extrabold">{shownName}</p>
+            <p className="text-[10px] font-bold tracking-[0.2em] text-subtle uppercase">Personal account</p>
           </div>
           <ThemeToggle onToggled={onThemeChange} />
         </div>
@@ -343,14 +341,14 @@ const SessionItem = memo(function SessionItem({
         onClick={() => onSelect(session.id)}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "relative flex min-h-10 w-full items-center gap-2.5 rounded-lg py-1.5 pr-16 pl-2.5 text-left transition-colors duration-150",
+          "relative flex min-h-12 w-full items-center gap-3 rounded-xl py-2 pr-[5.25rem] pl-3 text-left transition-colors duration-200",
           active ? "text-fg" : "text-muted hover:bg-surface-hover hover:text-fg",
         )}
       >
-        <ChatCircleText weight={active ? "fill" : "bold"} className="size-3.5 shrink-0" aria-hidden />
+        <ChatCircleText weight={active ? "fill" : "bold"} className="size-4 shrink-0" aria-hidden />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-xs font-semibold">{session.title}</span>
-          <span className="block text-[10px] font-semibold text-subtle">
+          <span className="block truncate text-sm font-semibold">{session.title}</span>
+          <span className="block text-[10px] font-bold tracking-wider text-subtle">
             {streaming
               ? "Replying…"
               : `${session.messageCount} ${session.messageCount === 1 ? "message" : "messages"}`}
@@ -358,22 +356,22 @@ const SessionItem = memo(function SessionItem({
         </span>
       </button>
       {/* Always visible on touch screens; on mouse screens they appear on hover/focus. */}
-      <div className="absolute inset-y-0 right-1 flex items-center gap-0.5 opacity-100 transition-opacity duration-150 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within/item:opacity-100 [@media(hover:hover)]:group-hover/item:opacity-100">
+      <div className="absolute inset-y-0 right-1 flex items-center gap-0.5 opacity-100 transition-opacity duration-200 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within/item:opacity-100 [@media(hover:hover)]:group-hover/item:opacity-100">
         <button
           type="button"
           onClick={() => setEditing(true)}
           aria-label={`Rename “${session.title}”`}
-          className="inline-flex size-8 items-center justify-center rounded-md text-subtle transition-colors duration-150 hover:bg-surface-hover hover:text-fg pointer-fine:size-7"
+          className="inline-flex size-11 items-center justify-center rounded-lg text-subtle transition-colors duration-200 hover:bg-surface-hover hover:text-fg pointer-fine:size-9"
         >
-          <PencilSimple weight="bold" className="size-3.5" aria-hidden />
+          <PencilSimple weight="bold" className="size-4" aria-hidden />
         </button>
         <button
           type="button"
           onClick={() => onRequestDelete(session)}
           aria-label={`Delete “${session.title}”`}
-          className="inline-flex size-8 items-center justify-center rounded-md text-subtle transition-colors duration-150 hover:bg-red-500/10 hover:text-red-500 pointer-fine:size-7"
+          className="inline-flex size-11 items-center justify-center rounded-lg text-subtle transition-colors duration-200 hover:bg-red-500/10 hover:text-red-500 pointer-fine:size-9"
         >
-          <Trash weight="bold" className="size-3.5" aria-hidden />
+          <Trash weight="bold" className="size-4" aria-hidden />
         </button>
       </div>
     </li>

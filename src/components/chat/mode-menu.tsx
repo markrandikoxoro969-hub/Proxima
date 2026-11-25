@@ -84,21 +84,21 @@ export function ModeMenu({
         aria-label={`Answer mode: ${current.label}. Change answer mode`}
         title={`${current.label} · ${current.summary}`}
         className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-bold",
-          "transition-[color,background-color] duration-150 hover:bg-surface-hover hover:text-fg",
+          "inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2.5 text-xs font-bold",
+          "transition-[color,background-color] duration-200 hover:bg-surface-hover hover:text-fg",
           open ? "bg-surface-hover text-fg" : "text-muted",
         )}
       >
         <Icon
           weight={mode === "thinking" ? "fill" : "bold"}
-          className="size-3.5 shrink-0 text-[var(--accent-text)]"
+          className="size-4 shrink-0 text-[var(--accent-text)]"
           aria-hidden
         />
         <span className="hidden min-[380px]:inline">{current.label}</span>
         <CaretDown
           weight="bold"
           className={cn(
-            "size-2.5 shrink-0 text-subtle transition-transform duration-150",
+            "size-3 shrink-0 text-subtle transition-transform duration-200",
             open && "rotate-180",
           )}
           aria-hidden
