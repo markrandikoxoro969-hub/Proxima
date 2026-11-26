@@ -637,12 +637,27 @@ describe("POST /api/chat — signed in", () => {
     expect(userMsg.attachments).toEqual([{ name: "app.py", size: 11, language: "python" }]);
   });
 
-  it("answers identity questions from the config without calling the AI", async () => {
+  it("lets the AI answer identity questions naturally with live Proxima 1.0.2VBETA context", async () => {
     state.userId = alice;
+    state.reply = "Hey! I'm Proxima, running on 1.0.2VBETA, created by Sujan Shrestha with Aayusha Shrestha.";
     const events = await readSse(await send({ message: "Who created you?" }));
-    expect(replyText(events)).toMatch(/Sujan Shrestha/);
-    expect(events.find((e) => e.event === "done")!.data.source).toBe("identity");
-    expect(state.calls).toHaveLength(0);
+    expect(replyText(events)).toMatch(/Proxima/);
+    expect(events.find((e) => e.event === "done")!.data.source).toBe("fake");
+    expect(state.calls).toHaveLength(1);
+    expect(state.calls[0].system).toContain("Name: Proxima");
+    expect(state.calls[0].system).toContain("Core version: 1.0.2VBETA");
+    expect(state.calls[0].system).toContain("Sujan Shrestha");
+    expect(state.calls[0].system).toContain("Aayusha Shrestha");
+    expect(state.calls[0].system).toMatch(/Current live age: \d+ months/);
+  });
+
+  it("handles normal conversations cleanly in coding mode without forcing file-plan JSON", async () => {
+    state.userId = alice;
+    state.reply = "Hey! I'm doing great — ready to help with code or chat anytime.";
+    const events = await readSse(await send({ message: "Hey Proxima, how are you?", mode: "coding" }));
+    expect(replyText(events)).toContain("ready to help");
+    expect(events.at(-1)?.event).toBe("done");
+    expect(state.calls).toHaveLength(1);
   });
 
   it("rewrites the engine's own identity leaks (config/identity.ts)", async () => {

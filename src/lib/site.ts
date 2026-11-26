@@ -8,8 +8,11 @@ export const site = {
   tagline: "Premium Core AI",
   description:
     "PROXIMA answers plainly. Code, files and long questions in one quiet, private chat — with voice input and live replies.",
-  version: "V2.81 CORE",
+  version: "1.0.2VBETA",
   developer: "Sujan Shrestha",
+  supportDeveloper: "Aayusha Shrestha",
+  /** Launch anchor: 6 months prior to 2026-11-25 so Proxima's live age timer starts at 6 months and counts up continuously. */
+  bornAtIso: "2026-05-25T00:00:00Z",
   /** Full public URL, e.g. https://proxima.vercel.app (see resolveSiteUrl below). */
   url: resolveSiteUrl(),
   links: {

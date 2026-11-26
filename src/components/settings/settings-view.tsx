@@ -14,7 +14,7 @@ import {
 } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { signOutAction } from "@/app/app/actions";
 import { Logo } from "@/components/brand/logo";
 import { useTheme } from "@/components/theme/theme-provider";
@@ -528,24 +528,73 @@ function DeleteAccountForm({ onClose }: { onClose: () => void }) {
 
 /* ── About ────────────────────────────────────────────────────────── */
 
+function formatLiveProximaAge(nowMs: number): string {
+  const born = new Date(site.bornAtIso);
+  const now = new Date(nowMs);
+  if (now.getTime() <= born.getTime()) return "6 months · 0d 00h 00m 00s";
+
+  let months =
+    (now.getUTCFullYear() - born.getUTCFullYear()) * 12 +
+    (now.getUTCMonth() - born.getUTCMonth());
+  const anchor = new Date(
+    Date.UTC(
+      born.getUTCFullYear(),
+      born.getUTCMonth() + months,
+      born.getUTCDate(),
+      born.getUTCHours(),
+      born.getUTCMinutes(),
+      born.getUTCSeconds(),
+    ),
+  );
+  if (anchor.getTime() > now.getTime()) {
+    months -= 1;
+    anchor.setUTCMonth(anchor.getUTCMonth() - 1);
+  }
+  const diffSec = Math.max(0, Math.floor((now.getTime() - anchor.getTime()) / 1000));
+  const days = Math.floor(diffSec / 86_400);
+  const hours = String(Math.floor((diffSec % 86_400) / 3_600)).padStart(2, "0");
+  const minutes = String(Math.floor((diffSec % 3_600) / 60)).padStart(2, "0");
+  const seconds = String(diffSec % 60).padStart(2, "0");
+  return `${months} ${months === 1 ? "month" : "months"}, ${days}d ${hours}:${minutes}:${seconds}`;
+}
+
 function AboutSection() {
+  const [liveAge, setLiveAge] = useState<string | null>(null);
+
+  useEffect(() => {
+    const update = () => setLiveAge(formatLiveProximaAge(Date.now()));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <Section
       id="settings-about"
       title="About"
-      description={`${site.name} ${site.version} · by ${site.developer}`}
+      description={`${site.shortName} · Core ${site.version}`}
       icon={<Info weight="bold" className="size-5" />}
     >
-      <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr] sm:gap-y-2">
-        <dt className="font-mono text-xs leading-6 text-subtle">⌘K / Ctrl+K</dt>
-        <dd className="mb-2 text-muted sm:mb-0">Open the command palette (in the chat)</dd>
-        <dt className="font-mono text-xs leading-6 text-subtle">/</dt>
-        <dd className="mb-2 text-muted sm:mb-0">Jump to the message box</dd>
-        <dt className="font-mono text-xs leading-6 text-subtle">Ctrl/Cmd + Shift + O</dt>
-        <dd className="mb-2 text-muted sm:mb-0">Start a new chat</dd>
-        <dt className="font-mono text-xs leading-6 text-subtle">Enter · Shift + Enter</dt>
-        <dd className="mb-2 text-muted sm:mb-0">Send · new line</dd>
-      </dl>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl glass-pill p-3">
+          <p className="text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">Name & Core</p>
+          <p className="mt-1 text-sm font-bold text-fg">
+            {site.shortName} · <span className="font-mono text-xs">{site.version}</span>
+          </p>
+        </div>
+        <div className="rounded-2xl glass-pill p-3">
+          <p className="text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">Live Age</p>
+          <p className="mt-1 font-mono text-xs font-bold text-fg" aria-live="off">
+            {liveAge ?? "6 months…"}
+          </p>
+        </div>
+        <div className="rounded-2xl glass-pill p-3">
+          <p className="text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">Developers</p>
+          <p className="mt-1 text-xs font-semibold text-fg">
+            {site.developer} <span className="text-muted">&amp; {site.supportDeveloper}</span>
+          </p>
+        </div>
+      </div>
       <nav aria-label="Legal" className="mt-5 flex flex-wrap gap-x-1 border-t border-line pt-4 text-sm">
         <Link
           href="/privacy"

@@ -3,11 +3,12 @@ import { LeadingCleanGate, stripFiller } from "@/lib/ai/clean-reply";
 import { resolveChatMode, resolveModeConfig } from "@/lib/ai/modes";
 import { modeSystemPrompt } from "@/lib/ai/mode-prompts";
 import { SYSTEM_PROMPT } from "@/lib/ai/prompt";
-import { generateReply, typeOut } from "@/lib/ai/reply";
+import { generateReply } from "@/lib/ai/reply";
 import {
   formatCodingFile,
   formatCodingTree,
   generateCodingFile,
+  isExplicitCodeBuildRequest,
   isMultiFileCodingRequest,
   planCodingTask,
   readCodingTaskProgress,
@@ -38,7 +39,7 @@ import { attachmentMeta, composePrompt, DEFAULT_TITLE, makeTitle } from "@/lib/c
 import { db } from "@/lib/db";
 import { chatImageAttachment, loadChatImages } from "@/lib/image/store";
 import { IMAGE_LIMITS } from "@/lib/image/limits";
-import { cleanIdentityLeaks, getIdentityAnswer } from "@/lib/identity";
+import { cleanIdentityLeaks, identitySystemSection } from "@/lib/identity";
 import { memoryEnabled, memoryPrompt, relevantMemories, rememberMessage } from "@/lib/memory/store";
 import { enforceRateLimit, RATE_LIMITS, rateLimitHeaders } from "@/lib/rate-limit";
 import { resolveSelectedSkills, skillPromptSection } from "@/lib/skills/runtime";
@@ -308,16 +309,14 @@ export const POST = withApi(async (request: Request) => {
   // ── Memory (Settings → Memory; off unless the person turned it on) ──
   // Reading is a single indexed query; learning is deterministic (no AI call),
   // so neither one can delay the first token of the reply.
-  const identityAnswer = getIdentityAnswer(input.message);
   const useMemory = Boolean(userId) && !temporary && (await memoryEnabled(userId!));
-  // Identity responses are fixed and don't use the prompt; don't attach memory
-  // provenance to a reply that did not actually receive the memory context.
-  const memories = useMemory && !identityAnswer ? await relevantMemories(userId!, input.message) : [];
+  const memories = useMemory ? await relevantMemories(userId!, input.message) : [];
   const memorySection = memories.length ? memoryPrompt(memories) : "";
+  const identitySection = identitySystemSection();
   // The mode's rules are appended last, so they win over the general prompt.
   const skillSection = skillPromptSection(skills);
   const system = modeSystemPrompt(
-    [SYSTEM_PROMPT, memorySection, skillSection].filter(Boolean).join("\n\n"),
+    [SYSTEM_PROMPT, identitySection, memorySection, skillSection].filter(Boolean).join("\n\n"),
     answerMode,
   );
 
@@ -397,15 +396,14 @@ export const POST = withApi(async (request: Request) => {
 
       let codingProgress = resumeCodingProgress;
       let agentCheckpoint = resumeAgentCheckpoint;
+      const codeBuildIntent = isExplicitCodeBuildRequest(input.message);
       const fileByFile = Boolean(
-        !identityAnswer &&
-          !resumeAgentCheckpoint &&
+        !resumeAgentCheckpoint &&
           !explicitAgentIntent &&
-          (resumeCodingProgress || (answerMode === "coding" && !resumedAssistant)),
+          (resumeCodingProgress || (answerMode === "coding" && codeBuildIntent && !resumedAssistant)),
       );
       const runAgentLoop = Boolean(
-        !identityAnswer &&
-          !fileByFile &&
+        !fileByFile &&
           (resumeAgentCheckpoint || (explicitAgentIntent && !resumedAssistant)),
       );
       const finalAnswer = () => (fileByFile || runAgentLoop ? raw : stripFiller(cleanIdentityLeaks(raw)));
@@ -421,7 +419,7 @@ export const POST = withApi(async (request: Request) => {
             mode: "coding" as const,
             images: providerPictures,
             system: modeSystemPrompt(
-              [SYSTEM_PROMPT, memorySection, skillSection].filter(Boolean).join("\n\n"),
+              [SYSTEM_PROMPT, identitySection, memorySection, skillSection].filter(Boolean).join("\n\n"),
               "coding",
             ),
           };
@@ -628,18 +626,16 @@ export const POST = withApi(async (request: Request) => {
             resumedAssistant && !resumeCodingProgress
               ? "\n\nThe previous assistant reply was interrupted. Continue from its saved output in the conversation history. Do not repeat completed sections or files, and finish every requested file before claiming the task is complete."
               : "";
-          const deltas = identityAnswer
-            ? typeOut(identityAnswer, signal)
-            : generateReply(provider, {
-                message: `${prompt}${resumeInstruction}`,
-                sessionId,
-                signal,
-                history,
-                showReasoning,
-                mode: answerMode,
-                images: providerPictures,
-                system,
-              });
+          const deltas = generateReply(provider, {
+            message: `${prompt}${resumeInstruction}`,
+            sessionId,
+            signal,
+            history,
+            showReasoning,
+            mode: answerMode,
+            images: providerPictures,
+            system,
+          });
 
           for await (const delta of deltas) {
             if (delta.type === "activity") continue;
@@ -687,7 +683,7 @@ export const POST = withApi(async (request: Request) => {
           messageId,
           latencyMs,
           mode: answerMode,
-          source: identityAnswer ? "identity" : provider.id,
+          source: provider.id,
           // The clean final answer. The client swaps it in if trailing filler was removed.
           text: text || sentText,
           // Shown as the small "Memory used" chip on the reply.

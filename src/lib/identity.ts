@@ -2,13 +2,11 @@ import "server-only";
 import { identityConfig } from "@/config/identity";
 
 /**
- * Detects identity questions ("who made you?", "how old are you?") and
- * answers them from src/config/identity.ts without calling the AI.
- *
- * Fix vs. the original file: the old developer pattern matched ANY sentence
- * with "what"/"who" before "you" — e.g. "What can you do?" or "What do you
- * think about cats?" wrongly got the developer answer. These patterns only
- * match real questions about Proxima's creator, age, gender or identity.
+ * Proxima identity helpers:
+ * - Computes Proxima's live ticking age (6 months + live days/hours/minutes/seconds from bornOn).
+ * - Builds the live identity prompt section so the AI answers naturally in her own voice
+ *   (no stiff canned/saved replies) while keeping every fact accurate.
+ * - Sanitizes accidental third-party model identity leaks.
  */
 
 const SUBJECT = String.raw`(?:you|u|proxima|this (?:app|bot|ai|assistant))`;
@@ -16,21 +14,16 @@ const CREATED = String.raw`(?:made|created|built|developed|programmed|designed|c
 const ROLE = String.raw`(?:developers?|devs?|creators?|makers?|owners?|masters?|boss(?:es)?|designers?|architects?|programmers?|authors?)`;
 
 const DEVELOPER_PATTERNS = [
-  // "who made you", "who created proxima", "which company built you"
   new RegExp(
     String.raw`\b(?:who|which (?:company|person|team))\b[^?.!]{0,30}\b${CREATED}\b[^?.!]{0,15}\b${SUBJECT}\b`,
     "i",
   ),
-  // "who is your developer", "your creator?", "proxima's owner"
   new RegExp(String.raw`\b(?:your|proxima'?s)\s+(?:lead\s+|main\s+)?${ROLE}\b`, "i"),
-  // "who is the developer of proxima"
   new RegExp(
     String.raw`\b(?:who|what)\b[^?.!]{0,20}\b${ROLE}\b[^?.!]{0,10}\b(?:of|behind|for)\s+${SUBJECT}\b`,
     "i",
   ),
-  // "were you made by google?", "are you built by openai"
   new RegExp(String.raw`\b(?:were|are)\s+you\s+${CREATED}\s+by\b`, "i"),
-  // "who is sujan", "who is aayusha"
   /\bwho\s+(?:is|'s)\s+(?:sujan|aayusha)\b/i,
 ];
 
@@ -65,33 +58,78 @@ function fill(template: string, extra: Record<string, string> = {}): string {
   return template.replace(/\{(\w+)\}/g, (match, key: string) => values[key] ?? match);
 }
 
-/** "4 days old", "1 day old", "3 months old" … counted from identityConfig.bornOn. */
+/**
+ * Computes Proxima's live ticking age from `identityConfig.bornOn` (starts at 6 months on 2026-11-25
+ * and increments continuously in months, days, hours, minutes, seconds).
+ */
 export function describeAge(now: Date = new Date()): string {
-  const born = new Date(`${identityConfig.bornOn}T00:00:00Z`);
-  const days = Math.max(0, Math.floor((now.getTime() - born.getTime()) / 86_400_000));
-  if (days < 60) return `${days} ${days === 1 ? "day" : "days"} old`;
-  const months = Math.floor(days / 30.44);
-  if (months < 24) return `${months} months old`;
-  return `${Math.floor(months / 12)} years old`;
+  const born = new Date(identityConfig.bornOn);
+  if (now.getTime() <= born.getTime()) return "0 days, 0h 0m";
+
+  let months =
+    (now.getUTCFullYear() - born.getUTCFullYear()) * 12 +
+    (now.getUTCMonth() - born.getUTCMonth());
+
+  // Anchor at the exact month boundary; if day/time hasn't reached born's day yet, step back 1 month.
+  const anchor = new Date(
+    Date.UTC(
+      born.getUTCFullYear(),
+      born.getUTCMonth() + months,
+      born.getUTCDate(),
+      born.getUTCHours(),
+      born.getUTCMinutes(),
+      born.getUTCSeconds(),
+    ),
+  );
+  if (anchor.getTime() > now.getTime()) {
+    months -= 1;
+    anchor.setUTCMonth(anchor.getUTCMonth() - 1);
+  }
+
+  const diffSec = Math.max(0, Math.floor((now.getTime() - anchor.getTime()) / 1000));
+  const days = Math.floor(diffSec / 86_400);
+  const hours = Math.floor((diffSec % 86_400) / 3_600);
+  const minutes = Math.floor((diffSec % 3_600) / 60);
+
+  const parts: string[] = [];
+  if (months > 0) parts.push(`${months} ${months === 1 ? "month" : "months"}`);
+  if (days > 0 || months === 0) parts.push(`${days} ${days === 1 ? "day" : "days"}`);
+  parts.push(`${hours}h ${minutes}m`);
+  return parts.join(", ");
+}
+
+/**
+ * Live identity context injected into the AI system prompt so Proxima answers
+ * questions about herself naturally and conversationally (never like a stiff saved template).
+ */
+export function identitySystemSection(now: Date = new Date()): string {
+  return [
+    "Identity (answer naturally and conversationally in your own voice if asked — never recite a rigid template):",
+    `- Name: ${identityConfig.name}`,
+    `- Core version: ${identityConfig.version}`,
+    `- Current live age: ${describeAge(now)} (continuously counting up from launch)`,
+    `- Gender: ${identityConfig.gender}`,
+    `- Developers: ${identityConfig.developers.lead} (lead developer) and ${identityConfig.developers.support} (supporting developer)`,
+    `- Developer contact: ${identityConfig.facebookUrl}`,
+  ].join("\n");
 }
 
 const matches = (patterns: RegExp[], text: string) => patterns.some((p) => p.test(text));
 
-/**
- * Returns a ready-made answer if the message is an identity question, else null.
- * Order matters: specific questions (developer/age/gender) before generic "who are you".
- */
+/** Reference identity matcher (useful for fallback checks & tests). */
 export function getIdentityAnswer(message: string, now: Date = new Date()): string | null {
-  const text = message.trim().slice(0, 300); // identity questions are short
+  const text = message.trim().slice(0, 300);
   if (!text) return null;
   if (matches(DEVELOPER_PATTERNS, text)) return fill(identityConfig.answers.developer);
   if (matches(AGE_PATTERNS, text)) return fill(identityConfig.answers.age, { age: describeAge(now) });
   if (matches(GENDER_PATTERNS, text)) return fill(identityConfig.answers.gender);
-  if (matches(WHO_ARE_YOU_PATTERNS, text)) return fill(identityConfig.answers.whoAreYou);
+  if (matches(WHO_ARE_YOU_PATTERNS, text)) {
+    return fill(identityConfig.answers.whoAreYou, { age: describeAge(now) });
+  }
   return null;
 }
 
-/** Replaces accidental "I'm trained by Google" style phrases in AI replies. */
+/** Replaces accidental third-party vendor self-descriptions in AI replies. */
 export function cleanIdentityLeaks(text: string): string {
   let cleaned = text;
   for (const { pattern, replacement } of identityConfig.leakReplacements) {
