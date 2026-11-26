@@ -102,7 +102,7 @@ export function MemoryView({ enabled, consented, memories }: { enabled: boolean;
           </p>
         </div>
 
-        <section className="rounded-3xl glass-solid p-5 sm:p-7">
+        <section className="glass-panel rounded-3xl p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-extrabold">
@@ -136,7 +136,7 @@ export function MemoryView({ enabled, consented, memories }: { enabled: boolean;
           </div>
         </section>
 
-        <section className="rounded-3xl glass-solid p-5 sm:p-7">
+        <section className="glass-panel rounded-3xl p-5 sm:p-7">
           <h2 className="text-lg font-black tracking-tight">What&apos;s remembered</h2>
 
           {items.length === 0 ? (

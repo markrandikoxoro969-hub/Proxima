@@ -71,7 +71,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               key={toast.id}
               role={toast.kind === "error" ? "alert" : "status"}
               className={cn(
-                "toast-in pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl glass-solid py-3 pr-2 pl-4 text-sm font-semibold",
+                "glass-dropdown toast-in pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl py-3 pr-2 pl-4 text-sm font-semibold",
                 toast.kind === "error" && "border-red-500/30",
               )}
             >

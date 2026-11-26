@@ -50,7 +50,7 @@ function StudioPageInner() {
           </p>
         </div>
 
-        <section className="rounded-3xl glass-solid p-5 sm:p-7">
+        <section className="glass-panel rounded-3xl p-5 sm:p-7">
           <StudioWorkspace notify={notify} />
         </section>
       </main>

@@ -13,7 +13,7 @@ const base =
 
 const variants: Record<Variant, string> = {
   primary: "bg-inverse text-on-inverse shadow-glow hover:shadow-glow-strong hover:scale-[1.01]",
-  secondary: "border border-line bg-surface-hover text-fg hover:border-line-strong hover:bg-surface",
+  secondary: "glass-button text-fg hover:border-[var(--glass-border-strong)] hover:bg-surface",
   ghost: "text-muted hover:bg-surface-hover hover:text-fg",
   danger: "border border-red-500/20 bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-400",
 };

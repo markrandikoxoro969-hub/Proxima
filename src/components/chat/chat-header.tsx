@@ -106,7 +106,7 @@ export const ChatHeader = memo(function ChatHeader({
             onClick={onOpenPalette}
             aria-label="Open command palette"
             title="Quick search & commands (⌘K)"
-            className="hidden h-11 shrink-0 items-center gap-2 rounded-xl border border-line bg-surface-hover/50 px-3 text-xs font-extrabold tracking-[0.14em] text-muted uppercase transition-colors duration-200 hover:border-line-strong hover:bg-surface-hover hover:text-fg md:inline-flex"
+            className="hidden h-11 shrink-0 items-center gap-2 rounded-xl glass-pill px-3 text-xs font-extrabold tracking-[0.14em] text-muted uppercase transition-colors duration-200 hover:border-[var(--glass-border-strong)] hover:bg-surface-hover hover:text-fg md:inline-flex"
           >
             <svg
               viewBox="0 0 24 24"
@@ -204,7 +204,7 @@ function ExportMenu({ activeId }: { activeId: string | null }) {
           all[(index + (e.key === "ArrowDown" ? 1 : -1) + all.length) % all.length]?.focus();
         }}
         className={cn(
-          "absolute top-full right-0 z-30 mt-2 w-60 rounded-2xl glass-solid p-1.5",
+          "absolute top-full right-0 z-30 mt-2 w-60 rounded-2xl glass-dropdown p-1.5",
           open && "animate-scale-in",
         )}
       >

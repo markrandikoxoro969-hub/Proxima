@@ -151,10 +151,10 @@ function SkillsScreen({ initialSkills }: { initialSkills: SkillState[] }) {
               className="flex shrink-0 items-center gap-2 text-xs font-semibold text-muted"
               aria-label={`${installedCount} installed, ${enabledCount} enabled`}
             >
-              <span className="rounded-xl border border-line bg-surface-hover px-3 py-2">
+              <span className="glass-pill rounded-xl px-3 py-2">
                 <strong className="text-fg">{installedCount}</strong> installed
               </span>
-              <span className="rounded-xl border border-line bg-surface-hover px-3 py-2">
+              <span className="glass-pill rounded-xl px-3 py-2">
                 <strong className="text-fg">{enabledCount}</strong> enabled
               </span>
             </div>
@@ -164,7 +164,7 @@ function SkillsScreen({ initialSkills }: { initialSkills: SkillState[] }) {
         <section aria-label="Browse skills">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div
-              className="flex gap-1 rounded-2xl border border-line bg-surface-hover p-1"
+              className="glass-card flex gap-1 rounded-2xl p-1"
               role="tablist"
               aria-label="Skills view"
             >
@@ -206,7 +206,7 @@ function SkillsScreen({ initialSkills }: { initialSkills: SkillState[] }) {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search skills or capabilities"
-                className="input pl-10"
+                className="input glass-input pl-10"
               />
             </label>
           </div>
@@ -269,7 +269,7 @@ function SkillsScreen({ initialSkills }: { initialSkills: SkillState[] }) {
           )}
         </section>
 
-        <aside className="mt-8 flex items-start gap-3 rounded-2xl border border-line bg-surface-hover p-4 sm:mt-10">
+        <aside className="glass-card mt-8 flex items-start gap-3 rounded-2xl p-4 sm:mt-10">
           <ShieldCheck
             weight="duotone"
             className="mt-0.5 size-5 shrink-0 text-[var(--accent-text)]"
@@ -308,7 +308,7 @@ function SkillCard({
   return (
     <article
       aria-labelledby={titleId}
-      className="flex min-w-0 flex-col rounded-2xl border border-line bg-surface-solid p-4 transition-[border-color,background-color,transform] duration-200 hover:border-line-strong hover:bg-surface sm:p-5"
+      className="glass-card flex min-w-0 flex-col rounded-2xl p-4 transition-[border-color,background-color,transform] duration-200 hover:border-line-strong sm:p-5"
     >
       <div className="flex items-start gap-3">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-line bg-surface-hover text-[var(--accent-text)]">

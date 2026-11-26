@@ -5,6 +5,7 @@ import {
   FacebookLogo,
   GearSix,
   ImageSquare,
+  MagnifyingGlass,
   PencilSimple,
   Planet,
   Plus,
@@ -13,11 +14,12 @@ import {
   Trash,
   X,
 } from "@phosphor-icons/react";
-import { m, useDragControls } from "motion/react";
+import { m } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { filterSessions, groupSessionsByDate } from "@/lib/chat/client/group-sessions";
 import type { ThemePreference } from "@/lib/theme";
 import { useMuffleThemeAudio } from "@/lib/theme/use-theme-audio";
 import type { EngineStatus, Profile, SessionSummary } from "@/lib/chat/types";
@@ -45,7 +47,7 @@ type SidebarProps = {
   hasMore: boolean;
   engine: EngineStatus;
   profile: Profile;
-  /** Mobile drawer state (ignored on large screens, where it's always shown). */
+  /** Mobile left-side navigation drawer state (ignored on large screens). */
   open: boolean;
   isDesktop: boolean;
   /** Desktop collapsible rail state (persisted in localStorage). */
@@ -64,27 +66,32 @@ type SidebarProps = {
 export const Sidebar = memo(function Sidebar(props: SidebarProps) {
   const { open, isDesktop, collapsed = false, onClose } = props;
   const panelRef = useRef<HTMLElement>(null);
-  const controls = useDragControls();
   const hidden = isDesktop ? collapsed : !open;
   useMuffleThemeAudio(!isDesktop && open, "mobile-sidebar");
 
-  // Mobile: Escape closes the drawer, and focus moves into it when opened.
+  // Mobile drawer: lock background scroll, move focus in, and close on Escape.
   useEffect(() => {
     if (isDesktop || !open) return;
-    panelRef.current?.querySelector<HTMLElement>("button, a")?.focus({ preventScroll: true });
+    const html = document.documentElement;
+    const prevOverflow = html.style.overflow;
+    html.style.overflow = "hidden";
+    panelRef.current?.querySelector<HTMLElement>("button, a, input")?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      html.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
   }, [isDesktop, open, onClose]);
 
   return (
     <>
-      {/* Mobile backdrop */}
+      {/* Mobile translucent backdrop */}
       <div
         aria-hidden
         onClick={onClose}
         className={cn(
-          "fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ease-premium lg:hidden",
+          "fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px] transition-opacity duration-300 ease-premium lg:hidden",
           open ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       />
@@ -93,38 +100,25 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
         id="sidebar"
         aria-label="Chat sessions"
         inert={hidden || undefined}
-        dragControls={controls}
-        dragListener={false}
         initial={false}
-        animate={isDesktop ? { y: 0 } : { y: open ? 0 : "100%" }}
+        animate={isDesktop ? { x: 0 } : { x: open ? 0 : "-100%" }}
         transition={SPRING.gentle}
-        drag={isDesktop ? false : "y"}
+        drag={isDesktop ? false : "x"}
         dragDirectionLock
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 0.4 }}
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={{ left: 0.35, right: 0.05 }}
         onDragEnd={(_event, info) => {
-          if (!isDesktop && (info.offset.y > 120 || info.velocity.y > 700)) onClose();
+          if (!isDesktop && (info.offset.x < -80 || info.velocity.x < -550)) onClose();
         }}
         className={cn(
-          // Phones: a bottom sheet, dragged down to dismiss.
-          "fixed inset-x-0 bottom-0 z-50 flex h-[86dvh] flex-col rounded-t-3xl border-t border-line bg-surface-solid pb-safe",
-          // Desktop: collapsible left rail.
+          // Mobile: polished left-side sliding navigation drawer with swipe-left dismiss.
+          "fixed inset-y-0 left-0 z-50 flex w-[min(86vw,21rem)] flex-col rounded-r-3xl border-r border-line glass-nav pt-safe pb-safe",
+          // Desktop: persistent collapsible left rail.
           collapsed
             ? "lg:hidden"
-            : "lg:static lg:z-auto lg:h-auto lg:w-72 lg:shrink-0 lg:translate-y-0 lg:rounded-none lg:border-t-0 lg:border-r lg:glass lg:bg-transparent lg:pb-0 lg:shadow-none lg:backdrop-blur-none",
+            : "lg:static lg:z-auto lg:h-auto lg:w-72 lg:shrink-0 lg:translate-x-0 lg:rounded-none lg:border-r lg:pt-0 lg:pb-0 lg:shadow-none",
         )}
       >
-        {/* Drag handle: only this strip starts the dismiss gesture, so the
-            session list still scrolls normally under a finger. */}
-        <button
-          type="button"
-          aria-label="Drag down to close the menu"
-          onPointerDown={(e) => controls.start(e)}
-          className="mx-auto flex h-7 w-full shrink-0 items-center justify-center lg:hidden"
-          style={{ touchAction: "none" }}
-        >
-          <span aria-hidden className="h-1 w-10 rounded-full bg-line-strong" />
-        </button>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <SidebarContent {...props} />
         </div>
@@ -150,7 +144,13 @@ function SidebarContent({
   onOpenSettings,
   onThemeChange,
 }: SidebarProps) {
+  const [search, setSearch] = useState("");
   const shownName = profile.displayName ?? profile.name ?? "Explorer";
+
+  const grouped = useMemo(() => {
+    const filtered = filterSessions(sessions, search);
+    return groupSessionsByDate(filtered);
+  }, [sessions, search]);
 
   return (
     <>
@@ -180,7 +180,7 @@ function SidebarContent({
         </button>
       </div>
 
-      <div className="px-4">
+      <div className="flex flex-col gap-2.5 px-4">
         <button
           type="button"
           onClick={onNewChat}
@@ -193,33 +193,70 @@ function SidebarContent({
           />
           New Chat
         </button>
+
+        {/* Searchable chat history */}
+        <div className="relative">
+          <MagnifyingGlass
+            weight="bold"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle"
+            aria-hidden
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search chats…"
+            aria-label="Search chat history"
+            className="h-10 w-full rounded-xl glass-input pr-8 pl-9 text-xs font-semibold text-fg placeholder:text-subtle focus:border-[var(--accent)] focus:outline-none"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Clear chat search"
+              className="absolute top-1/2 right-1.5 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-lg text-subtle hover:bg-surface-hover hover:text-fg"
+            >
+              <X weight="bold" className="size-3.5" aria-hidden />
+            </button>
+          )}
+        </div>
       </div>
 
-      <nav className="mt-6 flex min-h-0 flex-1 flex-col" aria-label="Recent sessions">
-        <h2 className="px-5 pb-2 text-[10px] font-extrabold tracking-[0.3em] text-subtle uppercase">
-          Recent Sessions
-        </h2>
+      <nav className="mt-4 flex min-h-0 flex-1 flex-col" aria-label="Recent sessions">
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3">
           {sessions.length === 0 ? (
             <p className="px-3 py-6 text-center text-xs text-subtle">
               No chats yet. Your conversations will appear here.
             </p>
+          ) : grouped.length === 0 ? (
+            <p className="px-3 py-6 text-center text-xs text-subtle">
+              No chats matching “{search.trim()}”.
+            </p>
           ) : (
-            <ul className="flex flex-col gap-1">
-              {sessions.map((session) => (
-                <SessionItem
-                  key={session.id}
-                  session={session}
-                  active={session.id === activeKey}
-                  streaming={session.id === streamingKey}
-                  onSelect={onSelect}
-                  onRename={onRename}
-                  onRequestDelete={onRequestDelete}
-                />
+            <div className="flex flex-col gap-4">
+              {grouped.map((group) => (
+                <div key={group.label}>
+                  <h2 className="px-2 pb-1.5 text-[10px] font-extrabold tracking-[0.26em] text-subtle uppercase">
+                    {group.label}
+                  </h2>
+                  <ul className="flex flex-col gap-1">
+                    {group.sessions.map((session) => (
+                      <SessionItem
+                        key={session.id}
+                        session={session}
+                        active={session.id === activeKey}
+                        streaming={session.id === streamingKey}
+                        onSelect={onSelect}
+                        onRename={onRename}
+                        onRequestDelete={onRequestDelete}
+                      />
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
-          {hasMore && (
+          {hasMore && !search && (
             <button
               type="button"
               onClick={onLoadMore}
@@ -238,16 +275,6 @@ function SidebarContent({
             {ENGINE_LABEL[engine]}
           </span>
         </div>
-        <a
-          href={site.links.facebook}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex tap items-center gap-3 rounded-xl px-3 text-xs font-bold tracking-[0.15em] text-muted uppercase transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
-        >
-          <FacebookLogo weight="fill" className="size-5" aria-hidden />
-          Dev Facebook
-          <span className="sr-only">(opens in a new tab)</span>
-        </a>
         <Link
           href="/studio"
           onClick={onClose}
@@ -272,8 +299,18 @@ function SidebarContent({
           <GearSix weight="bold" className="size-5" aria-hidden />
           Settings
         </button>
+        <a
+          href={site.links.facebook}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex tap items-center gap-3 rounded-xl px-3 text-xs font-bold tracking-[0.15em] text-muted uppercase transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+        >
+          <FacebookLogo weight="fill" className="size-5" aria-hidden />
+          Dev Facebook
+          <span className="sr-only">(opens in a new tab)</span>
+        </a>
 
-        <div className="mt-2 flex items-center gap-3 rounded-2xl border border-line bg-surface-hover p-2.5">
+        <div className="mt-2 flex items-center gap-3 rounded-2xl glass-card p-2.5">
           {profile.image ? (
             <Image src={profile.image} alt="" width={40} height={40} className="size-10 rounded-xl" />
           ) : (
@@ -346,7 +383,7 @@ const SessionItem = memo(function SessionItem({
                 setEditing(false);
               }
             }}
-            className="h-11 w-full rounded-xl border border-line-strong bg-surface-solid px-3 text-sm font-semibold focus:outline-none"
+            className="h-11 w-full rounded-xl glass-input px-3 text-sm font-semibold focus:border-[var(--accent)] focus:outline-none"
           />
         </form>
       </li>
@@ -359,7 +396,7 @@ const SessionItem = memo(function SessionItem({
         <m.span
           layoutId="active-session"
           transition={SPRING.soft}
-          className="absolute inset-0 rounded-xl bg-surface-hover"
+          className="absolute inset-0 rounded-xl glass-pill"
           aria-hidden
         />
       )}

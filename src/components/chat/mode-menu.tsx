@@ -119,7 +119,7 @@ export function ModeMenu({
             const step = event.key === "ArrowDown" ? 1 : -1;
             items[(index + step + items.length) % items.length]?.focus();
           }}
-          className="absolute bottom-full left-0 z-40 mb-2 w-[min(20rem,calc(100vw-2.5rem))] origin-bottom-left animate-scale-in rounded-2xl glass-solid p-1.5 shadow-glow-strong"
+          className="glass-dropdown absolute bottom-full left-0 z-40 mb-2 w-[min(20rem,calc(100vw-2.5rem))] origin-bottom-left animate-scale-in rounded-2xl p-1.5"
         >
           <p className="px-3 pt-2 pb-1 font-mono text-[10px] font-bold tracking-[0.22em] text-subtle uppercase">
             Answer mode

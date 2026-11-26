@@ -58,7 +58,7 @@ export function SkillPreferences({ initialSkills }: { initialSkills: SkillState[
     <section
       id="settings-skills"
       aria-labelledby="settings-skills-heading"
-      className="animate-fade-up scroll-mt-6 rounded-3xl glass-solid p-5 sm:p-7"
+      className="glass-panel animate-fade-up scroll-mt-6 rounded-3xl p-5 sm:p-7"
     >
       <div className="mb-5 flex items-start gap-3">
         <span
@@ -78,7 +78,7 @@ export function SkillPreferences({ initialSkills }: { initialSkills: SkillState[
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
         <p>These settings apply automatically to new replies on every device.</p>
         <span
-          className="rounded-full border border-line px-2.5 py-1 font-bold tabular-nums"
+          className="glass-pill rounded-full px-2.5 py-1 font-bold tabular-nums"
           aria-live="polite"
         >
           {selectedCount}/{MAX_SELECTED_SKILLS} selected
