@@ -13,6 +13,21 @@ import {
   readCodingTaskProgress,
   type CodingTaskProgress,
 } from "@/lib/ai/coding-task";
+import {
+  createAgentCheckpoint,
+  createDefaultToolRegistry,
+  executeNextAgentStep,
+  readAgentCheckpoint,
+  type AgentCheckpoint,
+} from "@/lib/ai/agent";
+import {
+  formatAgentStepNote,
+  isAgentTaskRequest,
+  planAgentSteps,
+  resolveAgentAction,
+  stripAgentPrefix,
+  synthesizeAgentAnswer,
+} from "@/lib/ai/agent/runner";
 import { Prisma } from "@/generated/prisma/client";
 import type { AiErrorCode, AiHistoryMessage } from "@/lib/ai/types";
 import { ApiError, apiErrors, readJson, withApi } from "@/lib/api/http";
@@ -70,9 +85,12 @@ export const POST = withApi(async (request: Request) => {
   const showReasoning = input.showReasoning === true;
   /** Fast / Thinking / Coding / Analyze — see src/lib/ai/modes.ts. */
   const mode = resolveChatMode(input.mode);
-  const multiFileIntent = isMultiFileCodingRequest(
-    [input.message, ...attachments.map((attachment) => attachment.name)].join("\n"),
-  );
+  const explicitAgentIntent = isAgentTaskRequest(input.message, input.agentMode);
+  const multiFileIntent =
+    !explicitAgentIntent &&
+    isMultiFileCodingRequest(
+      [input.message, ...attachments.map((attachment) => attachment.name)].join("\n"),
+    );
   let answerMode = multiFileIntent ? "coding" : mode;
   const modeConfig = resolveModeConfig(answerMode);
   /** Temporary chats are never written to the database and never touch memory. */
@@ -82,6 +100,9 @@ export const POST = withApi(async (request: Request) => {
     (!userId || temporary || !input.conversationId || !input.retry || !input.codingStep)
   ) {
     throw apiErrors.badRequest("Invalid coding continuation.");
+  }
+  if (input.agentContinue && (!userId || temporary || !input.conversationId || !input.retry)) {
+    throw apiErrors.badRequest("Invalid agent continuation.");
   }
 
   // ── Guest demo rules ──
@@ -138,6 +159,7 @@ export const POST = withApi(async (request: Request) => {
   }[] = [];
   let resumedAssistant: { id: string; content: string; progress: unknown } | null = null;
   let resumeCodingProgress: CodingTaskProgress | null = null;
+  let resumeAgentCheckpoint: AgentCheckpoint | null = null;
 
   if (userId && !temporary) {
     const userMessage = {
@@ -185,9 +207,17 @@ export const POST = withApi(async (request: Request) => {
           "The coding checkpoint is no longer available. Reload the conversation before retrying.",
         );
       }
+      if (input.agentContinue && (!canResume || !readAgentCheckpoint(last?.generationProgress))) {
+        throw new ApiError(
+          409,
+          "stale_checkpoint",
+          "The agent checkpoint is no longer available. Reload the conversation before retrying.",
+        );
+      }
       if (canResume) {
         resumedAssistant = { id: last.id, content: last.content, progress: last.generationProgress };
         resumeCodingProgress = readCodingTaskProgress(last.generationProgress);
+        resumeAgentCheckpoint = readAgentCheckpoint(last.generationProgress);
         const savedMode = (last.generationProgress as { mode?: unknown } | null)?.mode;
         if (resumeCodingProgress || savedMode === "coding") answerMode = "coding";
         priorMessages = existing.messages.slice(2);
@@ -234,7 +264,7 @@ export const POST = withApi(async (request: Request) => {
       ...input.history.slice(-modeConfig.historyLimit).map(({ role, content }) => ({ role, content })),
     );
   }
-  if (resumedAssistant && !resumeCodingProgress && resumedAssistant.content) {
+  if (resumedAssistant && !resumeCodingProgress && !resumeAgentCheckpoint && resumedAssistant.content) {
     // A partial non-project reply is context for the resumed request, not a completed turn.
     history.push({ role: "assistant", content: resumedAssistant.content });
   }
@@ -366,10 +396,19 @@ export const POST = withApi(async (request: Request) => {
         persistAssistant(content, latencyMs, Prisma.DbNull);
 
       let codingProgress = resumeCodingProgress;
+      let agentCheckpoint = resumeAgentCheckpoint;
       const fileByFile = Boolean(
-        !identityAnswer && (resumeCodingProgress || (answerMode === "coding" && !resumedAssistant)),
+        !identityAnswer &&
+          !resumeAgentCheckpoint &&
+          !explicitAgentIntent &&
+          (resumeCodingProgress || (answerMode === "coding" && !resumedAssistant)),
       );
-      const finalAnswer = () => (fileByFile ? raw : stripFiller(cleanIdentityLeaks(raw)));
+      const runAgentLoop = Boolean(
+        !identityAnswer &&
+          !fileByFile &&
+          (resumeAgentCheckpoint || (explicitAgentIntent && !resumedAssistant)),
+      );
+      const finalAnswer = () => (fileByFile || runAgentLoop ? raw : stripFiller(cleanIdentityLeaks(raw)));
 
       try {
         if (fileByFile) {
@@ -474,6 +513,116 @@ export const POST = withApi(async (request: Request) => {
               "bad_response",
             );
           }
+        } else if (runAgentLoop) {
+          const registry = createDefaultToolRegistry();
+          const agentRequest = {
+            message: prompt,
+            sessionId,
+            signal,
+            history,
+            showReasoning: false,
+            mode: answerMode,
+            images: providerPictures,
+            system,
+          };
+
+          if (!agentCheckpoint) {
+            receivedAny = true;
+            sse.send("status", { state: "thinking", message: "Planning task steps…" });
+            const steps = await planAgentSteps(provider, agentRequest, registry);
+            agentCheckpoint = createAgentCheckpoint(stripAgentPrefix(input.message), steps);
+            await saveIncomplete(raw, agentCheckpoint as unknown as Prisma.InputJsonValue);
+          }
+
+          while (agentCheckpoint.phase !== "done" && agentCheckpoint.phase !== "failed") {
+            if (signal.aborted) throw interruptedError();
+            receivedAny = true;
+
+            if (agentCheckpoint.phase === "verify") {
+              agentCheckpoint = await executeNextAgentStep({
+                checkpoint: agentCheckpoint,
+                registry,
+                ctx: { userId: userId ?? "guest", signal },
+                resolveAction: () => null,
+              });
+              break;
+            }
+
+            const stepIndex = agentCheckpoint.currentStepIndex;
+            const currentStep = agentCheckpoint.steps[stepIndex];
+            sse.send("status", {
+              state: "thinking",
+              message: `Step ${stepIndex + 1} of ${agentCheckpoint.steps.length}: ${currentStep.title}`,
+            });
+
+            const nextCheckpoint = await executeNextAgentStep({
+              checkpoint: agentCheckpoint,
+              registry,
+              ctx: { userId: userId ?? "guest", signal },
+              resolveAction: (step, cp) =>
+                resolveAgentAction(provider, agentRequest, step, cp, registry),
+              approvedStepId: input.approvedStepId,
+            });
+
+            if (nextCheckpoint.phase === "paused" && nextCheckpoint.pendingApprovalStepId) {
+              const pausedStep = nextCheckpoint.steps.find(
+                (s) => s.id === nextCheckpoint.pendingApprovalStepId,
+              );
+              await saveIncomplete(raw, nextCheckpoint as unknown as Prisma.InputJsonValue);
+              agentCheckpoint = nextCheckpoint;
+              sse.send("agent-approval", {
+                conversationId,
+                stepId: nextCheckpoint.pendingApprovalStepId,
+                title: pausedStep?.title ?? "Confirm action",
+                toolName: pausedStep?.toolCall?.toolName ?? "unknown",
+              });
+              return;
+            }
+
+            const updatedStep = nextCheckpoint.steps[stepIndex];
+            let nextRaw = raw;
+            if (updatedStep?.status === "completed") {
+              const note = formatAgentStepNote(updatedStep, stepIndex, nextCheckpoint.steps.length);
+              nextRaw = raw + note;
+              await saveIncomplete(nextRaw, nextCheckpoint as unknown as Prisma.InputJsonValue);
+              raw = nextRaw;
+              sentText = raw;
+              sse.send("token", { text: note });
+            } else {
+              await saveIncomplete(raw, nextCheckpoint as unknown as Prisma.InputJsonValue);
+            }
+            agentCheckpoint = nextCheckpoint;
+
+            // Hand off remaining steps to a fresh serverless invocation with its own timeout budget.
+            if (
+              conversationId &&
+              nextCheckpoint.phase !== "done" &&
+              nextCheckpoint.phase !== "failed" &&
+              nextCheckpoint.phase !== "verify"
+            ) {
+              sse.send("agent-continue", {
+                conversationId,
+                completedSteps: nextCheckpoint.currentStepIndex,
+                totalSteps: nextCheckpoint.steps.length,
+                retry: false,
+              });
+              return;
+            }
+          }
+
+          if (agentCheckpoint.phase === "failed") {
+            throw new AiProviderError(
+              agentCheckpoint.verificationNote ?? "The agent could not complete all steps.",
+              "bad_response",
+            );
+          }
+
+          sse.send("status", { state: "thinking", message: "Verifying & summarizing final answer…" });
+          const summary = await synthesizeAgentAnswer(provider, agentRequest, agentCheckpoint);
+          const finalSegment = raw ? `\n${summary}` : summary;
+          raw += finalSegment;
+          sentText = raw;
+          sse.send("token", { text: finalSegment });
         } else {
           const resumeInstruction =
             resumedAssistant && !resumeCodingProgress
@@ -553,9 +702,11 @@ export const POST = withApi(async (request: Request) => {
       } catch (error) {
         const incompleteProgress = codingProgress
           ? { ...codingProgress, state: "interrupted" as const }
-          : raw
-            ? { kind: "stream", version: 1, state: "interrupted", mode: answerMode }
-            : (resumedAssistant?.progress ?? null);
+          : agentCheckpoint
+            ? agentCheckpoint
+            : raw
+              ? { kind: "stream", version: 1, state: "interrupted", mode: answerMode }
+              : (resumedAssistant?.progress ?? null);
         const partialText = finalAnswer() || sentText || raw;
         let checkpointSaved = false;
         if (conversationId && (partialText || incompleteProgress !== null)) {
@@ -577,6 +728,22 @@ export const POST = withApi(async (request: Request) => {
         // Log only the failure type and status, never prompts, provider responses or keys.
         const status = error instanceof AiProviderError ? error.status : undefined;
         console.error(`[chat] ${provider.id} failed (${code}${status ? `, HTTP ${status}` : ""})`);
+        if (
+          code === "timeout" &&
+          checkpointSaved &&
+          conversationId &&
+          agentCheckpoint &&
+          agentCheckpoint.phase !== "done" &&
+          agentCheckpoint.phase !== "failed"
+        ) {
+          sse.send("agent-continue", {
+            conversationId,
+            completedSteps: agentCheckpoint.currentStepIndex,
+            totalSteps: agentCheckpoint.steps.length,
+            retry: true,
+          });
+          return;
+        }
         if (
           code === "timeout" &&
           input.codingStep &&

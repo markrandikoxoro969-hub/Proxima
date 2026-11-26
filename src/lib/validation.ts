@@ -75,6 +75,12 @@ export const chatRequestSchema = z.object({
   codingStep: z.boolean().optional(),
   /** Internal continuation: never save a new user message on a stale checkpoint. */
   codingContinue: z.boolean().optional(),
+  /** Opt in to PROXIMA's multi-step autonomous agent loop (also triggered via `/agent `). */
+  agentMode: z.boolean().optional(),
+  /** Internal continuation for a persisted AgentCheckpoint across serverless requests. */
+  agentContinue: z.boolean().optional(),
+  /** Explicit user approval for a paused destructive/approval-required agent step. */
+  approvedStepId: z.string().trim().min(1).max(64).optional(),
   /**
    * Ask the server to stream the model's private reasoning. Off by default:
    * when false, reasoning never leaves the server and is never stored.

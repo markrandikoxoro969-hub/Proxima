@@ -238,6 +238,19 @@ export function useChat({
           },
           onFilePreview: (draft) =>
             dispatch({ type: "filePreview", key: currentKey, id: assistantId, ...draft }),
+          onAgentApproval: (approval) => {
+            dispatch({
+              type: "failed",
+              key: currentKey,
+              id: assistantId,
+              error: {
+                code: "approval_required",
+                message: `Action "${approval.title}" (${approval.toolName}) requires your approval before continuing.`,
+                retryable: true,
+              },
+            });
+            notify(`Approval needed for "${approval.title}".`, "info");
+          },
           onReasoning: (t) => dispatch({ type: "reasoning", key: currentKey, id: assistantId, text: t }),
           onDone: (d) => {
             dispatch({
