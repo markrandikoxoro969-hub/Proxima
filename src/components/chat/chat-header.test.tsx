@@ -4,7 +4,7 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ChatHeader } from "./chat-header";
 
 describe("<ChatHeader />", () => {
-  it("places speech input beside the voice menu in the upper toolbar", () => {
+  it("organizes voice input and voice mode inside the floating glass controls menu", () => {
     render(
       <ThemeProvider>
         <ChatHeader
@@ -21,11 +21,14 @@ describe("<ChatHeader />", () => {
     );
 
     const header = screen.getByRole("banner");
-    expect(within(header).getByRole("button", { name: "Voice input" })).toBeInTheDocument();
-    expect(within(header).getByRole("button", { name: "Voice mode" })).toBeInTheDocument();
+    const controlsTrigger = within(header).getByRole("button", { name: "Open controls menu" });
+    fireEvent.click(controlsTrigger);
+
+    expect(within(header).getByRole("button", { name: "Voice input" })).toBeVisible();
+    expect(within(header).getByRole("button", { name: "Voice mode" })).toBeVisible();
   });
 
-  it("renders command palette and desktop sidebar expand triggers when provided", () => {
+  it("opens command palette from the controls menu and renders desktop sidebar expand", () => {
     const onOpenPalette = vi.fn();
     const onToggleDesktopSidebar = vi.fn();
     render(
@@ -44,6 +47,7 @@ describe("<ChatHeader />", () => {
       </ThemeProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Open controls menu" }));
     fireEvent.click(screen.getByRole("button", { name: "Open command palette" }));
     expect(onOpenPalette).toHaveBeenCalledTimes(1);
 

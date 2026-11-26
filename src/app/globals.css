@@ -31,18 +31,29 @@
   /* The only hue in the product: the "thinking" light. */
   --accent: #6d28d9;
   --accent-soft: rgb(109 40 217 / 0.18);
-  /* Premium glassmorphism material tokens (Light: soft frosted ceramic glass) */
-  --glass-bg: color-mix(in srgb, var(--surface-solid) 76%, transparent);
-  --glass-bg-elevated: color-mix(in srgb, var(--surface-solid) 88%, transparent);
-  --glass-bg-subtle: color-mix(in srgb, var(--surface-solid) 56%, transparent);
-  --glass-border: color-mix(in srgb, var(--fg) 10%, transparent);
-  --glass-border-strong: color-mix(in srgb, var(--fg) 18%, transparent);
-  --glass-highlight: rgb(255 255 255 / 0.85);
-  --glass-reflection: linear-gradient(180deg, rgb(255 255 255 / 0.45) 0%, rgb(255 255 255 / 0) 48%);
-  --glass-shadow: 0 8px 30px rgb(15 23 42 / 0.08), inset 0 1px 0 var(--glass-highlight);
-  --glass-shadow-elevated: 0 22px 60px rgb(15 23 42 / 0.16), inset 0 1px 0 var(--glass-highlight);
-  --glass-blur: 14px;
-  --glass-blur-elevated: 18px;
+  /* Premium glassmorphism material tokens (Light: luminous frosted ceramic glass) */
+  --glass-bg: color-mix(in srgb, var(--surface-solid) 54%, transparent);
+  --glass-bg-elevated: color-mix(in srgb, var(--surface-solid) 68%, transparent);
+  --glass-bg-subtle: color-mix(in srgb, var(--surface-solid) 40%, transparent);
+  --glass-border: color-mix(in srgb, var(--fg) 12%, rgb(255 255 255 / 0.55));
+  --glass-border-strong: color-mix(in srgb, var(--fg) 18%, rgb(255 255 255 / 0.75));
+  --glass-highlight: rgb(255 255 255 / 0.92);
+  --glass-reflection: linear-gradient(
+    145deg,
+    rgb(255 255 255 / 0.62) 0%,
+    rgb(255 255 255 / 0.16) 36%,
+    rgb(255 255 255 / 0) 68%
+  );
+  --glass-shadow:
+    0 10px 34px rgb(15 23 42 / 0.1),
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 rgb(15 23 42 / 0.04);
+  --glass-shadow-elevated:
+    0 24px 64px rgb(15 23 42 / 0.18),
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 rgb(15 23 42 / 0.05);
+  --glass-blur: 18px;
+  --glass-blur-elevated: 24px;
   color-scheme: light;
 }
 
@@ -53,27 +64,38 @@ html.dark {
   --subtle: rgb(248 250 252 / 0.5); /* ~5:1 on --bg (AA) */
   --line: rgb(255 255 255 / 0.07);
   --line-strong: rgb(255 255 255 / 0.16);
-  --surface: rgb(12 12 12 / 0.62);
+  --surface: rgb(12 12 12 / 0.5);
   --surface-solid: #11141b;
-  --surface-hover: rgb(255 255 255 / 0.06);
+  --surface-hover: rgb(255 255 255 / 0.075);
   --glow: rgb(255 255 255 / 0.1);
   --inverse-bg: #ffffff;
   --inverse-fg: #0b0d12;
   --scrollbar: rgb(255 255 255 / 0.15);
   --accent: #a78bfa;
   --accent-soft: rgb(167 139 250 / 0.22);
-  /* Premium glassmorphism material tokens (Dark: deep smoked optical glass) */
-  --glass-bg: color-mix(in srgb, var(--surface-solid) 66%, transparent);
-  --glass-bg-elevated: color-mix(in srgb, var(--surface-solid) 82%, transparent);
-  --glass-bg-subtle: color-mix(in srgb, var(--surface-solid) 48%, transparent);
-  --glass-border: color-mix(in srgb, var(--fg) 10%, transparent);
-  --glass-border-strong: color-mix(in srgb, var(--fg) 19%, transparent);
-  --glass-highlight: color-mix(in srgb, var(--accent) 14%, rgb(255 255 255 / 0.14));
-  --glass-reflection: linear-gradient(180deg, rgb(255 255 255 / 0.055) 0%, rgb(255 255 255 / 0) 45%);
-  --glass-shadow: 0 12px 36px rgb(0 0 0 / 0.34), inset 0 1px 0 var(--glass-highlight);
-  --glass-shadow-elevated: 0 24px 64px rgb(0 0 0 / 0.56), inset 0 1px 0 var(--glass-highlight);
-  --glass-blur: 14px;
-  --glass-blur-elevated: 18px;
+  /* Premium glassmorphism material tokens (Dark: luminous smoked crystal glass) */
+  --glass-bg: color-mix(in srgb, var(--surface-solid) 46%, transparent);
+  --glass-bg-elevated: color-mix(in srgb, var(--surface-solid) 62%, transparent);
+  --glass-bg-subtle: color-mix(in srgb, var(--surface-solid) 32%, transparent);
+  --glass-border: rgb(255 255 255 / 0.14);
+  --glass-border-strong: rgb(255 255 255 / 0.24);
+  --glass-highlight: color-mix(in srgb, var(--accent) 18%, rgb(255 255 255 / 0.24));
+  --glass-reflection: linear-gradient(
+    145deg,
+    rgb(255 255 255 / 0.13) 0%,
+    rgb(255 255 255 / 0.03) 38%,
+    rgb(255 255 255 / 0) 70%
+  );
+  --glass-shadow:
+    0 12px 38px rgb(0 0 0 / 0.36),
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 rgb(255 255 255 / 0.04);
+  --glass-shadow-elevated:
+    0 24px 68px rgb(0 0 0 / 0.58),
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 rgb(255 255 255 / 0.06);
+  --glass-blur: 18px;
+  --glass-blur-elevated: 24px;
   color-scheme: dark;
 }
 
@@ -317,14 +339,24 @@ html.dark .proxima-logo-glow {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
 }
 
+/* Curved floating frosted top bar with luminous rim highlight. */
+@utility glass-header {
+  background-color: var(--glass-bg);
+  background-image: var(--glass-reflection);
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(var(--glass-blur)) saturate(175%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(175%);
+}
+
 /* Navigation rail & left-side drawer surface. */
 @utility glass-nav {
   background-color: var(--glass-bg);
   background-image: var(--glass-reflection);
   border-color: var(--glass-border);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(var(--glass-blur)) saturate(145%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(145%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(165%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(165%);
 }
 
 /* Translucent search & text inputs with smooth focus illumination. */
@@ -1593,14 +1625,27 @@ html[data-scene="media"] .app-shell {
 
 html[data-scene="media"] .glass,
 html[data-scene="media"] .lg\:glass,
+html[data-scene="media"] .glass-header,
 html[data-scene="media"] .glass-panel,
 html[data-scene="media"] .glass-nav,
 html[data-scene="media"] .glass-dialog,
 html[data-scene="media"] .glass-dropdown {
-  background-color: color-mix(in srgb, var(--surface-solid) 82%, transparent);
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  background-color: color-mix(in srgb, var(--surface-solid) 48%, transparent);
+  backdrop-filter: blur(14px) saturate(165%);
+  -webkit-backdrop-filter: blur(14px) saturate(165%);
   box-shadow: var(--glass-shadow);
+}
+
+@media (max-width: 767px) {
+  html[data-scene="media"] .glass,
+  html[data-scene="media"] .glass-header,
+  html[data-scene="media"] .glass-panel,
+  html[data-scene="media"] .glass-nav,
+  html[data-scene="media"] .glass-dialog,
+  html[data-scene="media"] .glass-dropdown {
+    backdrop-filter: blur(10px) saturate(150%);
+    -webkit-backdrop-filter: blur(10px) saturate(150%);
+  }
 }
 
 html[data-scene="media"] .ai-mesh,

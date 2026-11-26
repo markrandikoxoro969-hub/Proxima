@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { cleanIdentityLeaks, describeAge, getIdentityAnswer } from "./identity";
+import {
+  cleanIdentityLeaks,
+  describeAge,
+  getIdentityAnswer,
+  identitySystemSection,
+} from "./identity";
 
 const kind = (msg: string) => {
-  const answer = getIdentityAnswer(msg, new Date("2026-11-19T12:00:00Z"));
+  const answer = getIdentityAnswer(msg, new Date("2026-11-25T12:30:00Z"));
   if (!answer) return null;
-  if (answer.includes("developed and created by")) return "developer";
-  if (answer.includes("since my latest")) return "age";
-  if (answer.includes("identify as a **female**")) return "gender";
-  if (answer.includes("the assistant running on")) return "who";
+  if (answer.includes("developed by")) return "developer";
+  if (answer.includes("still counting")) return "age";
+  if (answer.includes("female AI assistant")) return "gender";
+  if (answer.includes("Ask me anything")) return "who";
   return "other";
 };
 
@@ -37,7 +42,6 @@ describe("identity answers", () => {
     (msg) => expect(kind(msg)).toBe("who"),
   );
 
-  // These matched by mistake in the original file.
   it.each([
     "What can you do?",
     "What do you think about cats?",
@@ -49,8 +53,10 @@ describe("identity answers", () => {
     "",
   ])("NOT an identity question: %s", (msg) => expect(kind(msg)).toBeNull());
 
-  it("fills every placeholder", () => {
-    const answer = getIdentityAnswer("who made you")!;
+  it("fills every placeholder with updated 1.0.2VBETA core and saved developers", () => {
+    const answer = getIdentityAnswer("who made you", new Date("2026-11-25T12:30:00Z"))!;
+    expect(answer).toContain("Proxima");
+    expect(answer).toContain("1.0.2VBETA");
     expect(answer).toContain("Sujan Shrestha");
     expect(answer).toContain("Aayusha Shrestha");
     expect(answer).toContain("https://m.facebook.com/");
@@ -58,18 +64,27 @@ describe("identity answers", () => {
   });
 });
 
-describe("describeAge", () => {
-  it("counts days from the configured birthday", () => {
-    expect(describeAge(new Date("2026-11-19T12:00:00Z"))).toBe("4 days old");
-    expect(describeAge(new Date("2026-11-16T01:00:00Z"))).toBe("1 day old");
-    expect(describeAge(new Date("2027-03-15T00:00:00Z"))).toBe("3 months old");
+describe("describeAge & identitySystemSection", () => {
+  it("starts at 6 months on 2026-11-25 and ticks live continuously from now", () => {
+    expect(describeAge(new Date("2026-11-25T00:00:00Z"))).toBe("6 months, 0h 0m");
+    expect(describeAge(new Date("2026-11-25T14:25:00Z"))).toBe("6 months, 14h 25m");
+    expect(describeAge(new Date("2026-11-27T05:10:00Z"))).toBe("6 months, 2 days, 5h 10m");
+  });
+
+  it("injects natural live identity instructions for the AI system prompt", () => {
+    const section = identitySystemSection(new Date("2026-11-25T10:15:00Z"));
+    expect(section).toContain("Name: Proxima");
+    expect(section).toContain("Core version: 1.0.2VBETA");
+    expect(section).toContain("6 months, 10h 15m");
+    expect(section).toContain("Sujan Shrestha");
+    expect(section).toContain("Aayusha Shrestha");
   });
 });
 
 describe("cleanIdentityLeaks", () => {
   it("replaces model self-descriptions", () => {
     expect(cleanIdentityLeaks("Sure! I am a large language model, trained by Google. Here you go.")).toBe(
-      "Sure! I am Proxima, a premium AI assistant developed by Sujan Shrestha. Here you go.",
+      "Sure! I am Proxima, a private AI assistant developed by Sujan Shrestha. Here you go.",
     );
   });
   it("leaves normal text alone", () => {

@@ -58,6 +58,24 @@ export function isMultiFileCodingRequest(message: string): boolean {
   return explicit || (paths?.length ?? 0) >= 2 || projectBuild;
 }
 
+/**
+ * Distinguishes actual file/code-generation requests from normal conversations
+ * in Coding mode (greetings, conceptual questions, explanations, identity chats).
+ * Normal conversations stream directly without forcing JSON file-plan output.
+ */
+export function isExplicitCodeBuildRequest(message: string): boolean {
+  if (isMultiFileCodingRequest(message)) return true;
+  const trimmed = message.trim();
+  if (!trimmed) return false;
+  const hasAction =
+    /\b(?:write|create|build|generate|implement|scaffold|make|code|develop)\b/i.test(trimmed);
+  const hasCodeArtifact =
+    /\b(?:code|script|file|files|program|module|component|endpoint|api|server|cli|bot|page|hook|class|function|library|package|template|project|app|website)\b|\.(?:tsx?|jsx?|mjs|cjs|json|css|scss|py|go|rs|java|kt|sql|html|vue|svelte|sh)\b/i.test(
+      trimmed,
+    );
+  return hasAction && hasCodeArtifact;
+}
+
 export function parseCodingPlan(text: string): CodingFilePlan[] {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
