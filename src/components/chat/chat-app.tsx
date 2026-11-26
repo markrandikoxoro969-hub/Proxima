@@ -22,7 +22,7 @@ import {
 import { AnimatePresence, m } from "motion/react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { MotionProvider } from "@/components/motion/motion-provider";
 import { useTheme } from "@/components/theme/theme-provider";
 import { ConfirmDialog } from "@/components/ui/dialog";
@@ -48,6 +48,7 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { ChatHeader } from "./chat-header";
 import type { Command } from "./command-palette";
 import { EmptyState } from "./empty-state";
+import type { SettingsTab } from "./settings-dialog";
 import { VoiceMenu } from "./voice-menu";
 
 const MessageList = dynamic(() => import("./message-list").then((module) => module.MessageList), {
@@ -90,6 +91,23 @@ const Onboarding = dynamic(() => import("./onboarding").then((m) => m.Onboarding
 const Particles = dynamic(() => import("./particles"), { ssr: false });
 
 const VOICE_SAMPLE = "Hi, I'm Proxima. This is how I'll read your answers aloud.";
+
+const SIDEBAR_STORAGE_KEY = "proxima-sidebar-collapsed";
+const sidebarListeners = new Set<() => void>();
+const subscribeSidebar = (cb: () => void) => {
+  sidebarListeners.add(cb);
+  return () => {
+    sidebarListeners.delete(cb);
+  };
+};
+const readSidebarCollapsed = () => {
+  try {
+    return localStorage.getItem(SIDEBAR_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+const readSidebarCollapsedServer = () => false;
 
 type SpeechInputControl = {
   listening: boolean;
@@ -137,7 +155,13 @@ function ChatScreen({
   const canShowParticles = useMediaQuery("(min-width: 1024px)", false);
   const [profile, setProfile] = useState(initialProfile);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const desktopCollapsed = useSyncExternalStore(
+    subscribeSidebar,
+    readSidebarCollapsed,
+    readSidebarCollapsedServer,
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<SessionSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -328,7 +352,17 @@ function ChatScreen({
     setFocusSignal((n) => n + 1);
   }, [startNewChat, stopVoice]);
 
-  // Keyboard shortcuts: ⌘K palette · "/" focus · ⌘⇧O new chat.
+  const toggleDesktopSidebar = useCallback(() => {
+    const next = !readSidebarCollapsed();
+    try {
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+    sidebarListeners.forEach((cb) => cb());
+  }, []);
+
+  // Keyboard shortcuts: ⌘K palette · ⌘B sidebar · "/" focus · ⌘⇧O new chat.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -337,6 +371,9 @@ function ChatScreen({
       if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletteOpen((open) => !open);
+      } else if (mod && !e.shiftKey && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleDesktopSidebar();
       } else if (e.key === "/" && !typing && !mod && !e.altKey) {
         e.preventDefault();
         setFocusSignal((n) => n + 1);
@@ -347,7 +384,7 @@ function ChatScreen({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [newChat]);
+  }, [newChat, toggleDesktopSidebar]);
 
   // Keep the latest messages in a ref: the command palette should not be
   // rebuilt (and its icons re-created) on every streamed token.
@@ -426,11 +463,17 @@ function ChatScreen({
     });
   }, []);
 
-  const openSettings = useCallback(() => {
+  const openSettingsTab = useCallback((tab: SettingsTab = "general") => {
+    setSettingsTab(tab);
     setSettingsLoaded(true);
     setSettingsOpen(true);
     setSidebarOpen(false);
   }, []);
+
+  const openSettings = useCallback(() => openSettingsTab("general"), [openSettingsTab]);
+  const openMemorySettings = useCallback(() => openSettingsTab("memory"), [openSettingsTab]);
+  const openPalette = useCallback(() => setPaletteOpen(true), []);
+  const openStudioPage = useCallback(() => router.push("/studio"), [router]);
 
   const commands = useMemo<Command[]>(
     () => [
@@ -530,11 +573,33 @@ function ChatScreen({
         run: () => setPinSignal((n) => n + 1),
       },
       {
+        id: "sidebar",
+        label: desktopCollapsed ? "Expand sidebar" : "Collapse sidebar",
+        hint: "⌘B",
+        icon: <SlidersHorizontal weight="bold" className="size-4" />,
+        keywords: "sidebar rail collapse expand hide show chats",
+        run: toggleDesktopSidebar,
+      },
+      {
         id: "image",
         label: "Create or edit a picture",
         icon: <ImageSquare weight="bold" className="size-4" />,
         keywords: "image picture art generate draw edit photo studio",
         run: openStudio,
+      },
+      {
+        id: "studio-page",
+        label: "Open Image Studio page",
+        icon: <ImageSquare weight="bold" className="size-4" />,
+        keywords: "image studio gallery full page /studio",
+        run: openStudioPage,
+      },
+      {
+        id: "memory",
+        label: "Manage memory notes",
+        icon: <Brain weight="bold" className="size-4" />,
+        keywords: "memory remember notes forget settings",
+        run: openMemorySettings,
       },
       {
         id: "skills",
@@ -559,16 +624,20 @@ function ChatScreen({
     ],
     [
       copyLastReply,
+      desktopCollapsed,
       newChat,
+      openMemorySettings,
       openSettings,
       openSettingsPage,
       openSkillsSettings,
       openStudio,
+      openStudioPage,
       resolved,
       device,
       paletteId,
       setPreference,
       setPalette,
+      toggleDesktopSidebar,
       vibes.memesEnabled,
       vibes.peekerEnabled,
       setVibes,
@@ -675,6 +744,8 @@ function ChatScreen({
           profile={profile}
           open={sidebarOpen}
           isDesktop={isDesktop}
+          collapsed={desktopCollapsed}
+          onToggleCollapse={toggleDesktopSidebar}
           onClose={closeSidebar}
           onNewChat={newChat}
           onSelect={select}
@@ -695,6 +766,9 @@ function ChatScreen({
             activeId={activeId}
             sidebarOpen={sidebarOpen}
             isDesktop={isDesktop}
+            desktopCollapsed={desktopCollapsed}
+            onToggleDesktopSidebar={toggleDesktopSidebar}
+            onOpenPalette={openPalette}
             onOpenSidebar={openSidebar}
             onNewChat={newChat}
             voiceInput={headerVoiceInput}
@@ -778,6 +852,7 @@ function ChatScreen({
         <SettingsDialog
           open={settingsOpen}
           profile={profile}
+          initialTab={settingsTab}
           onClose={() => setSettingsOpen(false)}
           onSaved={setProfile}
           onClearAll={chat.clearAll}

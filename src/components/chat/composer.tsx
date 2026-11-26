@@ -448,7 +448,7 @@ export const Composer = memo(function Composer({
 
       <form
         className={cn(
-          "relative mx-auto w-full max-w-3xl rounded-[1.75rem] glass transition-[box-shadow,border-color] duration-300",
+          "glass-panel relative mx-auto w-full max-w-3xl rounded-[1.75rem] transition-[box-shadow,border-color] duration-300",
           "focus-within:border-line-strong focus-within:shadow-glow",
           dragging && "border-line-strong shadow-glow-strong",
           activeMeme?.kind === "wasted" && "composer-wasted-ring",

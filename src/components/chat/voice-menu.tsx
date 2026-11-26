@@ -135,7 +135,7 @@ export function VoiceMenu({
           id={panelId}
           role="dialog"
           aria-label="Voice mode"
-          className="absolute top-full right-0 z-50 mt-2 max-h-[min(72vh,34rem)] w-[min(21rem,calc(100vw-1.5rem))] animate-fade-up overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface-solid p-1.5 shadow-glow-strong"
+          className="glass-dropdown absolute top-full right-0 z-50 mt-2 max-h-[min(72vh,34rem)] w-[min(21rem,calc(100vw-1.5rem))] animate-fade-up overflow-y-auto overscroll-contain rounded-2xl p-1.5"
         >
           <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-1">
             <p className="font-mono text-[10px] font-bold tracking-[0.22em] text-subtle uppercase">

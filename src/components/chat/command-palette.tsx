@@ -49,7 +49,7 @@ export const CommandPalette = memo(function CommandPalette({
             aria-label="Close command menu"
             onClick={onClose}
             tabIndex={-1}
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-black/50 backdrop-blur-[3px]"
           />
           <PalettePanel onClose={onClose} commands={commands} />
         </m.div>
@@ -112,7 +112,7 @@ function PalettePanel({ onClose, commands }: { onClose: () => void; commands: Co
       animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
       exit={{ opacity: 0, y: -6, scale: 0.99, filter: "blur(6px)" }}
       transition={{ ...SPRING.soft, filter: { duration: 0.2 } }}
-      className="relative w-full max-w-lg overflow-hidden rounded-3xl glass-solid shadow-glow-strong"
+      className="relative w-full max-w-lg overflow-hidden rounded-3xl glass-dropdown"
     >
       <h2 id={titleId} className="sr-only">
         Commands

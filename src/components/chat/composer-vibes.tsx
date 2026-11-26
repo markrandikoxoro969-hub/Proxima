@@ -355,7 +355,7 @@ export function VibeMenu({
           id={menuId}
           role="dialog"
           aria-label="Memes and aesthetic vibes"
-          className="animate-scale-in absolute bottom-full left-0 z-40 mb-2 max-h-[min(74dvh,32rem)] w-[min(21.5rem,calc(100vw-1.5rem))] origin-bottom-left overflow-y-auto overscroll-contain rounded-2xl glass-solid p-2.5 shadow-lg"
+          className="glass-dropdown animate-scale-in absolute bottom-full left-0 z-40 mb-2 max-h-[min(74dvh,32rem)] w-[min(21.5rem,calc(100vw-1.5rem))] origin-bottom-left overflow-y-auto overscroll-contain rounded-2xl p-2.5"
         >
           <div className="mb-2 flex items-center justify-between px-0.5">
             <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">

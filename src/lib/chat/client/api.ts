@@ -78,6 +78,13 @@ export const api = {
   deleteAccount: () =>
     request<{ deleted: true }>("/api/me", { method: "DELETE", body: JSON.stringify({ confirm: "DELETE" }) }),
   clearAll: () => request<{ deleted: number }>(`/api/sessions?confirm=all`, { method: "DELETE" }),
+  /** Load saved memories and current memory on/off state. */
+  listMemories: () =>
+    request<{
+      enabled: boolean;
+      consentAt: string | null;
+      memories: { id: string; text: string; category: string; createdAt: string; expiresAt: string | null }[];
+    }>("/api/memory"),
   /** Settings → Memory switch. */
   setMemoryEnabled: (enabled: boolean) =>
     request<{ enabled: boolean }>("/api/memory", {

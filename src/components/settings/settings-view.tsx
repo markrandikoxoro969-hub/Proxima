@@ -124,7 +124,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section aria-labelledby={id} className="animate-fade-up rounded-3xl glass-solid p-5 sm:p-7">
+    <section aria-labelledby={id} className="glass-panel animate-fade-up rounded-3xl p-5 sm:p-7">
       <div className="mb-5 flex items-start gap-3">
         <span
           aria-hidden

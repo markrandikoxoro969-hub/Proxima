@@ -122,7 +122,7 @@ export function ThemeMenu({ syncAccount = true }: { syncAccount?: boolean }) {
             id={menuId}
             role="menu"
             aria-label="Theme"
-            className="animate-fade-up fixed inset-x-3 top-[calc(max(0.5rem,env(safe-area-inset-top))+3.75rem)] z-50 max-h-[min(78dvh,34rem)] overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface-solid p-3 shadow-glow-strong sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-[22rem] sm:p-2.5"
+            className="animate-fade-up fixed inset-x-3 top-[calc(max(0.5rem,env(safe-area-inset-top))+3.75rem)] z-50 max-h-[min(78dvh,34rem)] overflow-y-auto overscroll-contain rounded-2xl glass-dropdown p-3 sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-[22rem] sm:p-2.5"
           >
             {/* Theme Sound bar */}
             <div

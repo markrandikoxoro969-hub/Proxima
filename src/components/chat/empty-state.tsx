@@ -12,7 +12,7 @@ export function EmptyState({ name }: { name: string }) {
       <div className="w-full max-w-xl text-center">
         <span
           aria-hidden
-          className="mx-auto mb-5 grid size-11 place-items-center rounded-2xl border border-line bg-surface-hover text-[var(--accent-text)]"
+          className="glass-pill mx-auto mb-5 grid size-11 place-items-center rounded-2xl text-[var(--accent-text)]"
         >
           <Sparkle weight="duotone" className="size-5" />
         </span>
