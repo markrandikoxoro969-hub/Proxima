@@ -1,18 +1,19 @@
 /**
- * Web Audio DSP graph for the persistent background `<video>` element:
+ * Web Audio DSP graph for the persistent standalone theme `<audio>` element:
  *
- *   HTMLVideoElement ─▶ MediaElementAudioSourceNode ─▶ BiquadFilterNode (lowpass) ─▶ GainNode ─▶ destination
+ *   HTMLAudioElement ─▶ MediaElementAudioSourceNode ─▶ BiquadFilterNode (lowpass) ─▶ GainNode ─▶ destination
  *
- * Why this exists:
- * 1. Smoothly muffles/covers background music (`~460 Hz` low-pass + dimmed gain)
- *    whenever Settings, dialogs, command palette, or drawers are open — like
- *    hearing the soundtrack softly behind frosted glass.
- * 2. Smoothly ducks & softens theme music when Proxima's voice reads aloud.
- * 3. Guarantees instant, zero-tail hard mute when the user cuts sound or switches
- *    themes (`cancelScheduledValues` + `setValueAtTime(0)` + `video.muted = true`).
- * 4. Safely caches one `MediaElementAudioSourceNode` per `<video>` in a `WeakMap`
- *    and only binds once `AudioContext` is actually running (avoiding Safari/Chrome
- *    autoplay suspension traps).
+ * Why this runs on a decoupled `<audio>` element (NEVER on `<video>`):
+ * 1. Attaching `createMediaElementSource()` directly to `<video>` hijacks the
+ *    video hardware decode clock and breaks zero-copy GPU video overlays, causing
+ *    frame drops & scroll jank. Keeping `<video>` 100% muted and routing only the
+ *    standalone `.m4a` `<audio>` track here eliminates that lag completely.
+ * 2. Smoothly muffles/covers background music (`~460 Hz` low-pass + dimmed gain)
+ *    whenever Settings, dialogs, command palette, or drawers are open — on BOTH
+ *    desktop video themes and mobile animated WebP loops.
+ * 3. Smoothly ducks & softens theme music when Proxima's voice reads aloud.
+ * 4. Guarantees instant, zero-tail hard mute when the user cuts sound or switches
+ *    themes (`cancelScheduledValues` + `setValueAtTime(0)` + `el.muted = true`).
  */
 
 export type AudioMixState = {
@@ -29,9 +30,9 @@ export type VideoAudioGraph = {
   resumeIfNeeded: () => Promise<boolean>;
 };
 
-const graphs = new WeakMap<HTMLVideoElement, VideoAudioGraph>();
+const graphs = new WeakMap<HTMLMediaElement, VideoAudioGraph>();
 
-/** Acoustic targets shared between video audio and synthesized ambient scenes. */
+/** Acoustic targets shared between theme audio tracks and synthesized ambient scenes. */
 export function resolveAudioMix(mix: AudioMixState): {
   gain: number;
   cutoffHz: number;
@@ -50,19 +51,19 @@ export function resolveAudioMix(mix: AudioMixState): {
   return { gain: base, cutoffHz: 20000, q: 0.5 };
 }
 
-export function getVideoAudioGraph(video: HTMLVideoElement): VideoAudioGraph | null {
-  return graphs.get(video) ?? null;
+export function getVideoAudioGraph(media: HTMLMediaElement): VideoAudioGraph | null {
+  return graphs.get(media) ?? null;
 }
 
 /**
- * Lazily attaches a Web Audio low-pass + gain chain to `video`.
+ * Lazily attaches a Web Audio low-pass + gain chain to `media` (the decoupled `<audio>` element).
  * Returns `null` if Web Audio is unavailable or blocked by autoplay policy
- * (never traps the `<video>` element inside a suspended `AudioContext`).
+ * (never traps the element inside a suspended `AudioContext`).
  */
 export async function ensureVideoAudioGraph(
-  video: HTMLVideoElement,
+  media: HTMLMediaElement,
 ): Promise<VideoAudioGraph | null> {
-  const existing = graphs.get(video);
+  const existing = graphs.get(media);
   if (existing) {
     const ok = await existing.resumeIfNeeded();
     return ok ? existing : null;
@@ -78,7 +79,7 @@ export async function ensureVideoAudioGraph(
   let ctx: AudioContext;
   try {
     // "playback" uses a larger hardware audio buffer (fewer CPU audio interrupts
-    // per second), preventing frame drops or audio stutter while HD video decodes.
+    // per second), preventing UI frame drops or audio stutter.
     ctx = new AudioCtx({ latencyHint: "playback" });
   } catch {
     try {
@@ -103,7 +104,7 @@ export async function ensureVideoAudioGraph(
 
   let source: MediaElementAudioSourceNode;
   try {
-    source = ctx.createMediaElementSource(video);
+    source = ctx.createMediaElementSource(media);
   } catch {
     void ctx.close().catch(() => {});
     return null;
@@ -122,7 +123,7 @@ export async function ensureVideoAudioGraph(
   gain.connect(ctx.destination);
 
   // GainNode now owns exact loudness; keep element volume at unity.
-  video.volume = 1;
+  media.volume = 1;
 
   const graph: VideoAudioGraph = {
     apply(mix: AudioMixState) {
@@ -130,7 +131,7 @@ export async function ensureVideoAudioGraph(
       const { gain: targetGain, cutoffHz, q } = resolveAudioMix(mix);
 
       if (!mix.enabled) {
-        video.muted = true;
+        media.muted = true;
         gain.gain.cancelScheduledValues(now);
         gain.gain.setValueAtTime(0, now);
         return;
@@ -140,8 +141,8 @@ export async function ensureVideoAudioGraph(
         void ctx.resume().catch(() => {});
       }
 
-      video.volume = 1;
-      video.muted = false;
+      media.volume = 1;
+      media.muted = false;
 
       if (mix.immediate) {
         gain.gain.cancelScheduledValues(now);
@@ -164,7 +165,7 @@ export async function ensureVideoAudioGraph(
     },
     silenceNow() {
       const now = ctx.currentTime;
-      video.muted = true;
+      media.muted = true;
       try {
         gain.gain.cancelScheduledValues(now);
         gain.gain.setValueAtTime(0, now);
@@ -184,6 +185,6 @@ export async function ensureVideoAudioGraph(
     },
   };
 
-  graphs.set(video, graph);
+  graphs.set(media, graph);
   return graph;
 }
