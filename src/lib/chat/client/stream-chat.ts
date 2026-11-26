@@ -20,6 +20,12 @@ export type ChatRequestBody = {
   /** Internal protocol: checkpoint one file per request. */
   codingStep?: boolean;
   codingContinue?: boolean;
+  /** Opt in to multi-step autonomous agent mode. */
+  agentMode?: boolean;
+  /** Internal protocol: resume a persisted AgentCheckpoint in a fresh invocation. */
+  agentContinue?: boolean;
+  /** Explicit user approval for a paused destructive agent step. */
+  approvedStepId?: string;
   /** Ask the server to stream the model's private reasoning (off by default). */
   showReasoning?: boolean;
   /** Answer style: fast / thinking / coding / analyze. */
@@ -41,6 +47,8 @@ export type StreamHandlers = {
   onStatus?: (data: Data<"status">) => void;
   onText: (text: string) => void;
   onFilePreview?: (data: Data<"file-preview">) => void;
+  /** Emitted when an autonomous agent step pauses for explicit user approval. */
+  onAgentApproval?: (data: Data<"agent-approval">) => void;
   /** Private "thinking" text. Only arrives when the user asked for it. */
   onReasoning?: (text: string) => void;
   onDone: (data: Data<"done">) => void;
@@ -49,6 +57,10 @@ export type StreamHandlers = {
   onAbort?: () => void;
 };
 
+type Continuation =
+  | { kind: "coding"; conversationId: string; completed: number; retry: boolean }
+  | { kind: "agent"; conversationId: string; completed: number; total: number; retry: boolean };
+
 export async function streamChat(
   body: ChatRequestBody,
   { signal, ...handlers }: StreamHandlers & { signal?: AbortSignal },
@@ -56,40 +68,67 @@ export async function streamChat(
   let current: ChatRequestBody = { ...body, codingStep: true };
   let lastCompleted = -1;
   let retries = 0;
-  // At most 12 files and two automatic timeout retries per file.
+  // At most 12 files / steps and two automatic timeout retries per step.
   for (let step = 0; step < 36; step++) {
     if (signal?.aborted) return handlers.onAbort?.();
     const next = await streamChatOnce(current, { ...handlers, signal }, step > 0);
     if (!next) return;
-    if (next.completedFiles < lastCompleted || (!next.retry && next.completedFiles === lastCompleted)) {
+    if (next.completed < lastCompleted || (!next.retry && next.completed === lastCompleted)) {
       handlers.onError({
         code: "interrupted",
-        message: "The project checkpoint did not advance. Retry to resume.",
+        message:
+          next.kind === "agent"
+            ? "The agent checkpoint did not advance. Retry to resume."
+            : "The project checkpoint did not advance. Retry to resume.",
         retryable: true,
       });
       return;
     }
-    if (next.completedFiles > lastCompleted) retries = 0;
-    lastCompleted = next.completedFiles;
+    if (next.completed > lastCompleted) retries = 0;
+    lastCompleted = next.completed;
     if (next.retry && ++retries > 2) {
       handlers.onError({
         code: "timeout",
-        message: "The current file timed out repeatedly. Your completed files are saved; retry to resume.",
+        message:
+          next.kind === "agent"
+            ? "The current agent step timed out repeatedly. Completed steps are saved; retry to resume."
+            : "The current file timed out repeatedly. Your completed files are saved; retry to resume.",
         retryable: true,
       });
       return;
     }
-    current = { ...current, conversationId: next.conversationId, retry: true, codingContinue: true };
+    current =
+      next.kind === "agent"
+        ? {
+            ...current,
+            conversationId: next.conversationId,
+            retry: true,
+            agentContinue: true,
+            codingContinue: undefined,
+            approvedStepId: undefined,
+          }
+        : {
+            ...current,
+            conversationId: next.conversationId,
+            retry: true,
+            codingContinue: true,
+            agentContinue: undefined,
+          };
     handlers.onStatus?.({
       state: "thinking",
-      message: next.retry
-        ? "The file timed out. Retrying from the saved checkpoint…"
-        : "Saved the file. Continuing the project…",
+      message:
+        next.kind === "agent"
+          ? next.retry
+            ? "Step timed out. Retrying from saved checkpoint…"
+            : `Saved step ${next.completed}/${next.total}. Continuing…`
+          : next.retry
+            ? "The file timed out. Retrying from the saved checkpoint…"
+            : "Saved the file. Continuing the project…",
     });
   }
   handlers.onError({
     code: "interrupted",
-    message: "The project paused after too many continuation steps. Retry to resume.",
+    message: "The task paused after too many continuation steps. Retry to resume.",
     retryable: true,
   });
 }
@@ -98,7 +137,7 @@ async function streamChatOnce(
   body: ChatRequestBody,
   { signal, ...handlers }: StreamHandlers & { signal?: AbortSignal },
   continuing: boolean,
-): Promise<Data<"coding-continue"> | undefined> {
+): Promise<Continuation | undefined> {
   let res: Response;
   try {
     res = await fetch("/api/chat", {
@@ -166,7 +205,44 @@ async function streamChatOnce(
             });
             return;
           }
-          return event.data;
+          return {
+            kind: "coding",
+            conversationId: event.data.conversationId,
+            completed: event.data.completedFiles,
+            retry: event.data.retry,
+          };
+        case "agent-continue":
+          batcher.flush();
+          finished = true;
+          if (
+            typeof event.data.conversationId !== "string" ||
+            !event.data.conversationId ||
+            !Number.isInteger(event.data.completedSteps) ||
+            event.data.completedSteps < 0 ||
+            !Number.isInteger(event.data.totalSteps) ||
+            event.data.totalSteps < 1 ||
+            event.data.totalSteps > 12 ||
+            typeof event.data.retry !== "boolean"
+          ) {
+            handlers.onError({
+              code: "interrupted",
+              message: "The agent checkpoint was invalid. Retry to resume.",
+              retryable: true,
+            });
+            return;
+          }
+          return {
+            kind: "agent",
+            conversationId: event.data.conversationId,
+            completed: event.data.completedSteps,
+            total: event.data.totalSteps,
+            retry: event.data.retry,
+          };
+        case "agent-approval":
+          batcher.flush();
+          finished = true;
+          handlers.onAgentApproval?.(event.data);
+          return;
         case "file-preview":
           batcher.flush();
           handlers.onFilePreview?.(event.data);

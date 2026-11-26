@@ -26,6 +26,16 @@ export type ChatStreamEvent =
   | { event: "file-preview"; data: { path: string; text: string } }
   /** Durable checkpoint: start a new request rather than finishing the answer. */
   | { event: "coding-continue"; data: { conversationId: string; completedFiles: number; retry: boolean } }
+  /** Durable agent checkpoint: resume the next step in a fresh serverless invocation. */
+  | {
+      event: "agent-continue";
+      data: { conversationId: string; completedSteps: number; totalSteps: number; retry: boolean };
+    }
+  /** Approval pause: an agent step needs explicit user confirmation before executing a tool. */
+  | {
+      event: "agent-approval";
+      data: { conversationId: string | null; stepId: string; title: string; toolName: string };
+    }
   /** Only sent when the user turned on Settings → Show reasoning. */
   | { event: "reasoning"; data: { text: string } }
   | {

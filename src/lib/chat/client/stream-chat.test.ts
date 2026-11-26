@@ -238,4 +238,59 @@ describe("streamChat", () => {
     expect(h.onAbort).toHaveBeenCalled();
     expect(h.onError).not.toHaveBeenCalled();
   });
+
+  it("automatically continues persisted agent-continue checkpoints until done", async () => {
+    const calls: Record<string, unknown>[] = [];
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      calls.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+      if (calls.length === 1) {
+        return sse(
+          ["meta", { mode: "user", conversationId: "c-agent", title: "Task", userMessageId: "u1" }],
+          ["token", { text: "> Step 1/2 done\n" }],
+          ["agent-continue", { conversationId: "c-agent", completedSteps: 1, totalSteps: 2, retry: false }],
+        );
+      }
+      return sse(
+        ["meta", { mode: "user", conversationId: "c-agent", title: "Task", userMessageId: "u1" }],
+        ["token", { text: "> Step 2/2 done\nFinal answer." }],
+        ["done", { messageId: "m-agent", latencyMs: 80, source: "fake-agent", text: "Final answer." }],
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const h = handlers();
+    await streamChat({ message: "/agent test" }, h);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toMatchObject({
+      conversationId: "c-agent",
+      retry: true,
+      agentContinue: true,
+    });
+    expect(h.onDone).toHaveBeenCalledWith(expect.objectContaining({ messageId: "m-agent" }));
+    expect(h.onError).not.toHaveBeenCalled();
+  });
+
+  it("pauses cleanly and emits onAgentApproval when a destructive tool requires approval", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        sse(
+          ["meta", { mode: "user", conversationId: "c-app", title: "Approve", userMessageId: "u1" }],
+          [
+            "agent-approval",
+            { conversationId: "c-app", stepId: "step-2", title: "Delete old draft", toolName: "delete_draft" },
+          ],
+        ),
+      ),
+    );
+    const onAgentApproval = vi.fn();
+    const h = { ...handlers(), onAgentApproval };
+    await streamChat({ message: "/agent cleanup" }, h);
+    expect(onAgentApproval).toHaveBeenCalledWith({
+      conversationId: "c-app",
+      stepId: "step-2",
+      title: "Delete old draft",
+      toolName: "delete_draft",
+    });
+    expect(h.onError).not.toHaveBeenCalled();
+  });
 });
