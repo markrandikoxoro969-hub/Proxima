@@ -4,7 +4,7 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ChatHeader } from "./chat-header";
 
 describe("<ChatHeader />", () => {
-  it("organizes voice input and voice mode inside the floating glass controls menu", () => {
+  it("organizes voice input and voice mode inside the floating glass controls menu and morphs into the theme menu in place", () => {
     render(
       <ThemeProvider>
         <ChatHeader
@@ -26,6 +26,15 @@ describe("<ChatHeader />", () => {
 
     expect(within(header).getByRole("button", { name: "Voice input" })).toBeVisible();
     expect(within(header).getByRole("button", { name: "Voice mode" })).toBeVisible();
+
+    // Clicking Themes transforms the same popover in place into the theme menu
+    fireEvent.click(within(header).getByRole("button", { name: "Open theme menu" }));
+    expect(within(header).getByRole("menu", { name: "Theme" })).toBeVisible();
+    expect(within(header).getByRole("button", { name: "Back to controls" })).toBeVisible();
+
+    // Clicking Back morphs smoothly back to the main controls view
+    fireEvent.click(within(header).getByRole("button", { name: "Back to controls" }));
+    expect(within(header).getByRole("button", { name: "Voice input" })).toBeVisible();
   });
 
   it("opens command palette from the controls menu and renders desktop sidebar expand", () => {

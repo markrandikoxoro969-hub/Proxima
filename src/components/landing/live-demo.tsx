@@ -251,7 +251,7 @@ export function LiveDemo() {
 
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <div className="overflow-hidden rounded-[2rem] glass-solid shadow-glow">
+      <div className="overflow-hidden rounded-[2rem] classy-card">
         {/* Window bar */}
         <div className="flex items-center justify-between gap-3 border-b border-line py-2 pr-2 pl-5">
           <div className="flex min-w-0 items-center gap-2.5">

@@ -12,7 +12,7 @@ export function SiteFooter() {
       {/* Final call to action */}
       <div data-reveal className="mx-auto max-w-3xl text-center">
         <h2 className="text-[clamp(2.4rem,9vw,5.5rem)] leading-[0.95] font-black tracking-tighter text-balance">
-          Ready when <span className="text-glow-strong">you</span> are.
+          Ready when you are.
         </h2>
         <p className="mx-auto mt-5 max-w-md text-base text-muted sm:text-lg">
           Sign in with Google and start your first conversation in seconds.

@@ -53,8 +53,8 @@ export function Skills() {
       <Stagger className="mx-auto mt-14 grid max-w-6xl grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
         {CAPABILITIES.map(({ icon: Icon, title, text, tag }) => (
           <StaggerItem key={title}>
-            <article className="group spotlight flex h-full flex-col rounded-3xl glass-solid p-6 transition-[transform,border-color,box-shadow] duration-500 ease-premium hover:-translate-y-1 hover:border-line-strong hover:shadow-glow sm:p-7">
-              <div className="flex size-12 items-center justify-center rounded-2xl border border-line bg-surface-hover transition-transform duration-500 ease-premium group-hover:scale-105">
+            <article className="group flex h-full flex-col rounded-3xl classy-card p-6 transition-[transform,border-color,box-shadow] duration-500 ease-premium hover:-translate-y-1 hover:border-line-strong sm:p-7">
+              <div className="flex size-12 items-center justify-center rounded-2xl border border-line bg-bg transition-transform duration-500 ease-premium group-hover:scale-105">
                 <Icon weight="bold" className="size-6" aria-hidden />
               </div>
               <h3 className="mt-6 text-xl font-black tracking-tight">{title}</h3>

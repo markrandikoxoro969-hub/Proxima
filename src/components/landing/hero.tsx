@@ -74,12 +74,17 @@ export function Hero() {
         style={{ animationDelay: "600ms" }}
       >
         <Magnetic>
-          <ButtonLink href="/app" size="lg" className="w-full">
+          <ButtonLink href="/app" size="lg" className="w-full shadow-sm">
             Start chatting <ArrowRight weight="bold" aria-hidden />
           </ButtonLink>
         </Magnetic>
         <Magnetic>
-          <ButtonLink href="#demo" variant="secondary" size="lg" className="w-full">
+          <ButtonLink
+            href="#demo"
+            variant="ghost"
+            size="lg"
+            className="w-full border border-line-strong bg-surface-solid text-fg shadow-xs hover:bg-surface-hover"
+          >
             Try the live demo
           </ButtonLink>
         </Magnetic>
