@@ -42,7 +42,7 @@ export function HowItWorks() {
               style={{ "--d": `${i * 120}ms` } as React.CSSProperties}
               className="relative flex flex-col items-center text-center"
             >
-              <div className="relative flex size-14 items-center justify-center rounded-2xl bg-inverse text-on-inverse shadow-glow">
+              <div className="relative flex size-14 items-center justify-center rounded-2xl bg-inverse text-on-inverse shadow-sm">
                 <Icon weight="bold" className="size-7" aria-hidden />
                 <span className="absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full border border-line bg-surface-solid font-mono text-[10px] font-bold text-fg">
                   {i + 1}

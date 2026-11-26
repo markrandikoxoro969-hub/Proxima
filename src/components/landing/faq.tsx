@@ -60,7 +60,7 @@ export function Faq() {
             name="faq"
             data-reveal
             style={{ "--d": `${Math.min(i, 4) * 60}ms` } as React.CSSProperties}
-            className="faq group rounded-3xl glass-solid transition-[border-color] duration-300 open:border-line-strong"
+            className="faq group rounded-3xl classy-card transition-[border-color] duration-300 open:border-line-strong"
           >
             <summary className="flex tap cursor-pointer items-center justify-between gap-4 rounded-3xl px-5 py-4 text-left text-[15px] font-extrabold sm:px-6 sm:py-5 sm:text-base">
               {f.q}

@@ -2,10 +2,13 @@
 
 import {
   CaretDown,
+  CaretLeft,
+  CaretRight,
   DownloadSimple,
   List,
   MagnifyingGlass,
   NotePencil,
+  Palette,
   Planet,
   SlidersHorizontal,
 } from "@phosphor-icons/react";
@@ -13,7 +16,8 @@ import { memo, useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { exportUrl } from "@/lib/chat/client/api";
 import { cn } from "@/lib/cn";
 import { ThemeAudioToggle } from "@/components/theme/theme-audio-toggle";
-import { ThemeMenu } from "@/components/theme/theme-menu";
+import { ThemeMenuContent } from "@/components/theme/theme-menu";
+import { useTheme } from "@/components/theme/theme-provider";
 import { site } from "@/lib/site";
 
 export const ChatHeader = memo(function ChatHeader({
@@ -43,9 +47,18 @@ export const ChatHeader = memo(function ChatHeader({
   /** Voice-mode trigger, organized inside the floating glass controls menu. */
   voiceMenu?: ReactNode;
 }) {
+  const { theme } = useTheme();
   const [controlsOpen, setControlsOpen] = useState(false);
+  const [panelView, setPanelView] = useState<"main" | "themes">("main");
+  const [hasMorphed, setHasMorphed] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
   const controlsMenuId = useId();
+
+  const closeControls = () => {
+    setControlsOpen(false);
+    setPanelView("main");
+    setHasMorphed(false);
+  };
 
   useEffect(() => {
     if (!controlsOpen) return;
@@ -55,11 +68,15 @@ export const ChatHeader = memo(function ChatHeader({
       if (controlsRef.current?.contains(target)) return;
       // Do not dismiss when interacting with a portaled modal/dialog opened from inside Controls.
       if (target.closest('[role="dialog"]')) return;
-      setControlsOpen(false);
+      closeControls();
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setControlsOpen(false);
+      if (event.key !== "Escape") return;
+      if (panelView === "themes") {
+        setHasMorphed(true);
+        setPanelView("main");
+      } else {
+        closeControls();
       }
     };
     document.addEventListener("pointerdown", onPointerDown);
@@ -68,7 +85,7 @@ export const ChatHeader = memo(function ChatHeader({
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [controlsOpen]);
+  }, [controlsOpen, panelView]);
 
   return (
     <div className="shrink-0 px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-1 sm:px-4">
@@ -132,11 +149,19 @@ export const ChatHeader = memo(function ChatHeader({
             <NotePencil weight="bold" className="size-4.5" aria-hidden />
           </button>
 
-          {/* Aesthetic floating glass options hub: Mic, Speaker, Sound, Themes, Search & Export */}
+          {/* Aesthetic floating glass options hub that smoothly morphs in place into Themes */}
           <div ref={controlsRef} className="relative">
             <button
               type="button"
-              onClick={() => setControlsOpen((open) => !open)}
+              onClick={() => {
+                if (controlsOpen) {
+                  closeControls();
+                } else {
+                  setPanelView("main");
+                  setHasMorphed(false);
+                  setControlsOpen(true);
+                }
+              }}
               aria-label="Open controls menu"
               aria-haspopup="menu"
               aria-expanded={controlsOpen}
@@ -161,54 +186,125 @@ export const ChatHeader = memo(function ChatHeader({
             <div
               id={controlsMenuId}
               role="region"
-              aria-label="Workspace controls"
+              aria-label={panelView === "themes" ? "Theme menu" : "Workspace controls"}
               hidden={!controlsOpen}
               className={cn(
-                "absolute top-full right-0 z-30 mt-2.5 w-[min(90vw,18.5rem)] overflow-visible rounded-3xl glass-dropdown p-3",
+                "absolute top-full right-0 z-30 mt-2.5 overflow-visible rounded-3xl glass-dropdown p-3 transition-[width] duration-300 ease-premium",
+                panelView === "themes" ? "w-[min(92vw,22rem)]" : "w-[min(90vw,18.5rem)]",
                 controlsOpen && "animate-scale-in",
               )}
             >
-              {(voiceInput || voiceMenu) && (
-                <div className="mb-2.5">
-                  <p className="mb-1.5 px-1 text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
-                    Voice & Audio
-                  </p>
-                  <div className="flex flex-wrap items-center justify-between gap-1.5 rounded-2xl glass-pill p-1.5">
-                    <div className="flex items-center gap-1">
-                      {voiceInput}
-                      {voiceMenu}
+              {/* Main Controls View — kept mounted (hidden when morphed) so active Mic / Voice audio never unmounts */}
+              <div
+                hidden={panelView !== "main"}
+                className={cn(panelView === "main" && hasMorphed && "animate-controls-morph-back")}
+              >
+                {(voiceInput || voiceMenu) && (
+                  <div className="mb-2.5">
+                    <p className="mb-1.5 px-1 text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
+                      Voice & Audio
+                    </p>
+                    <div className="flex flex-wrap items-center justify-between gap-1.5 rounded-2xl glass-pill p-1.5">
+                      <div className="flex items-center gap-1">
+                        {voiceInput}
+                        {voiceMenu}
+                      </div>
+                      <ThemeAudioToggle />
                     </div>
-                    <ThemeAudioToggle />
+                  </div>
+                )}
+
+                <div>
+                  <p className="mb-1.5 px-1 text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
+                    Appearance & Tools
+                  </p>
+                  <div className="space-y-1.5">
+                    {/* Morphs this floating glass card smoothly in place into the Theme menu */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHasMorphed(true);
+                        setPanelView("themes");
+                      }}
+                      aria-label="Open theme menu"
+                      className="flex w-full items-center justify-between gap-2.5 rounded-2xl glass-pill px-3 py-2.5 text-left transition-colors duration-200 hover:border-[var(--glass-border-strong)] hover:bg-surface-hover"
+                    >
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <span className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-xl bg-surface-hover text-fg">
+                          <Palette weight="bold" className="size-4.5" aria-hidden />
+                          <span
+                            aria-hidden
+                            className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-surface-solid"
+                            style={{ backgroundColor: theme.tokens.accent }}
+                          />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-xs font-extrabold tracking-wide text-fg uppercase">
+                            Themes
+                          </span>
+                          <span className="block truncate text-[11px] font-medium text-muted">
+                            {theme.name}
+                          </span>
+                        </span>
+                      </span>
+                      <CaretRight weight="bold" className="size-4 shrink-0 text-subtle" aria-hidden />
+                    </button>
+
+                    <div className="flex flex-wrap items-center justify-between gap-1.5 rounded-2xl glass-pill p-1.5">
+                      <div className="flex items-center gap-1">
+                        {!voiceInput && !voiceMenu && <ThemeAudioToggle />}
+                        {onOpenPalette && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              closeControls();
+                              onOpenPalette();
+                            }}
+                            aria-label="Open command palette"
+                            title="Quick search"
+                            className="inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-xs font-extrabold tracking-[0.14em] text-muted uppercase transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+                          >
+                            <MagnifyingGlass weight="bold" className="size-4.5" aria-hidden />
+                            <span>Search</span>
+                          </button>
+                        )}
+                      </div>
+                      <ExportMenu activeId={activeId} onAfterSelect={closeControls} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Smoothly Morphed In-Place Theme Menu View */}
+              {panelView === "themes" && (
+                <div role="menu" aria-label="Theme" className="animate-controls-morph-in">
+                  <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-line pb-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHasMorphed(true);
+                        setPanelView("main");
+                      }}
+                      aria-label="Back to controls"
+                      className="inline-flex h-8 items-center gap-1 rounded-full glass-pill px-2.5 text-[11px] font-extrabold tracking-[0.12em] text-muted uppercase transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+                    >
+                      <CaretLeft weight="bold" className="size-3.5" aria-hidden />
+                      <span>Back</span>
+                    </button>
+                    <span className="flex items-center gap-1.5 pr-1 text-xs font-extrabold tracking-[0.14em] text-fg uppercase">
+                      <span
+                        aria-hidden
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: theme.tokens.accent }}
+                      />
+                      Themes
+                    </span>
+                  </div>
+                  <div className="max-h-[min(68dvh,28rem)] overflow-y-auto overscroll-contain pr-0.5">
+                    <ThemeMenuContent syncAccount onAfterSelect={closeControls} />
                   </div>
                 </div>
               )}
-
-              <div>
-                <p className="mb-1.5 px-1 text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
-                  Appearance & Tools
-                </p>
-                <div className="flex flex-wrap items-center justify-between gap-1.5 rounded-2xl glass-pill p-1.5">
-                  <div className="flex items-center gap-1">
-                    {!voiceInput && !voiceMenu && <ThemeAudioToggle />}
-                    <ThemeMenu />
-                    {onOpenPalette && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setControlsOpen(false);
-                          onOpenPalette();
-                        }}
-                        aria-label="Open command palette"
-                        title="Quick search"
-                        className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
-                      >
-                        <MagnifyingGlass weight="bold" className="size-4.5" aria-hidden />
-                      </button>
-                    )}
-                  </div>
-                  <ExportMenu activeId={activeId} onAfterSelect={() => setControlsOpen(false)} />
-                </div>
-              </div>
             </div>
           </div>
         </div>
