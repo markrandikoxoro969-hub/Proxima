@@ -10,6 +10,7 @@ import {
   buildThemeCss,
   customThemeColors,
   isBuiltInThemeId,
+  mediaThemesForDevice,
   normalizeCustomThemes,
   resolveTheme,
   themeMetaColor,
@@ -85,11 +86,37 @@ describe("built-in themes", () => {
       expect(theme.scene).toBe("media");
       expect(theme.media?.src).toMatch(/^\/media\/themes\//);
       expect(theme.media?.poster).toMatch(/^\/media\/themes\/.*\.jpg$/);
+      expect(["mobile", "desktop"]).toContain(theme.media?.device);
       if (theme.media?.kind === "video") {
-        expect(theme.media.mobileSrc).toMatch(/^\/media\/themes\/.*-mobile\.webp$/);
         expect(theme.media.audioSrc).toMatch(/^\/media\/themes\/.*\.m4a$/);
+        if (theme.media.device === "mobile") {
+          expect(theme.media.mobileSrc).toMatch(/^\/media\/themes\/.*-mobile\.webp$/);
+        }
       }
     }
+  });
+
+  it("splits landscape themes for PC/desktop and portrait themes for mobile", () => {
+    expect(mediaThemesForDevice("desktop").map((t) => t.id)).toEqual([
+      "crimson-velvet",
+      "astral-eclipse",
+      "emerald-mirage",
+      "sapphire-stage",
+      "rose-gaze",
+    ]);
+    expect(mediaThemesForDevice("mobile").map((t) => t.id)).toEqual([
+      "torn-veil",
+      "cobalt-encore",
+      "night-drive",
+      "azure-daydream",
+      "blossom-sunbeam",
+    ]);
+
+    // Cross-device safety: a desktop-only theme falls back cleanly on mobile, and vice versa.
+    expect(resolveTheme("crimson-velvet", "dark", [], "desktop").id).toBe("crimson-velvet");
+    expect(resolveTheme("crimson-velvet", "dark", [], "mobile").id).toBe(DEFAULT_THEME_FOR_MODE.dark);
+    expect(resolveTheme("torn-veil", "dark", [], "mobile").id).toBe("torn-veil");
+    expect(resolveTheme("torn-veil", "dark", [], "desktop").id).toBe(DEFAULT_THEME_FOR_MODE.dark);
   });
 });
 

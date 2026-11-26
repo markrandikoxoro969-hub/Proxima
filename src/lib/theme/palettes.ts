@@ -73,10 +73,15 @@ export const THEME_TOKEN_KEYS = Object.keys(THEME_TOKEN_VARS) as ThemeTokenKey[]
 /** A painted or media-backed backdrop that belongs to a theme. */
 export type ThemeScene = "sky" | "ocean" | "nature" | "media";
 
+/** Target form factor matching a media backdrop's natural aspect ratio. */
+export type ThemeDevice = "mobile" | "desktop";
+
 /** Optional ambient video or aesthetic photo backing a theme. */
 export type ThemeMedia = {
   kind: "video" | "image";
   src: string;
+  /** Restrict this media theme to the device whose screen matches its orientation (portrait → mobile, landscape → desktop). */
+  device?: ThemeDevice;
   /** Lightweight animated WebP loop used on mobile phones to avoid video codec lag. */
   mobileSrc?: string;
   /** Standalone soundtrack so <video> stays purely muted/hardware-decoded and mobile loops keep music. */
@@ -346,8 +351,10 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
     { scene: "nature", display: "site" },
   ),
   // ── Aesthetic Media Themes (Live video & photo backdrops) ───────────────
-  // Each pairs a curated motion video or aesthetic photo with an AA-safe
-  // palette and a tinted readability scrim so chat text stays crisp.
+  // Split cleanly by natural aspect ratio so every device gets perfectly
+  // framed artwork with zero awkward stretching or edge cropping:
+  //   • Portrait (height > width)  → device: "mobile"  (phones)
+  //   • Landscape (width > height) → device: "desktop" (PC / desktop)
   theme(
     "torn-veil",
     "Torn Veil",
@@ -363,6 +370,7 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
     {
       media: {
         kind: "video",
+        device: "mobile",
         src: "/media/themes/torn-veil.mp4",
         mobileSrc: "/media/themes/torn-veil-mobile.webp",
         audioSrc: "/media/themes/torn-veil.m4a",
@@ -384,12 +392,12 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       accent: "#fb7185",
       solid: "#200b13",
     },
-    "blossom-sunbeam",
+    "daylight",
     {
       media: {
         kind: "video",
+        device: "desktop",
         src: "/media/themes/crimson-velvet.mp4",
-        mobileSrc: "/media/themes/crimson-velvet-mobile.webp",
         audioSrc: "/media/themes/crimson-velvet.m4a",
         poster: "/media/themes/crimson-velvet.jpg",
         position: "50% 50%",
@@ -409,12 +417,12 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       accent: "#f59e0b",
       solid: "#111526",
     },
-    "azure-daydream",
+    "daylight",
     {
       media: {
         kind: "video",
+        device: "desktop",
         src: "/media/themes/astral-eclipse.mp4",
-        mobileSrc: "/media/themes/astral-eclipse-mobile.webp",
         audioSrc: "/media/themes/astral-eclipse.m4a",
         poster: "/media/themes/astral-eclipse.jpg",
         position: "50% 45%",
@@ -434,12 +442,12 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       accent: "#34d399",
       solid: "#081c15",
     },
-    "blossom-sunbeam",
+    "daylight",
     {
       media: {
         kind: "video",
+        device: "desktop",
         src: "/media/themes/emerald-mirage.mp4",
-        mobileSrc: "/media/themes/emerald-mirage-mobile.webp",
         audioSrc: "/media/themes/emerald-mirage.m4a",
         poster: "/media/themes/emerald-mirage.jpg",
         position: "50% 45%",
@@ -459,12 +467,12 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       accent: "#818cf8",
       solid: "#12102b",
     },
-    "azure-daydream",
+    "daylight",
     {
       media: {
         kind: "video",
+        device: "desktop",
         src: "/media/themes/sapphire-stage.mp4",
-        mobileSrc: "/media/themes/sapphire-stage-mobile.webp",
         audioSrc: "/media/themes/sapphire-stage.m4a",
         poster: "/media/themes/sapphire-stage.jpg",
         position: "50% 42%",
@@ -488,6 +496,7 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
     {
       media: {
         kind: "video",
+        device: "mobile",
         src: "/media/themes/cobalt-encore.mp4",
         mobileSrc: "/media/themes/cobalt-encore-mobile.webp",
         audioSrc: "/media/themes/cobalt-encore.m4a",
@@ -509,10 +518,11 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       accent: "#f472b6",
       solid: "#210e1a",
     },
-    "blossom-sunbeam",
+    "daylight",
     {
       media: {
         kind: "image",
+        device: "desktop",
         src: "/media/themes/rose-gaze.jpg",
         poster: "/media/themes/rose-gaze.jpg",
         position: "50% 50%",
@@ -536,6 +546,7 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
     {
       media: {
         kind: "image",
+        device: "mobile",
         src: "/media/themes/night-drive.jpg",
         poster: "/media/themes/night-drive.jpg",
         position: "50% 34%",
@@ -555,10 +566,11 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       accent: "#0284c7",
       solid: "#f7fcff",
     },
-    "astral-eclipse",
+    "cobalt-encore",
     {
       media: {
         kind: "video",
+        device: "mobile",
         src: "/media/themes/azure-daydream.mp4",
         mobileSrc: "/media/themes/azure-daydream-mobile.webp",
         audioSrc: "/media/themes/azure-daydream.m4a",
@@ -584,6 +596,7 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
     {
       media: {
         kind: "video",
+        device: "mobile",
         src: "/media/themes/blossom-sunbeam.mp4",
         mobileSrc: "/media/themes/blossom-sunbeam-mobile.webp",
         audioSrc: "/media/themes/blossom-sunbeam.m4a",
@@ -598,6 +611,14 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
 
 /** Aesthetic themes backed by a live video or photo backdrop. */
 export const MEDIA_THEMES: readonly ThemePalette[] = THEME_PALETTES.filter((t) => Boolean(t.media));
+
+/** True when a theme's artwork orientation fits the given device (or is device-agnostic). */
+export const isThemeForDevice = (palette: ThemePalette, device?: ThemeDevice): boolean =>
+  !device || !palette.media?.device || palette.media.device === device;
+
+/** Aesthetic media themes filtered to the ones that fit this device's screen orientation. */
+export const mediaThemesForDevice = (device: ThemeDevice): ThemePalette[] =>
+  MEDIA_THEMES.filter((palette) => isThemeForDevice(palette, device));
 
 /** scene per built-in theme, for the pre-paint script and <html data-scene>. */
 export const BUILT_IN_THEME_SCENES: Record<string, ThemeScene> = Object.fromEntries(
@@ -622,26 +643,27 @@ export const isBuiltInThemeId = (id: unknown): id is string =>
 export const isCustomThemeId = (id: unknown): id is string =>
   typeof id === "string" && id.startsWith(CUSTOM_THEME_PREFIX);
 
-/** Picks the theme to show. Falls back to the default when the id is unknown or the mode doesn't match. */
+/** Picks the theme to show. Falls back to the default when the id is unknown, the mode doesn't match, or the media is for another device. */
 export function resolveTheme(
   id: string | null | undefined,
   mode: ThemeMode,
   customThemes: readonly ThemePalette[] = [],
+  device?: ThemeDevice,
 ): ThemePalette {
   const wanted = (id && (BUILT_IN_BY_ID.get(id) ?? customThemes.find((t) => t.id === id))) || undefined;
-  if (wanted && wanted.mode === mode) return wanted;
+  if (wanted && wanted.mode === mode && isThemeForDevice(wanted, device)) return wanted;
   if (wanted?.twin) {
     const twin = BUILT_IN_BY_ID.get(wanted.twin) ?? customThemes.find((t) => t.id === wanted.twin);
-    if (twin && twin.mode === mode) return twin;
+    if (twin && twin.mode === mode && isThemeForDevice(twin, device)) return twin;
   }
   return BUILT_IN_BY_ID.get(DEFAULT_THEME_FOR_MODE[mode])!;
 }
 
 /** The theme the sun/moon button switches to (same character in the other mode when possible). */
-export function twinThemeId(theme: ThemePalette, mode: ThemeMode): string {
+export function twinThemeId(theme: ThemePalette, mode: ThemeMode, device?: ThemeDevice): string {
   if (theme.twin) {
     const twin = BUILT_IN_BY_ID.get(theme.twin);
-    if (twin && twin.mode === mode) return twin.id;
+    if (twin && twin.mode === mode && isThemeForDevice(twin, device)) return twin.id;
   }
   return DEFAULT_THEME_FOR_MODE[mode];
 }

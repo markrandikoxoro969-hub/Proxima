@@ -44,12 +44,12 @@ describe("ThemeBackdrop", () => {
 
   it("renders lightweight Animated WebP loop on mobile without loading <video>", async () => {
     mockMatchMedia(true);
-    mockUseTheme.mockReturnValue({ theme: getBuiltInTheme("crimson-velvet")! });
+    mockUseTheme.mockReturnValue({ theme: getBuiltInTheme("torn-veil")! });
 
     const { container } = render(<ThemeBackdrop />);
 
     await waitFor(() => {
-      const webp = container.querySelector('img[src="/media/themes/crimson-velvet-mobile.webp"]');
+      const webp = container.querySelector('img[src="/media/themes/torn-veil-mobile.webp"]');
       expect(webp).toBeTruthy();
     });
 
@@ -60,7 +60,7 @@ describe("ThemeBackdrop", () => {
     // Decoupled soundtrack still loads on <audio> for mobile music + Settings muffle.
     const audio = container.querySelector("audio")!;
     await waitFor(() => {
-      expect(audio.getAttribute("src")).toBe("/media/themes/crimson-velvet.m4a");
+      expect(audio.getAttribute("src")).toBe("/media/themes/torn-veil.m4a");
     });
 
     // No redundant full-screen scrim layer.
@@ -69,23 +69,23 @@ describe("ThemeBackdrop", () => {
 
   it("plays pure silent <video> and decoupled <audio> on desktop", async () => {
     mockMatchMedia(false);
-    mockUseTheme.mockReturnValue({ theme: getBuiltInTheme("torn-veil")! });
+    mockUseTheme.mockReturnValue({ theme: getBuiltInTheme("crimson-velvet")! });
 
     const { container } = render(<ThemeBackdrop />);
 
     const video = container.querySelector("video")!;
     await waitFor(() => {
-      expect(video.getAttribute("src")).toBe("/media/themes/torn-veil.mp4");
+      expect(video.getAttribute("src")).toBe("/media/themes/crimson-velvet.mp4");
     });
     expect(video.muted).toBe(true);
 
-    // Desktop should not render the mobile WebP loop.
-    expect(container.querySelector('img[src="/media/themes/torn-veil-mobile.webp"]')).toBeNull();
+    // Desktop should not render any mobile WebP loop.
+    expect(container.querySelector('img[src$="-mobile.webp"]')).toBeNull();
 
     // Audio plays via standalone <audio>, keeping <video> decoupled from Web Audio.
     const audio = container.querySelector("audio")!;
     await waitFor(() => {
-      expect(audio.getAttribute("src")).toBe("/media/themes/torn-veil.m4a");
+      expect(audio.getAttribute("src")).toBe("/media/themes/crimson-velvet.m4a");
     });
   });
 });
