@@ -16,7 +16,7 @@ import {
 import { useComposerVibes } from "@/lib/chat/client/use-composer-vibes";
 import { cn } from "@/lib/cn";
 import { SPRING } from "@/lib/motion/tokens";
-import { MEDIA_THEMES, getBuiltInTheme } from "@/lib/theme/palettes";
+import { getBuiltInTheme, mediaThemesForDevice } from "@/lib/theme/palettes";
 import { useMuffleThemeAudio } from "@/lib/theme/use-theme-audio";
 
 export type ActiveComposerMeme = {
@@ -457,11 +457,16 @@ export function VibeMenu({
           {/* Quick Live Theme strip */}
           {themeCtx && (
             <div className="mt-2 border-t border-line pt-2">
-              <p className="mb-1.5 px-0.5 text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
-                Quick Live Themes
-              </p>
+              <div className="mb-1.5 flex items-center justify-between px-0.5">
+                <p className="text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
+                  Quick Live Themes
+                </p>
+                <span className="text-[9px] font-bold tracking-wider text-muted uppercase">
+                  {themeCtx.device === "mobile" ? "Mobile" : "Desktop"}
+                </span>
+              </div>
               <div className="grid grid-cols-3 gap-1">
-                {MEDIA_THEMES.map((palette) => {
+                {mediaThemesForDevice(themeCtx.device).map((palette) => {
                   const active = themeCtx.theme.id === palette.id;
                   const thumb = palette.media?.poster ?? palette.media?.src;
                   const isVideo = palette.media?.kind === "video";

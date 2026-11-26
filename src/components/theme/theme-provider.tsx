@@ -22,6 +22,7 @@ import {
   resolveTheme,
   twinThemeId,
   type CustomThemeInput,
+  type ThemeDevice,
   type ThemePalette,
 } from "@/lib/theme/palettes";
 
@@ -30,6 +31,8 @@ export type ThemeContextValue = {
   preference: ThemePreference;
   /** What is actually shown right now: dark or light. */
   resolved: ThemeMode;
+  /** Device form factor used to show portrait themes on mobile and widescreen themes on PC. */
+  device: ThemeDevice;
   /** The palette in use (a built-in theme or one the person created). */
   theme: ThemePalette;
   paletteId: string;
@@ -57,6 +60,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 type ThemeState = {
   preference: ThemePreference;
   resolved: ThemeMode;
+  device: ThemeDevice;
   paletteId: string;
   theme: ThemePalette;
   customThemes: ThemePalette[];
@@ -64,22 +68,27 @@ type ThemeState = {
 
 const listeners = new Set<() => void>();
 const DARK_QUERY = "(prefers-color-scheme: dark)";
+const MOBILE_DEVICE_QUERY = "(max-width: 767px), (pointer: coarse)";
 
 const notify = () => listeners.forEach((listener) => listener());
 const systemPrefersDark = () => window.matchMedia(DARK_QUERY).matches;
+const currentDevice = (): ThemeDevice =>
+  window.matchMedia(MOBILE_DEVICE_QUERY).matches ? "mobile" : "desktop";
 
 function computeState(): ThemeState {
   const preference = readStoredPreference();
   const resolved = resolveThemePreference(preference, systemPrefersDark());
+  const device = currentDevice();
   const customThemes = readStoredCustomThemes();
-  const theme = resolveTheme(readStoredPaletteId(), resolved, customThemes);
-  return { preference, resolved, paletteId: theme.id, theme, customThemes };
+  const theme = resolveTheme(readStoredPaletteId(), resolved, customThemes, device);
+  return { preference, resolved, device, paletteId: theme.id, theme, customThemes };
 }
 
 const stateKey = (s: ThemeState) =>
   [
     s.preference,
     s.resolved,
+    s.device,
     s.paletteId,
     ...s.customThemes.map(
       (t) => `${t.id}:${t.name}:${t.mode}:${t.tokens.bg}:${t.tokens.fg}:${t.tokens.accent}`,
@@ -100,6 +109,7 @@ function getSnapshot(): ThemeState {
 const SERVER_STATE: ThemeState = {
   preference: "dark",
   resolved: "dark",
+  device: "desktop",
   paletteId: "proxima",
   theme: getBuiltInTheme("proxima")!,
   customThemes: [],
@@ -108,16 +118,19 @@ const getServerSnapshot = () => SERVER_STATE;
 
 function subscribe(callback: () => void) {
   listeners.add(callback);
-  const media = window.matchMedia(DARK_QUERY);
+  const darkMedia = window.matchMedia(DARK_QUERY);
+  const mobileMedia = window.matchMedia(MOBILE_DEVICE_QUERY);
   const onStorage = (e: StorageEvent) => {
     if (!e.key || e.key.startsWith("proxima-")) callback();
   };
   window.addEventListener("storage", onStorage);
-  media.addEventListener("change", callback);
+  darkMedia.addEventListener("change", callback);
+  mobileMedia.addEventListener("change", callback);
   return () => {
     listeners.delete(callback);
     window.removeEventListener("storage", onStorage);
-    media.removeEventListener("change", callback);
+    darkMedia.removeEventListener("change", callback);
+    mobileMedia.removeEventListener("change", callback);
   };
 }
 
@@ -145,7 +158,7 @@ function toggle() {
   const target: ThemeMode = state.resolved === "dark" ? "light" : "dark";
   writeStoredPreference(target);
   if (state.theme.mode !== target) {
-    writeStoredPaletteId(twinThemeId(state.theme, target) ?? DEFAULT_THEME_FOR_MODE[target]);
+    writeStoredPaletteId(twinThemeId(state.theme, target, state.device) ?? DEFAULT_THEME_FOR_MODE[target]);
   }
   notify();
 }
@@ -181,7 +194,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     writeStoredCustomThemes(customThemes);
     writeStoredPreference(settings.preference);
     const resolved = resolveThemePreference(settings.preference, systemPrefersDark());
-    const theme = resolveTheme(settings.paletteId, resolved, customThemes);
+    const theme = resolveTheme(settings.paletteId, resolved, customThemes, currentDevice());
     writeStoredPaletteId(theme.id);
     notify();
   }, []);
@@ -190,6 +203,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     () => ({
       preference: state.preference,
       resolved: state.resolved,
+      device: state.device,
       theme: state.theme,
       paletteId: state.paletteId,
       customThemes: state.customThemes,

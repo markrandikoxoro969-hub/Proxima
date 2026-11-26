@@ -42,7 +42,7 @@ import { EASE } from "@/lib/motion/tokens";
 import type { EngineStatus, MessagesPage, Profile, SessionSummary } from "@/lib/chat/types";
 import type { SelectedSkillSummary } from "@/lib/skills/catalog";
 import type { ImageDTO } from "@/lib/image/types";
-import { MEDIA_THEMES, type ThemePreference } from "@/lib/theme";
+import { mediaThemesForDevice, type ThemePreference } from "@/lib/theme";
 import { setThemeAudioDucked, toggleThemeAudio } from "@/lib/theme/use-theme-audio";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { ChatHeader } from "./chat-header";
@@ -126,7 +126,7 @@ function ChatScreen({
 }: ChatAppProps) {
   const notify = useToast();
   const router = useRouter();
-  const { theme, paletteId, syncFromAccount, setPreference, setPalette, resolved } = useTheme();
+  const { theme, paletteId, device, syncFromAccount, setPreference, setPalette, resolved } = useTheme();
   const [showReasoning, setShowReasoning] = useShowReasoning();
   const [vibes, setVibes] = useComposerVibes();
   const [mode, setMode] = useChatMode();
@@ -455,7 +455,7 @@ function ChatScreen({
         keywords: "theme dark light appearance",
         run: () => setPreference(resolved === "dark" ? "light" : "dark"),
       },
-      ...MEDIA_THEMES.map((mediaTheme) => ({
+      ...mediaThemesForDevice(device).map((mediaTheme) => ({
         id: `theme-${mediaTheme.id}`,
         label: `Theme: ${mediaTheme.name}`,
         hint: paletteId === mediaTheme.id ? "On" : mediaTheme.media?.kind === "video" ? "Live" : "Photo",
@@ -565,6 +565,7 @@ function ChatScreen({
       openSkillsSettings,
       openStudio,
       resolved,
+      device,
       paletteId,
       setPreference,
       setPalette,

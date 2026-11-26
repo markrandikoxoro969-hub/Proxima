@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
 import { cn } from "@/lib/cn";
-import { MEDIA_THEMES, getBuiltInTheme } from "@/lib/theme/palettes";
+import { getBuiltInTheme, mediaThemesForDevice } from "@/lib/theme/palettes";
 import { useThemeAudio } from "@/lib/theme/use-theme-audio";
 
 /**
@@ -25,12 +25,13 @@ const QUICK_CLASSIC = [
 ];
 
 export function ThemeMenu({ syncAccount = true }: { syncAccount?: boolean }) {
-  const { theme, setPalette } = useTheme();
+  const { theme, device, setPalette } = useTheme();
   const audio = useThemeAudio();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+  const deviceMediaThemes = mediaThemesForDevice(device);
 
   useEffect(() => {
     if (!open) return;
@@ -199,11 +200,16 @@ export function ThemeMenu({ syncAccount = true }: { syncAccount?: boolean }) {
               </div>
             </div>
 
-            <p className="px-1 pt-0.5 pb-2 text-[10px] font-extrabold tracking-[0.2em] text-subtle uppercase">
-              Live &amp; Aesthetic Themes
-            </p>
+            <div className="flex items-center justify-between px-1 pt-0.5 pb-2">
+              <p className="text-[10px] font-extrabold tracking-[0.2em] text-subtle uppercase">
+                Live &amp; Aesthetic Themes
+              </p>
+              <span className="rounded-full border border-line bg-surface-hover px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-muted uppercase">
+                {device === "mobile" ? "Mobile" : "Desktop"}
+              </span>
+            </div>
             <div className="grid grid-cols-2 gap-2 sm:gap-1.5">
-              {MEDIA_THEMES.map((palette) => {
+              {deviceMediaThemes.map((palette) => {
                 const active = theme.id === palette.id;
                 const thumb = palette.media?.poster ?? palette.media?.src;
                 const isVideo = palette.media?.kind === "video";

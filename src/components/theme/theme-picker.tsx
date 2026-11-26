@@ -8,10 +8,10 @@ import { api } from "@/lib/chat/client/api";
 import { cn } from "@/lib/cn";
 import {
   CUSTOM_THEME_LIMIT,
-  MEDIA_THEMES,
   ThemeError,
   customThemeColors,
   customThemePayload,
+  mediaThemesForDevice,
   themesForMode,
   type ThemeMode,
   type ThemePalette,
@@ -36,6 +36,7 @@ export function ThemePicker({
   const {
     preference,
     resolved,
+    device,
     theme,
     customThemes,
     setPreference,
@@ -44,6 +45,7 @@ export function ThemePicker({
     deleteCustomTheme,
   } = useTheme();
   const [builderOpen, setBuilderOpen] = useState(false);
+  const deviceMediaThemes = mediaThemesForDevice(device);
 
   /** Fire-and-forget save to the account (the theme already applies locally). */
   const persist = (patch: {
@@ -132,10 +134,12 @@ export function ThemePicker({
           <legend className="text-xs font-extrabold tracking-[0.2em] text-muted uppercase">
             Live &amp; aesthetic themes
           </legend>
-          <span className="text-[11px] font-semibold text-subtle">Motion &amp; wallpapers</span>
+          <span className="text-[11px] font-semibold text-subtle">
+            {device === "mobile" ? "Fitted for mobile" : "Fitted for PC"}
+          </span>
         </div>
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {MEDIA_THEMES.map((palette) => {
+          {deviceMediaThemes.map((palette) => {
             const active = theme.id === palette.id;
             const thumb = palette.media?.poster ?? palette.media?.src;
             const isVideo = palette.media?.kind === "video";
