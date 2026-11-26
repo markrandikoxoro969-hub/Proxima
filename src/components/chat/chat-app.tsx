@@ -179,6 +179,7 @@ function ChatScreen({
   const [images, setImages] = useState<DraftImage[]>([]);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [listenSignal, setListenSignal] = useState(0);
+  const [agentMode, setAgentMode] = useState(false);
 
   const chat = useChat({
     initialSessions,
@@ -187,6 +188,7 @@ function ChatScreen({
     initialActivePage,
     notify,
     mode,
+    agentMode,
     selectedSkills: selectedSkillIds,
   });
   const { state, active, newChat: startNewChat, send: sendMessage, select: selectChat } = chat;
@@ -804,6 +806,7 @@ function ChatScreen({
                   key={state.activeKey === DRAFT ? DRAFT : activeId}
                   conversation={active}
                   onRetry={chat.retry}
+                  onApproveStep={chat.approveStep}
                   onLoadOlder={chat.loadOlder}
                   canRetry={!chat.isStreaming}
                   pinSignal={pinSignal}
@@ -827,6 +830,8 @@ function ChatScreen({
             onTemporaryChange={newChat}
             mode={mode}
             onModeChange={setMode}
+            agentMode={agentMode}
+            onAgentModeChange={setAgentMode}
             voice={composerVoice}
             onVoiceInputChange={setSpeechInput}
           />

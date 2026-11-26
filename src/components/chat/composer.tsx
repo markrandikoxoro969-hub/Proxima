@@ -67,6 +67,8 @@ export const Composer = memo(function Composer({
   onTemporaryChange,
   mode,
   onModeChange,
+  agentMode = false,
+  onAgentModeChange,
   voice,
   onVoiceInputChange,
 }: {
@@ -90,6 +92,9 @@ export const Composer = memo(function Composer({
   /** Answer style (fast / thinking / coding / analyze). */
   mode: ChatMode;
   onModeChange: (mode: ChatMode) => void;
+  /** Multi-step autonomous agent mode (Plan → Act → Observe → Verify). */
+  agentMode?: boolean;
+  onAgentModeChange?: (enabled: boolean) => void;
   /** Publishes speech-recognition controls to the chat header. */
   onVoiceInputChange?: (
     control: { listening: boolean; supported: boolean; toggle: () => void } | null,
@@ -586,6 +591,33 @@ export const Composer = memo(function Composer({
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             <ModeMenu mode={mode} onChange={onModeChange} className="shrink-0" />
 
+            {onAgentModeChange && (
+              <button
+                type="button"
+                aria-pressed={agentMode}
+                aria-label={
+                  agentMode
+                    ? "Autonomous agent mode is on (multi-step planning & tools)"
+                    : "Turn on autonomous agent mode"
+                }
+                title={
+                  agentMode
+                    ? "Autonomous agent mode on — multi-step planning, sandboxed tools & checkpoints"
+                    : "Autonomous agent mode"
+                }
+                onClick={() => onAgentModeChange(!agentMode)}
+                className={cn(
+                  "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl px-2.5 text-xs font-bold transition-[color,background-color] duration-200",
+                  agentMode
+                    ? "glass-pill text-[var(--accent-text)]"
+                    : "text-subtle hover:bg-surface-hover hover:text-fg",
+                )}
+              >
+                <Sparkle weight={agentMode ? "fill" : "bold"} className="size-4" aria-hidden />
+                <span className="hidden sm:inline">{agentMode ? "Agent on" : "Agent"}</span>
+              </button>
+            )}
+
             <button
               type="button"
               aria-pressed={temporary}
@@ -795,7 +827,7 @@ function AttachMenu({
             const index = all.indexOf(document.activeElement as HTMLElement);
             all[(index + (event.key === "ArrowDown" ? 1 : -1) + all.length) % all.length]?.focus();
           }}
-          className="absolute bottom-full left-0 z-40 mb-2 w-[min(18rem,calc(100vw-1.5rem))] origin-bottom-left animate-scale-in rounded-2xl glass-solid p-1.5 shadow-glow-strong"
+          className="glass-dropdown absolute bottom-full left-0 z-40 mb-2 w-[min(18rem,calc(100vw-1.5rem))] origin-bottom-left animate-scale-in rounded-2xl p-1.5"
         >
           {items.map((item) => (
             <button

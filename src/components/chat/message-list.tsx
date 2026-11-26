@@ -24,6 +24,7 @@ const LOAD_OLDER_AT = 400; // px from the top that loads older messages
 export function MessageList({
   conversation,
   onRetry,
+  onApproveStep,
   onLoadOlder,
   canRetry,
   pinSignal,
@@ -33,6 +34,7 @@ export function MessageList({
 }: {
   conversation: ConversationState;
   onRetry: (id: string) => void;
+  onApproveStep?: (id: string) => void;
   onLoadOlder: () => void;
   canRetry: boolean;
   /** Changes when the user sends a message → jump to the bottom. */
@@ -164,6 +166,7 @@ export function MessageList({
                   <MessageItem
                     message={message}
                     onRetry={onRetry}
+                    onApproveStep={onApproveStep}
                     canRetry={canRetry}
                     speaking={speakingId === message.id}
                     onRead={onRead}
@@ -178,7 +181,7 @@ export function MessageList({
 
       {conversation.loadingOlder && (
         <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center" role="status">
-          <span className="rounded-full glass-solid px-3 py-1 text-xs font-bold text-muted">
+          <span className="glass-pill rounded-full px-3 py-1 text-xs font-bold text-muted">
             Loading older messages…
           </span>
         </div>
@@ -199,7 +202,7 @@ export function MessageList({
             exit={{ opacity: 0, y: 8, filter: "blur(6px)" }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
             whileTap={{ scale: 0.95 }}
-            className="absolute bottom-4 left-1/2 inline-flex h-10 -translate-x-1/2 items-center gap-2 rounded-full glass-solid px-4 text-xs font-bold shadow-glow"
+            className="glass-pill absolute bottom-4 left-1/2 inline-flex h-10 -translate-x-1/2 items-center gap-2 rounded-full px-4 text-xs font-bold shadow-glow"
           >
             <ArrowDown weight="bold" className="size-4" aria-hidden /> Latest
           </m.button>

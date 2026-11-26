@@ -180,4 +180,19 @@ describe("POST /api/chat — Persistent Autonomous Agent Checkpoints", () => {
     const body = (await res.json()) as { error?: { code?: string } };
     expect(body.error?.code).toBe("stale_checkpoint");
   });
+
+  it("activates multi-step agent mode via agentMode: true using expanded sandboxed tools", async () => {
+    state.responses = [
+      '{"steps":["Convert 10 km to miles"]}',
+      '{"tool":"convert_units","args":{"value":10,"from":"km","to":"mi"}}',
+      "10 km equals approximately 6.213712 miles.",
+    ];
+
+    const res = await callChat({ message: "Convert 10 km to miles", agentMode: true });
+    expect(res.status).toBe(200);
+    const events = await readSse(res);
+    const done = events.find((e) => e.event === "done");
+    expect(done).toBeDefined();
+    expect((done?.data as { text: string }).text).toContain("6.213712");
+  });
 });

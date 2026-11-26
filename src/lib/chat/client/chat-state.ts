@@ -17,6 +17,8 @@ export type UiMessage = ChatMessageDTO & {
   statusMessage?: string;
   /** Live unverified file content; never part of saved conversation text. */
   filePreview?: { path: string; text: string };
+  /** Paused autonomous agent step waiting for explicit user approval. */
+  pendingApproval?: { stepId: string; title: string; toolName: string; conversationId: string | null };
   error?: { code: string; message: string; retryable: boolean };
   /** Stable key for the list (the id changes when the server confirms the message). */
   clientKey?: string;
@@ -108,6 +110,12 @@ export type ChatAction =
       usedMemory?: { id: string; text: string }[];
     }
   | { type: "failed"; key: string; id: string; error: { code: string; message: string; retryable: boolean } }
+  | {
+      type: "approvalRequired";
+      key: string;
+      id: string;
+      approval: { stepId: string; title: string; toolName: string; conversationId: string | null };
+    }
   | { type: "stopped"; key: string; id: string }
   | { type: "renamed"; id: string; title: string }
   | { type: "deleted"; id: string }
@@ -326,9 +334,23 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         phase: undefined,
         statusMessage: undefined,
         filePreview: undefined,
+        pendingApproval: undefined,
         latencyMs: action.latencyMs,
       }));
       return { ...next, streamingKey: null, sessions: touchSession(next.sessions, action.key, 1) };
+    }
+
+    case "approvalRequired": {
+      const next = updateMessage(state, action.key, action.id, (m) => ({
+        ...m,
+        complete: false,
+        status: "stopped",
+        phase: undefined,
+        statusMessage: undefined,
+        filePreview: undefined,
+        pendingApproval: action.approval,
+      }));
+      return { ...next, streamingKey: null };
     }
 
     case "failed": {
@@ -339,6 +361,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         phase: undefined,
         statusMessage: undefined,
         filePreview: undefined,
+        pendingApproval: undefined,
         error: action.error,
       }));
       return { ...next, streamingKey: null };
