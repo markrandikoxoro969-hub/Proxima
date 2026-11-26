@@ -4,9 +4,11 @@ import {
   ChatCircleText,
   FacebookLogo,
   GearSix,
+  ImageSquare,
   PencilSimple,
   Planet,
   Plus,
+  SidebarSimple,
   Sparkle,
   Trash,
   X,
@@ -46,6 +48,9 @@ type SidebarProps = {
   /** Mobile drawer state (ignored on large screens, where it's always shown). */
   open: boolean;
   isDesktop: boolean;
+  /** Desktop collapsible rail state (persisted in localStorage). */
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
   onClose: () => void;
   onNewChat: () => void;
   onSelect: (id: string) => void;
@@ -57,10 +62,10 @@ type SidebarProps = {
 };
 
 export const Sidebar = memo(function Sidebar(props: SidebarProps) {
-  const { open, isDesktop, onClose } = props;
+  const { open, isDesktop, collapsed = false, onClose } = props;
   const panelRef = useRef<HTMLElement>(null);
   const controls = useDragControls();
-  const hidden = !isDesktop && !open;
+  const hidden = isDesktop ? collapsed : !open;
   useMuffleThemeAudio(!isDesktop && open, "mobile-sidebar");
 
   // Mobile: Escape closes the drawer, and focus moves into it when opened.
@@ -103,8 +108,10 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
         className={cn(
           // Phones: a bottom sheet, dragged down to dismiss.
           "fixed inset-x-0 bottom-0 z-50 flex h-[86dvh] flex-col rounded-t-3xl border-t border-line bg-surface-solid pb-safe",
-          // Desktop: the normal sidebar.
-          "lg:static lg:z-auto lg:h-auto lg:w-72 lg:shrink-0 lg:translate-y-0 lg:rounded-none lg:border-t-0 lg:border-r lg:glass lg:bg-transparent lg:pb-0 lg:shadow-none lg:backdrop-blur-none",
+          // Desktop: collapsible left rail.
+          collapsed
+            ? "lg:hidden"
+            : "lg:static lg:z-auto lg:h-auto lg:w-72 lg:shrink-0 lg:translate-y-0 lg:rounded-none lg:border-t-0 lg:border-r lg:glass lg:bg-transparent lg:pb-0 lg:shadow-none lg:backdrop-blur-none",
         )}
       >
         {/* Drag handle: only this strip starts the dismiss gesture, so the
@@ -133,6 +140,7 @@ function SidebarContent({
   hasMore,
   engine,
   profile,
+  onToggleCollapse,
   onClose,
   onNewChat,
   onSelect,
@@ -151,6 +159,17 @@ function SidebarContent({
           <Planet weight="fill" className="size-7" aria-hidden />
           <span className="text-lg font-extrabold tracking-[0.2em]">{site.name}</span>
         </div>
+        {onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar (⌘B)"
+            className="hidden tap items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg lg:inline-flex"
+          >
+            <SidebarSimple weight="bold" className="size-5" aria-hidden />
+          </button>
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -229,6 +248,14 @@ function SidebarContent({
           Dev Facebook
           <span className="sr-only">(opens in a new tab)</span>
         </a>
+        <Link
+          href="/studio"
+          onClick={onClose}
+          className="flex tap items-center gap-3 rounded-xl px-3 text-xs font-bold tracking-[0.15em] text-muted uppercase transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+        >
+          <ImageSquare weight="bold" className="size-5" aria-hidden />
+          Image Studio
+        </Link>
         <Link
           href="/skills"
           onClick={onClose}

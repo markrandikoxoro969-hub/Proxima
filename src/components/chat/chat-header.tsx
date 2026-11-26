@@ -13,6 +13,9 @@ export const ChatHeader = memo(function ChatHeader({
   activeId,
   sidebarOpen,
   isDesktop,
+  desktopCollapsed = false,
+  onToggleDesktopSidebar,
+  onOpenPalette,
   onOpenSidebar,
   onNewChat,
   voiceInput,
@@ -22,6 +25,9 @@ export const ChatHeader = memo(function ChatHeader({
   activeId: string | null;
   sidebarOpen: boolean;
   isDesktop: boolean;
+  desktopCollapsed?: boolean;
+  onToggleDesktopSidebar?: () => void;
+  onOpenPalette?: () => void;
   onOpenSidebar: () => void;
   onNewChat: () => void;
   /** Speech-input trigger, rendered beside the voice-mode trigger. */
@@ -41,6 +47,30 @@ export const ChatHeader = memo(function ChatHeader({
       >
         <List weight="bold" className="size-5" aria-hidden />
       </button>
+
+      {desktopCollapsed && onToggleDesktopSidebar && (
+        <button
+          type="button"
+          onClick={onToggleDesktopSidebar}
+          aria-label="Expand sidebar"
+          title="Expand sidebar (⌘B)"
+          className="hidden size-11 shrink-0 items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg lg:inline-flex"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="size-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M9 4v16" />
+          </svg>
+        </button>
+      )}
 
       <div className="min-w-0 flex-1 px-1">
         <h1 className="flex items-center gap-1.5 text-base font-black tracking-tight sm:gap-2 sm:text-lg">
@@ -70,6 +100,33 @@ export const ChatHeader = memo(function ChatHeader({
         >
           <NotePencil weight="bold" className="size-5" aria-hidden />
         </button>
+        {onOpenPalette && (
+          <button
+            type="button"
+            onClick={onOpenPalette}
+            aria-label="Open command palette"
+            title="Quick search & commands (⌘K)"
+            className="hidden h-11 shrink-0 items-center gap-2 rounded-xl border border-line bg-surface-hover/50 px-3 text-xs font-extrabold tracking-[0.14em] text-muted uppercase transition-colors duration-200 hover:border-line-strong hover:bg-surface-hover hover:text-fg md:inline-flex"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="size-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <span className="hidden xl:inline">Search</span>
+            <kbd className="rounded-md border border-line bg-surface-solid px-1.5 py-0.5 font-mono text-[10px] font-bold text-subtle">
+              ⌘K
+            </kbd>
+          </button>
+        )}
         <ThemeAudioToggle />
         <ThemeMenu />
         {/* Export yields its place to the two voice controls on narrower phones. */}

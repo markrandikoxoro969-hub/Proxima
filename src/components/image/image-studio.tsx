@@ -66,19 +66,20 @@ export function ImageStudio({
       description="Describe a picture. Or upload one and describe the change."
       className="max-w-3xl"
     >
-      {open && <StudioBody notify={notify} onUseInChat={onUseInChat} onClose={onClose} />}
+      {open && <StudioWorkspace notify={notify} onUseInChat={onUseInChat} onClose={onClose} />}
     </Dialog>
   );
 }
 
-function StudioBody({
+/** Shared create/edit image workspace used by both the in-chat modal and the dedicated `/studio` route. */
+export function StudioWorkspace({
   notify,
   onUseInChat,
   onClose,
 }: {
   notify: Notify;
-  onUseInChat: (image: ImageDTO) => void;
-  onClose: () => void;
+  onUseInChat?: (image: ImageDTO) => void;
+  onClose?: () => void;
 }) {
   const [mode, setMode] = useState<Mode>("create");
   const [prompt, setPrompt] = useState("");
@@ -399,13 +400,13 @@ function StudioBody({
           )}
           {busy ? "Working…" : mode === "create" ? "Generate picture" : "Apply change"}
         </Button>
-        {result && (
+        {result && onUseInChat && (
           <Button
             variant="secondary"
             size="lg"
             onClick={() => {
               onUseInChat(result);
-              onClose();
+              onClose?.();
             }}
           >
             <ChatCircleText weight="bold" className="size-4" aria-hidden /> Use in chat

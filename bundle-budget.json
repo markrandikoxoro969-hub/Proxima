@@ -5,6 +5,7 @@
     "/": 220,
     "/app": 260,
     "/settings": 200,
-    "/settings/memory": 180
+    "/settings/memory": 180,
+    "/skills": 180
   }
 }
