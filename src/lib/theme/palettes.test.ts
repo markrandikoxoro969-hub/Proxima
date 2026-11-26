@@ -85,6 +85,10 @@ describe("built-in themes", () => {
       expect(theme.scene).toBe("media");
       expect(theme.media?.src).toMatch(/^\/media\/themes\//);
       expect(theme.media?.poster).toMatch(/^\/media\/themes\/.*\.jpg$/);
+      if (theme.media?.kind === "video") {
+        expect(theme.media.mobileSrc).toMatch(/^\/media\/themes\/.*-mobile\.webp$/);
+        expect(theme.media.audioSrc).toMatch(/^\/media\/themes\/.*\.m4a$/);
+      }
     }
   });
 });

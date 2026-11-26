@@ -1413,7 +1413,7 @@ html[data-scene] .app-shell {
   .theme-backdrop .tb-detail {
     animation: none !important;
   }
-  .theme-backdrop {
+  .theme-backdrop:not(.theme-backdrop--media) {
     opacity: 0.85;
   }
 }
@@ -1437,7 +1437,7 @@ html[data-fx="static"] .tb-media-drift {
   }
 }
 
-/* ---------- Aesthetic media themes (live video & photo backdrops) ---------- */
+/* ---------- Aesthetic media themes (live video, mobile animated WebP & photo backdrops) ---------- */
 .theme-backdrop--media {
   background-color: var(--bg);
   contain: strict;
@@ -1451,26 +1451,14 @@ html[data-fx="static"] .tb-media-drift {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* Zero CSS filter or transform scale on <video> + opacity: 1 when playing
-     so browsers promote <video> to a zero-copy hardware video overlay. */
+  /* Single-layer compositing over solid var(--bg) — zero scrim overlay layer,
+     zero CSS filter or scale transform on the active media surface. */
 }
 
 .tb-media-video {
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
   will-change: transform;
-}
-
-/* Flat constant-color hardware blend scrim (zero gradient fragment shader
-   overhead across millions of pixels every frame) — keeps text crisp while
-   eliminating GPU compositing lag over live video. */
-.theme-backdrop--media .tb-media-scrim {
-  inset: 0;
-  background-color: color-mix(in srgb, var(--bg) var(--media-scrim-alpha, 58%), transparent);
-}
-
-.theme-backdrop--media[data-theme-mode="light"] .tb-media-scrim {
-  background-color: color-mix(in srgb, var(--bg) var(--media-scrim-alpha, 66%), transparent);
 }
 
 /* Performance critical: blurring, SVG turbulence noise, radial masks, and huge
@@ -1487,10 +1475,11 @@ html[data-scene="media"] .app-shell {
   contain: layout style;
 }
 
-html[data-scene="media"] .glass {
+html[data-scene="media"] .glass,
+html[data-scene="media"] .lg\:glass {
   background-color: color-mix(in srgb, var(--surface-solid) 88%, transparent);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   box-shadow: var(--shadow-panel);
 }
 

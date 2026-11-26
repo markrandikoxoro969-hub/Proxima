@@ -17,6 +17,8 @@ import {
 } from "@/lib/theme/video-audio-graph";
 import type { AmbientController, AmbientKind } from "@/lib/theme/ambient-sound";
 
+type ViewportMode = "pending" | "desktop" | "mobile";
+
 function ambientKindFor(themeId: string, scene?: string): AmbientKind | null {
   if (themeId === "night-drive" || themeId === "rose-gaze") return "night-drive";
   if (scene === "ocean" || scene === "sky" || scene === "nature") return scene;
@@ -35,54 +37,81 @@ function readCurrentMix(immediate = false): AudioMixState {
 }
 
 /**
- * Hardware-composited ambient backdrop & zero-glitch audio engine.
+ * Hardware-composited ambient backdrop & zero-glitch decoupled audio engine.
  *
  * Key engineering invariants:
- * 1. ONE persistent `<video>` element across all theme switches — never unmounts
- *    or leaks zombie decoders/audio streams when changing themes.
- * 2. Instant hard-cut on mute or theme switch (`silenceNow()` + `video.muted = true`
- *    + `stopAllAmbientSounds()`) so sound NEVER lingers when cut.
- * 3. Web Audio low-pass filter (`~460 Hz`) + dimmed gain when Settings, dialogs,
- *    or overlays are open, and gentle voice ducking while Proxima speaks aloud.
- * 4. Poster sits underneath while a new video buffers; `<video>` fades in smoothly
- *    once the first frame is ready (zero black flash or freeze glitch).
- * 5. Audio state changes sync imperatively without forcing React re-renders.
+ * 1. **100% Decoupled Video & Audio**:
+ *    - Desktop `<video>` plays pure video-only silent `.mp4` streams and is
+ *      NEVER attached to `AudioContext` / `createMediaElementSource` — keeping
+ *      hardware decode + GPU overlay completely stall-free.
+ *    - A separate persistent `<audio>` plays each theme's lightweight `.m4a`
+ *      soundtrack through our Web Audio low-pass muffle graph (`~460 Hz` when
+ *      Settings or dialogs open, ducked when voice reads aloud, instant mute).
+ * 2. **Zero-Lag Mobile Animated WebP Mode**:
+ *    - On phones & coarse-pointer touch screens (`(max-width: 767px), (pointer: coarse)`),
+ *      renders compact 10–12fps Animated WebP loops (`-mobile.webp`) instead of
+ *      `<video>` — zero MediaCodec overhead, zero MP4 download, and still paired
+ *      with the theme's `.m4a` audio track + muffled Settings filter!
+ * 3. **Single-Layer Compositing**:
+ *    - Applies `opacity` directly on the single active backdrop element over
+ *      solid `var(--bg)` (no redundant full-viewport scrim overlay layer).
+ * 4. **Instant Hard-Cut Audio**:
+ *    - Muting, backgrounding, or switching themes immediately silences `<audio>`
+ *      and stops ambient soundscapes with zero lingering tail.
  */
 export function ThemeBackdrop() {
   const { theme } = useTheme();
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [readySrc, setReadySrc] = useState<string | null>(null);
+  const [viewportMode, setViewportMode] = useState<ViewportMode>("pending");
+  const [readyVideoSrc, setReadyVideoSrc] = useState<string | null>(null);
+  const [readyMobileSrc, setReadyMobileSrc] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const ambientRef = useRef<AmbientController | null>(null);
   const ambientModuleRef = useRef<typeof import("@/lib/theme/ambient-sound") | null>(null);
   const switchTokenRef = useRef(0);
   const activeVideoSrcRef = useRef<string | null>(null);
-  const activeAmbientRef = useRef<AmbientKind | null>(null);
   const unlockCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    const motionMq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const mobileMq = window.matchMedia("(max-width: 767px), (pointer: coarse)");
+    const syncMotion = () => setReducedMotion(motionMq.matches);
+    const syncViewport = () => setViewportMode(mobileMq.matches ? "mobile" : "desktop");
+    syncMotion();
+    syncViewport();
+    motionMq.addEventListener("change", syncMotion);
+    mobileMq.addEventListener("change", syncViewport);
+    return () => {
+      motionMq.removeEventListener("change", syncMotion);
+      mobileMq.removeEventListener("change", syncViewport);
+    };
+  }, []);
 
   const media = theme.media;
   const scene = theme.scene;
-  const isVideoTheme = media?.kind === "video" && !reducedMotion;
-  const videoSrc = isVideoTheme ? media.src : null;
-  const ambientKind = isVideoTheme ? null : ambientKindFor(theme.id, scene);
-  const videoReady = Boolean(videoSrc && readySrc === videoSrc);
+  const isMotionTheme = media?.kind === "video" && !reducedMotion;
+  // On mobile phones, serve the lightweight Animated WebP loop (modern GIF) instead of <video>.
+  const mobileLoopSrc =
+    isMotionTheme && viewportMode === "mobile" && media.mobileSrc ? media.mobileSrc : null;
+  // On desktop, play the pure silent video-only MP4 (never loaded on mobile or before viewport resolves).
+  const videoSrc =
+    isMotionTheme && (viewportMode === "desktop" || (viewportMode === "mobile" && !media.mobileSrc))
+      ? media.src
+      : null;
+  // Standalone .m4a soundtrack works identically for BOTH desktop MP4 and mobile Animated WebP.
+  const audioSrc = media?.kind === "video" ? (media.audioSrc ?? null) : null;
+  const ambientKind = audioSrc ? null : ambientKindFor(theme.id, scene);
 
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const syncMotion = () => setReducedMotion(mq.matches);
-    syncMotion();
-    mq.addEventListener("change", syncMotion);
-    return () => mq.removeEventListener("change", syncMotion);
-  }, []);
+  const videoReady = Boolean(videoSrc && readyVideoSrc === videoSrc);
+  const mobileReady = Boolean(mobileLoopSrc && readyMobileSrc === mobileLoopSrc);
 
-  // Keep refs updated for imperative event callbacks (zero React re-render overhead).
   useEffect(() => {
     activeVideoSrcRef.current = videoSrc;
-    activeAmbientRef.current = ambientKind;
-  }, [videoSrc, ambientKind]);
+  }, [videoSrc]);
 
-  // ── Imperative helpers ─────────────────────────────────────────────────
+  // ── Imperative cleanup helpers ─────────────────────────────────────────
   const detachUnlock = () => {
     unlockCleanupRef.current?.();
     unlockCleanupRef.current = null;
@@ -97,7 +126,6 @@ export function ThemeBackdrop() {
 
   const releaseVideoNow = (video: HTMLVideoElement | null) => {
     if (!video) return;
-    getVideoAudioGraph(video)?.silenceNow();
     video.pause();
     video.muted = true;
     if (video.getAttribute("src")) {
@@ -110,17 +138,77 @@ export function ThemeBackdrop() {
     }
   };
 
-  // ── Master audio/video switch effect (runs ONLY when theme source changes) ──
+  const releaseAudioNow = (audio: HTMLAudioElement | null) => {
+    if (!audio) return;
+    getVideoAudioGraph(audio)?.silenceNow();
+    audio.pause();
+    audio.muted = true;
+    if (audio.getAttribute("src")) {
+      audio.removeAttribute("src");
+      try {
+        audio.load();
+      } catch {
+        /* jsdom */
+      }
+    }
+  };
+
+  // ── Pure silent desktop `<video>` lifecycle (ZERO AudioContext attachment!) ──
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!videoSrc) {
+      releaseVideoNow(video);
+      return;
+    }
+
+    const playVideo = () => {
+      if (document.hidden || document.documentElement.getAttribute("data-fx") === "static") {
+        video.pause();
+        return;
+      }
+      video.muted = true;
+      if (video.getAttribute("src") !== videoSrc) {
+        video.src = videoSrc;
+        try {
+          video.load();
+        } catch {
+          /* jsdom */
+        }
+      }
+      void video.play().catch(() => {
+        /* poster remains visible */
+      });
+    };
+
+    playVideo();
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        video.pause();
+      } else {
+        playVideo();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      video.pause();
+    };
+  }, [videoSrc]);
+
+  // ── Decoupled theme audio & ambient soundscape engine ──────────────────
   useEffect(() => {
     const token = ++switchTokenRef.current;
-    const video = videoRef.current;
+    const audio = audioRef.current;
 
     detachUnlock();
 
     const attachUnlockOnce = (unlockAction: () => void) => {
       detachUnlock();
       const onGesture = (event: Event) => {
-        // Never race with the user clicking the mute/volume controls directly.
         const target = event.target as HTMLElement | null;
         if (target?.closest?.("[data-theme-audio-control]")) return;
         if (!getThemeAudioSnapshot().enabled || document.hidden) return;
@@ -135,24 +223,38 @@ export function ThemeBackdrop() {
       };
     };
 
-    const applyVideoAudio = async (el: HTMLVideoElement, immediate = false) => {
+    const startTrackAudio = async (el: HTMLAudioElement, src: string, immediate = false) => {
       if (switchTokenRef.current !== token) return;
-      const mix = readCurrentMix(immediate);
+      stopAmbientNow();
 
+      const mix = readCurrentMix(immediate);
       if (!mix.enabled || document.hidden) {
         getVideoAudioGraph(el)?.silenceNow();
+        el.pause();
         el.muted = true;
         setThemeAudioBlocked(false);
         detachUnlock();
         return;
       }
 
-      // Try Web Audio low-pass + gain graph (supports smooth covered/muffled mode).
+      if (el.getAttribute("src") !== src) {
+        getVideoAudioGraph(el)?.silenceNow();
+        el.pause();
+        el.src = src;
+        try {
+          el.load();
+        } catch {
+          /* jsdom */
+        }
+      }
+
+      // Route ONLY the standalone `<audio>` element through Web Audio low-pass + gain.
       const graph = await ensureVideoAudioGraph(el);
       if (switchTokenRef.current !== token) return;
       const latestMix = readCurrentMix(immediate);
       if (!latestMix.enabled || document.hidden) {
         graph?.silenceNow();
+        el.pause();
         el.muted = true;
         return;
       }
@@ -167,7 +269,7 @@ export function ThemeBackdrop() {
             graph.silenceNow();
             el.muted = true;
             setThemeAudioBlocked(true);
-            attachUnlockOnce(() => void applyVideoAudio(el, false));
+            attachUnlockOnce(() => void startTrackAudio(el, src, false));
             return;
           }
         }
@@ -175,7 +277,7 @@ export function ThemeBackdrop() {
         return;
       }
 
-      // Fallback when AudioContext is blocked before user gesture (or unavailable):
+      // Fallback before user gesture unlocks AudioContext:
       const resolved = resolveAudioMix(latestMix);
       el.volume = resolved.gain;
       el.muted = false;
@@ -184,15 +286,10 @@ export function ThemeBackdrop() {
         if (switchTokenRef.current === token) setThemeAudioBlocked(false);
       } catch {
         if (switchTokenRef.current !== token) return;
-        // Keep video playing smoothly muted until first gesture unlocks audio.
+        el.pause();
         el.muted = true;
         setThemeAudioBlocked(true);
-        try {
-          await el.play();
-        } catch {
-          /* poster remains visible */
-        }
-        attachUnlockOnce(() => void applyVideoAudio(el, false));
+        attachUnlockOnce(() => void startTrackAudio(el, src, false));
       }
     };
 
@@ -236,49 +333,10 @@ export function ThemeBackdrop() {
       }
     };
 
-    const startVideo = async (el: HTMLVideoElement, src: string) => {
-      // Immediately kill any previous ambient soundscape & old video audio.
-      stopAmbientNow();
-      getVideoAudioGraph(el)?.silenceNow();
-      el.pause();
-      el.muted = true;
-
-      if (document.hidden || document.documentElement.getAttribute("data-fx") === "static") {
-        return;
-      }
-
-      // Only reload the pipeline when switching to a different video file.
-      if (el.getAttribute("src") !== src) {
-        el.src = src;
-        try {
-          el.load();
-        } catch {
-          /* jsdom */
-        }
-      }
-
-      // Start muted playback first so visual frames decode immediately without
-      // stalling on autoplay checks, then seamlessly engage audio if enabled.
-      try {
-        await el.play();
-      } catch {
-        /* will retry on gesture */
-      }
-      if (switchTokenRef.current !== token) return;
-
-      const mix = readCurrentMix(false);
-      if (mix.enabled) {
-        await applyVideoAudio(el, false);
-      } else {
-        setThemeAudioBlocked(false);
-      }
-    };
-
-    // ── Dispatch based on current theme kind ─────────────────────────────
-    if (videoSrc && video) {
-      void startVideo(video, videoSrc);
+    if (audioSrc && audio) {
+      void startTrackAudio(audio, audioSrc, false);
     } else {
-      releaseVideoNow(video);
+      releaseAudioNow(audio);
       if (ambientKind) {
         void startAmbient(ambientKind);
       } else {
@@ -287,35 +345,34 @@ export function ThemeBackdrop() {
       }
     }
 
-    // ── Instant sync when user mutes, drags volume, or opens/closes Settings ──
     const onAudioChange = () => {
       if (switchTokenRef.current !== token) return;
       const mix = readCurrentMix(false);
 
-      // Hard-cut immediately when muted: zero tail, zero race conditions.
       if (!mix.enabled) {
         detachUnlock();
         setThemeAudioBlocked(false);
         stopAmbientNow();
-        if (video) {
-          getVideoAudioGraph(video)?.silenceNow();
-          video.muted = true;
+        if (audio) {
+          getVideoAudioGraph(audio)?.silenceNow();
+          audio.pause();
+          audio.muted = true;
         }
         return;
       }
 
       if (document.hidden) return;
 
-      if (videoSrc && video) {
-        const existingGraph = getVideoAudioGraph(video);
-        if (existingGraph) {
+      if (audioSrc && audio) {
+        const existingGraph = getVideoAudioGraph(audio);
+        if (existingGraph && audio.getAttribute("src") === audioSrc) {
           existingGraph.apply(mix);
-          if (video.paused) {
-            void video.play().catch(() => {});
+          if (audio.paused) {
+            void audio.play().catch(() => {});
           }
           setThemeAudioBlocked(false);
         } else {
-          void applyVideoAudio(video, false);
+          void startTrackAudio(audio, audioSrc, false);
         }
       } else if (ambientKind) {
         if (ambientRef.current && ambientRef.current.kind === ambientKind) {
@@ -331,15 +388,15 @@ export function ThemeBackdrop() {
       if (document.hidden) {
         detachUnlock();
         stopAmbientNow();
-        if (video) {
-          getVideoAudioGraph(video)?.silenceNow();
-          video.pause();
-          video.muted = true;
+        if (audio) {
+          getVideoAudioGraph(audio)?.silenceNow();
+          audio.pause();
+          audio.muted = true;
         }
         return;
       }
-      if (videoSrc && video) {
-        void startVideo(video, videoSrc);
+      if (audioSrc && audio) {
+        void startTrackAudio(audio, audioSrc, false);
       } else if (ambientKind) {
         void startAmbient(ambientKind);
       }
@@ -349,7 +406,6 @@ export function ThemeBackdrop() {
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      // Invalidate any in-flight async play/import from this theme immediately.
       if (switchTokenRef.current === token) {
         switchTokenRef.current += 1;
       }
@@ -357,30 +413,29 @@ export function ThemeBackdrop() {
       document.removeEventListener("visibilitychange", onVisibility);
       detachUnlock();
       stopAmbientNow();
-      if (video) {
-        getVideoAudioGraph(video)?.silenceNow();
-        video.pause();
-        video.muted = true;
+      if (audio) {
+        getVideoAudioGraph(audio)?.silenceNow();
+        audio.pause();
+        audio.muted = true;
       }
     };
-  }, [videoSrc, ambientKind]);
+  }, [audioSrc, ambientKind]);
 
-  // Final hard cleanup if ThemeBackdrop itself ever unmounts.
+  // Final hard cleanup if ThemeBackdrop ever unmounts.
   useEffect(() => {
     const video = videoRef.current;
+    const audio = audioRef.current;
     return () => {
       detachUnlock();
       stopAmbientNow();
       releaseVideoNow(video);
+      releaseAudioNow(audio);
     };
   }, []);
 
   const targetOpacity = media?.opacity ?? (theme.mode === "dark" ? 0.42 : 0.36);
-  // Single flat scrim alpha so `<video>` stays at opacity: 1 (hardware overlay)
-  // without paying dual radial/linear fragment-shader cost on every video frame.
-  const scrimAlpha = Math.round(Math.min(76, Math.max(44, (1 - targetOpacity) * 96)));
   const objectPosition = media?.position ?? "50% 50%";
-  const showPoster = Boolean(media && (!isVideoTheme || !videoReady));
+  const showPoster = Boolean(media && !videoReady && !mobileReady);
 
   return (
     <>
@@ -388,17 +443,12 @@ export function ThemeBackdrop() {
         className="theme-backdrop theme-backdrop--media"
         data-scene={media ? "media" : undefined}
         data-theme-mode={theme.mode}
-        style={
-          {
-            display: media ? "block" : "none",
-            "--media-scrim-alpha": `${scrimAlpha}%`,
-          } as React.CSSProperties
-        }
+        style={{ display: media ? "block" : "none" }}
         aria-hidden
       >
         {media && showPoster && (
-          // Poster / photo base layer: hidden the instant HD video is playing so
-          // browsers promote <video> to a zero-copy hardware overlay plane.
+          // Instant still poster / photo layer: hidden as soon as the live
+          // video or mobile animated WebP is ready so only ONE layer composites.
           // eslint-disable-next-line @next/next/no-img-element
           <img
             key={media.poster ?? media.src}
@@ -406,37 +456,58 @@ export function ThemeBackdrop() {
             alt=""
             decoding="async"
             className="tb-media-el"
-            style={{ objectPosition }}
+            style={{ objectPosition, opacity: targetOpacity }}
           />
         )}
+
+        {mobileLoopSrc && (
+          // Mobile phones: compact 10–12fps Animated WebP loop (modern 24-bit GIF)
+          // — zero <video> MediaCodec contention or mobile scroll lag.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={mobileLoopSrc}
+            src={mobileLoopSrc}
+            alt=""
+            decoding="async"
+            className="tb-media-el"
+            onLoad={() => setReadyMobileSrc(mobileLoopSrc)}
+            style={{
+              objectPosition,
+              opacity: mobileReady ? targetOpacity : 0,
+            }}
+          />
+        )}
+
         <video
           ref={videoRef}
           className="tb-media-el tb-media-video"
           loop
           muted
           playsInline
-          preload={isVideoTheme ? "auto" : "metadata"}
+          preload={videoSrc ? "auto" : "none"}
           disablePictureInPicture
           disableRemotePlayback
           onLoadedData={(e) => {
             const current = e.currentTarget.getAttribute("src");
             if (current && current === activeVideoSrcRef.current) {
-              setReadySrc(current);
+              setReadyVideoSrc(current);
             }
           }}
           onPlaying={(e) => {
             const current = e.currentTarget.getAttribute("src");
             if (current && current === activeVideoSrcRef.current) {
-              setReadySrc(current);
+              setReadyVideoSrc(current);
             }
           }}
           style={{
-            display: isVideoTheme ? "block" : "none",
+            display: videoSrc ? "block" : "none",
             objectPosition,
-            opacity: isVideoTheme && videoReady ? 1 : 0,
+            opacity: videoReady ? targetOpacity : 0,
           }}
         />
-        {media && <span className="tb-media-scrim" />}
+
+        {/* Standalone persistent audio element: decoupled from <video> so hardware video decode never stalls. */}
+        <audio ref={audioRef} loop preload="none" />
       </div>
 
       {!media && scene && scene !== "media" ? (

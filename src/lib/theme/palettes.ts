@@ -77,11 +77,15 @@ export type ThemeScene = "sky" | "ocean" | "nature" | "media";
 export type ThemeMedia = {
   kind: "video" | "image";
   src: string;
-  /** Still frame shown immediately while video buffers or under reduced motion. */
+  /** Lightweight animated WebP loop used on mobile phones to avoid video codec lag. */
+  mobileSrc?: string;
+  /** Standalone soundtrack so <video> stays purely muted/hardware-decoded and mobile loops keep music. */
+  audioSrc?: string;
+  /** Still frame shown immediately while video or mobile loop loads, or under reduced motion. */
   poster?: string;
   /** CSS object-position so key focal points stay nicely framed. */
   position?: string;
-  /** Visibility of the underlying media before the readability scrim (0–1). */
+  /** Visibility of the underlying media over the solid theme background (0–1). */
   opacity?: number;
 };
 
@@ -360,6 +364,8 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       media: {
         kind: "video",
         src: "/media/themes/torn-veil.mp4",
+        mobileSrc: "/media/themes/torn-veil-mobile.webp",
+        audioSrc: "/media/themes/torn-veil.m4a",
         poster: "/media/themes/torn-veil.jpg",
         position: "50% 48%",
         opacity: 0.44,
@@ -383,9 +389,11 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       media: {
         kind: "video",
         src: "/media/themes/crimson-velvet.mp4",
+        mobileSrc: "/media/themes/crimson-velvet-mobile.webp",
+        audioSrc: "/media/themes/crimson-velvet.m4a",
         poster: "/media/themes/crimson-velvet.jpg",
-        position: "50% 35%",
-        opacity: 0.36,
+        position: "50% 50%",
+        opacity: 0.38,
       },
       display: "geometric",
     },
@@ -406,6 +414,8 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       media: {
         kind: "video",
         src: "/media/themes/astral-eclipse.mp4",
+        mobileSrc: "/media/themes/astral-eclipse-mobile.webp",
+        audioSrc: "/media/themes/astral-eclipse.m4a",
         poster: "/media/themes/astral-eclipse.jpg",
         position: "50% 45%",
         opacity: 0.38,
@@ -429,6 +439,8 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       media: {
         kind: "video",
         src: "/media/themes/emerald-mirage.mp4",
+        mobileSrc: "/media/themes/emerald-mirage-mobile.webp",
+        audioSrc: "/media/themes/emerald-mirage.m4a",
         poster: "/media/themes/emerald-mirage.jpg",
         position: "50% 45%",
         opacity: 0.44,
@@ -452,6 +464,8 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       media: {
         kind: "video",
         src: "/media/themes/sapphire-stage.mp4",
+        mobileSrc: "/media/themes/sapphire-stage-mobile.webp",
+        audioSrc: "/media/themes/sapphire-stage.m4a",
         poster: "/media/themes/sapphire-stage.jpg",
         position: "50% 42%",
         opacity: 0.44,
@@ -475,6 +489,8 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       media: {
         kind: "video",
         src: "/media/themes/cobalt-encore.mp4",
+        mobileSrc: "/media/themes/cobalt-encore-mobile.webp",
+        audioSrc: "/media/themes/cobalt-encore.m4a",
         poster: "/media/themes/cobalt-encore.jpg",
         position: "50% 32%",
         opacity: 0.42,
@@ -544,6 +560,8 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       media: {
         kind: "video",
         src: "/media/themes/azure-daydream.mp4",
+        mobileSrc: "/media/themes/azure-daydream-mobile.webp",
+        audioSrc: "/media/themes/azure-daydream.m4a",
         poster: "/media/themes/azure-daydream.jpg",
         position: "50% 38%",
         opacity: 0.38,
@@ -567,6 +585,8 @@ export const THEME_PALETTES: readonly ThemePalette[] = [
       media: {
         kind: "video",
         src: "/media/themes/blossom-sunbeam.mp4",
+        mobileSrc: "/media/themes/blossom-sunbeam-mobile.webp",
+        audioSrc: "/media/themes/blossom-sunbeam.m4a",
         poster: "/media/themes/blossom-sunbeam.jpg",
         position: "50% 36%",
         opacity: 0.36,
