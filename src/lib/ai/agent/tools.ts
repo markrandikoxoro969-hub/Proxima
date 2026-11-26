@@ -196,6 +196,56 @@ function safeEvaluateMath(expression: string): number {
   return result;
 }
 
+/** Safe deterministic unit converter (length, mass, temperature, data, time). */
+const LINEAR_UNITS: Record<string, { group: string; toBase: number }> = {
+  // Length (base: meters)
+  mm: { group: "length", toBase: 0.001 },
+  cm: { group: "length", toBase: 0.01 },
+  m: { group: "length", toBase: 1 },
+  km: { group: "length", toBase: 1000 },
+  in: { group: "length", toBase: 0.0254 },
+  ft: { group: "length", toBase: 0.3048 },
+  yd: { group: "length", toBase: 0.9144 },
+  mi: { group: "length", toBase: 1609.344 },
+  // Mass (base: grams)
+  mg: { group: "mass", toBase: 0.001 },
+  g: { group: "mass", toBase: 1 },
+  kg: { group: "mass", toBase: 1000 },
+  oz: { group: "mass", toBase: 28.349523125 },
+  lb: { group: "mass", toBase: 453.59237 },
+  // Data (base: bytes, binary 1024)
+  b: { group: "data", toBase: 1 },
+  kb: { group: "data", toBase: 1024 },
+  mb: { group: "data", toBase: 1024 ** 2 },
+  gb: { group: "data", toBase: 1024 ** 3 },
+  tb: { group: "data", toBase: 1024 ** 4 },
+  // Time (base: seconds)
+  ms: { group: "time", toBase: 0.001 },
+  s: { group: "time", toBase: 1 },
+  min: { group: "time", toBase: 60 },
+  hr: { group: "time", toBase: 3600 },
+  day: { group: "time", toBase: 86400 },
+};
+
+function convertUnits(value: number, fromRaw: string, toRaw: string): string {
+  const from = fromRaw.trim().toLowerCase();
+  const to = toRaw.trim().toLowerCase();
+  const tempUnits = new Set(["c", "f", "k"]);
+  if (tempUnits.has(from) && tempUnits.has(to)) {
+    const celsius = from === "c" ? value : from === "f" ? ((value - 32) * 5) / 9 : value - 273.15;
+    const out = to === "c" ? celsius : to === "f" ? (celsius * 9) / 5 + 32 : celsius + 273.15;
+    return `${Number(out.toFixed(6))} ${to.toUpperCase()}`;
+  }
+  const src = LINEAR_UNITS[from];
+  const dst = LINEAR_UNITS[to];
+  if (!src || !dst) throw new Error(`Unsupported unit "${!src ? fromRaw : toRaw}".`);
+  if (src.group !== dst.group) {
+    throw new Error(`Cannot convert ${src.group} ("${from}") to ${dst.group} ("${to}").`);
+  }
+  const converted = (value * src.toBase) / dst.toBase;
+  return `${Number(converted.toFixed(6))} ${to}`;
+}
+
 /** Creates the default read-only safe tool registry for PROXIMA's agent loop. */
 export function createDefaultToolRegistry(): AgentToolRegistry {
   return new AgentToolRegistry()
@@ -225,5 +275,93 @@ export function createDefaultToolRegistry(): AgentToolRegistry {
       requiresApproval: false,
       schema: z.object({}).strict(),
       execute: () => new Date().toISOString(),
+    })
+    .register({
+      name: "convert_units",
+      description:
+        "Convert a numeric value between length (mm,cm,m,km,in,ft,yd,mi), mass (mg,g,kg,oz,lb), temperature (C,F,K), data (B,KB,MB,GB,TB), or time (ms,s,min,hr,day).",
+      permission: "read-only",
+      requiresApproval: false,
+      schema: z
+        .object({
+          value: z.number().finite(),
+          from: z.string().min(1).max(16),
+          to: z.string().min(1).max(16),
+        })
+        .strict(),
+      execute: ({ value, from, to }) => convertUnits(value, from, to),
+    })
+    .register({
+      name: "analyze_text",
+      description: "Compute word count, character count, line count, estimated reading time, and top terms.",
+      permission: "read-only",
+      requiresApproval: false,
+      schema: z.object({ text: z.string().min(1).max(50_000) }).strict(),
+      execute: ({ text }) => {
+        const words = text.toLowerCase().match(/[a-z0-9]+(?:'[a-z]+)?/g) ?? [];
+        const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 0).length;
+        const lines = text.split(/\r?\n/).length;
+        const freq = new Map<string, number>();
+        for (const w of words) {
+          if (w.length < 3) continue;
+          freq.set(w, (freq.get(w) ?? 0) + 1);
+        }
+        const topWords = Array.from(freq.entries())
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .slice(0, 8)
+          .map(([word, count]) => ({ word, count }));
+        return JSON.stringify({
+          characters: text.length,
+          words: words.length,
+          sentences,
+          lines,
+          readingTimeSeconds: Math.max(1, Math.round((words.length / 200) * 60)),
+          topWords,
+        });
+      },
+    })
+    .register({
+      name: "extract_structured",
+      description: "Extract emails, urls, dates (YYYY-MM-DD), numbers, or markdown headings from text.",
+      permission: "read-only",
+      requiresApproval: false,
+      schema: z
+        .object({
+          text: z.string().min(1).max(50_000),
+          kind: z.enum(["emails", "urls", "dates", "numbers", "headings"]),
+        })
+        .strict(),
+      execute: ({ text, kind }) => {
+        const patterns: Record<typeof kind, RegExp> = {
+          emails: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
+          urls: /\bhttps?:\/\/[^\s<>()]+/g,
+          dates: /\b\d{4}-\d{2}-\d{2}\b/g,
+          numbers: /-?\b\d+(?:\.\d+)?\b/g,
+          headings: /^#{1,6}\s+.+$/gm,
+        };
+        const matches = Array.from(new Set(text.match(patterns[kind]) ?? [])).slice(0, 50);
+        return JSON.stringify({ kind, count: matches.length, items: matches });
+      },
+    })
+    .register({
+      name: "format_table",
+      description: "Format headers and rows into a clean, escaped Markdown table.",
+      permission: "read-only",
+      requiresApproval: false,
+      schema: z
+        .object({
+          headers: z.array(z.string().max(120)).min(1).max(12),
+          rows: z.array(z.array(z.string().max(240)).max(12)).max(100),
+        })
+        .strict(),
+      execute: ({ headers, rows }) => {
+        const esc = (cell: string) => cell.replace(/\|/g, "\\|").replace(/\r?\n/g, " ").trim();
+        const headerLine = `| ${headers.map(esc).join(" | ")} |`;
+        const divider = `| ${headers.map(() => "---").join(" | ")} |`;
+        const body = rows.map(
+          (row) => `| ${headers.map((_, i) => esc(row[i] ?? "")).join(" | ")} |`,
+        );
+        return [headerLine, divider, ...body].join("\n");
+      },
     });
 }

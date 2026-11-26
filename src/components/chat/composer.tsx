@@ -44,7 +44,7 @@ import {
 } from "./composer-vibes";
 import { ModeMenu } from "./mode-menu";
 
-const MAX_HEIGHT = 200;
+const MAX_HEIGHT = 156;
 
 /** What the chat needs to send a picture: its id (the bytes stay on the server). */
 export type SendableImage = { id: string; url: string; width: number; height: number; name: string };
@@ -67,6 +67,8 @@ export const Composer = memo(function Composer({
   onTemporaryChange,
   mode,
   onModeChange,
+  agentMode = false,
+  onAgentModeChange,
   voice,
   onVoiceInputChange,
 }: {
@@ -90,6 +92,9 @@ export const Composer = memo(function Composer({
   /** Answer style (fast / thinking / coding / analyze). */
   mode: ChatMode;
   onModeChange: (mode: ChatMode) => void;
+  /** Multi-step autonomous agent mode (Plan → Act → Observe → Verify). */
+  agentMode?: boolean;
+  onAgentModeChange?: (enabled: boolean) => void;
   /** Publishes speech-recognition controls to the chat header. */
   onVoiceInputChange?: (
     control: { listening: boolean; supported: boolean; toggle: () => void } | null,
@@ -118,7 +123,6 @@ export const Composer = memo(function Composer({
   const memeTimerRef = useRef<number | null>(null);
   const memeIdRef = useRef(0);
   const lastTriggerRef = useRef<string>("");
-  const hintId = useId();
 
   const triggerMeme = useCallback((kind: ComposerMemeKind, customCaption?: string) => {
     const spec = COMPOSER_MEMES[kind];
@@ -448,7 +452,7 @@ export const Composer = memo(function Composer({
 
       <form
         className={cn(
-          "glass-panel relative mx-auto w-full max-w-3xl rounded-[1.75rem] transition-[box-shadow,border-color] duration-300",
+          "glass-panel relative mx-auto w-full max-w-2xl rounded-[1.45rem] transition-[box-shadow,border-color] duration-300",
           "focus-within:border-line-strong focus-within:shadow-glow",
           dragging && "border-line-strong shadow-glow-strong",
           activeMeme?.kind === "wasted" && "composer-wasted-ring",
@@ -567,24 +571,50 @@ export const Composer = memo(function Composer({
           enterKeyHint="send"
           autoComplete="off"
           spellCheck
-          aria-describedby={hintId}
           aria-invalid={tooLong || undefined}
-          className="block max-h-[200px] w-full resize-none bg-transparent px-5 pt-4 pb-2 text-base leading-relaxed placeholder:text-subtle focus:outline-none focus-visible:outline-none"
+          className="block max-h-[156px] w-full resize-none bg-transparent px-4 pt-3 pb-1.5 text-[15px] leading-snug placeholder:text-subtle focus:outline-none focus-visible:outline-none"
         />
         {interim && (
-          <p className="px-5 pb-1 text-sm text-subtle italic" aria-live="polite">
+          <p className="px-4 pb-1 text-xs text-subtle italic" aria-live="polite">
             {interim}
           </p>
         )}
         {tooLong && (
-          <p role="alert" className="px-5 pb-2 text-xs font-semibold text-red-500">
+          <p role="alert" className="px-4 pb-1.5 text-xs font-semibold text-red-500">
             Too long by {length - LIMITS.messageMax} characters. Shorten it to send.
           </p>
         )}
 
-        <div role="group" aria-label="Message actions" className="flex items-center gap-1 px-2 pb-2">
+        <div role="group" aria-label="Message actions" className="flex items-center gap-1 px-2 pb-1.5">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             <ModeMenu mode={mode} onChange={onModeChange} className="shrink-0" />
+
+            {onAgentModeChange && (
+              <button
+                type="button"
+                aria-pressed={agentMode}
+                aria-label={
+                  agentMode
+                    ? "Autonomous agent mode is on (multi-step planning & tools)"
+                    : "Turn on autonomous agent mode"
+                }
+                title={
+                  agentMode
+                    ? "Autonomous agent mode on — multi-step planning, sandboxed tools & checkpoints"
+                    : "Autonomous agent mode"
+                }
+                onClick={() => onAgentModeChange(!agentMode)}
+                className={cn(
+                  "inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-bold transition-[color,background-color] duration-200",
+                  agentMode
+                    ? "glass-pill text-[var(--accent-text)]"
+                    : "text-subtle hover:bg-surface-hover hover:text-fg",
+                )}
+              >
+                <Sparkle weight={agentMode ? "fill" : "bold"} className="size-4" aria-hidden />
+                <span className="hidden sm:inline">{agentMode ? "Agent on" : "Agent"}</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -598,7 +628,7 @@ export const Composer = memo(function Composer({
               }}
               title={temporary ? "Temporary chat is on. Messages are not saved." : "Start a temporary chat"}
               className={cn(
-                "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl px-2.5 text-xs font-bold transition-[color,background-color] duration-200",
+                "inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-bold transition-[color,background-color] duration-200",
                 temporary
                   ? "bg-[var(--accent)]/12 text-[var(--accent-text)]"
                   : "text-subtle hover:bg-surface-hover hover:text-fg",
@@ -650,7 +680,7 @@ export const Composer = memo(function Composer({
             />
           </div>
 
-          <span className="relative inline-grid size-11 shrink-0 place-items-center">
+          <span className="relative inline-grid size-9 shrink-0 place-items-center">
             <AnimatePresence initial={false} mode="popLayout">
               {streaming ? (
                 <m.button
@@ -666,7 +696,7 @@ export const Composer = memo(function Composer({
                   exit={{ opacity: 0, scale: 0.5, rotate: 90 }}
                   transition={SPRING.snappy}
                   whileTap={{ scale: 0.92 }}
-                  className="col-start-1 row-start-1 inline-flex size-11 items-center justify-center rounded-2xl bg-inverse text-on-inverse"
+                  className="col-start-1 row-start-1 inline-flex size-9 items-center justify-center rounded-xl bg-inverse text-on-inverse"
                 >
                   <Stop weight="fill" className="size-4" aria-hidden />
                 </m.button>
@@ -681,20 +711,15 @@ export const Composer = memo(function Composer({
                   exit={{ opacity: 0, scale: 0.5, rotate: -90 }}
                   transition={SPRING.snappy}
                   whileTap={{ scale: 0.92 }}
-                  className="col-start-1 row-start-1 inline-flex size-11 items-center justify-center rounded-2xl bg-inverse text-on-inverse shadow-glow disabled:opacity-50 disabled:shadow-none"
+                  className="col-start-1 row-start-1 inline-flex size-9 items-center justify-center rounded-xl bg-inverse text-on-inverse shadow-glow disabled:opacity-50 disabled:shadow-none"
                 >
-                  <ArrowUp weight="bold" className="size-5" aria-hidden />
+                  <ArrowUp weight="bold" className="size-4.5" aria-hidden />
                 </m.button>
               )}
             </AnimatePresence>
           </span>
         </div>
       </form>
-      <p id={hintId} className="mt-2 text-center text-[11px] font-medium text-subtle">
-        <span className="sm:hidden">Tap send when you&apos;re ready</span>
-        <span className="hidden sm:inline">Enter sends · Shift + Enter adds a line</span>
-        <span className="sr-only">. Your messages are sent over an encrypted connection.</span>
-      </p>
     </div>
   );
 });
@@ -795,7 +820,7 @@ function AttachMenu({
             const index = all.indexOf(document.activeElement as HTMLElement);
             all[(index + (event.key === "ArrowDown" ? 1 : -1) + all.length) % all.length]?.focus();
           }}
-          className="absolute bottom-full left-0 z-40 mb-2 w-[min(18rem,calc(100vw-1.5rem))] origin-bottom-left animate-scale-in rounded-2xl glass-solid p-1.5 shadow-glow-strong"
+          className="glass-dropdown absolute bottom-full left-0 z-40 mb-2 w-[min(18rem,calc(100vw-1.5rem))] origin-bottom-left animate-scale-in rounded-2xl p-1.5"
         >
           {items.map((item) => (
             <button

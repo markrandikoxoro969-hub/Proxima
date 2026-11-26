@@ -84,7 +84,7 @@ export function ModeMenu({
         aria-label={`Answer mode: ${current.label}. Change answer mode`}
         title={`${current.label} · ${current.summary}`}
         className={cn(
-          "inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2.5 text-xs font-bold",
+          "inline-flex min-h-9 items-center gap-1.5 rounded-xl px-2 text-xs font-bold",
           "transition-[color,background-color] duration-200 hover:bg-surface-hover hover:text-fg",
           open ? "bg-surface-hover text-fg" : "text-muted",
         )}

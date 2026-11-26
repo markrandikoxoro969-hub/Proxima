@@ -223,4 +223,30 @@ describe("chatReducer", () => {
     const s = chatReducer(start(), { type: "renamed", id: "b", title: "Physics notes" });
     expect(s.sessions[1].title).toBe("Physics notes");
   });
+
+  it("records pending approval on approvalRequired and stops streaming cleanly", () => {
+    let s = start();
+    s = chatReducer(s, {
+      type: "sendStart",
+      key: DRAFT,
+      user: msg("tmp-u1", "user", "/agent cleanup"),
+      assistant: msg("tmp-a1", "assistant"),
+    });
+    s = chatReducer(s, {
+      type: "approvalRequired",
+      key: DRAFT,
+      id: "tmp-a1",
+      approval: {
+        stepId: "step-1",
+        title: "Delete old draft",
+        toolName: "delete_draft",
+        conversationId: "c1",
+      },
+    });
+    expect(s.streamingKey).toBeNull();
+    expect(s.conversations[DRAFT].messages[1]).toMatchObject({
+      status: "stopped",
+      pendingApproval: { stepId: "step-1", toolName: "delete_draft" },
+    });
+  });
 });

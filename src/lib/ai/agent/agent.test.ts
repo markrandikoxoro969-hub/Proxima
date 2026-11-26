@@ -134,4 +134,65 @@ describe("PROXIMA Universal Agent Architecture", () => {
     });
     expect(parseToolCallFallback("plain assistant reply without json")).toBeNull();
   });
+
+  it("executes expanded sandboxed tools (convert_units, analyze_text, extract_structured, format_table)", async () => {
+    const registry = createDefaultToolRegistry();
+    const ctx = { userId: "u1" };
+
+    const temp = await registry.invoke({
+      callId: "u1",
+      toolName: "convert_units",
+      args: { value: 100, from: "C", to: "F" },
+      ctx,
+    });
+    expect(temp.ok).toBe(true);
+    expect(temp.output).toBe("212 F");
+
+    const badUnit = await registry.invoke({
+      callId: "u2",
+      toolName: "convert_units",
+      args: { value: 5, from: "kg", to: "km" },
+      ctx,
+    });
+    expect(badUnit.ok).toBe(false);
+    expect(badUnit.error).toContain("Cannot convert");
+
+    const metrics = await registry.invoke({
+      callId: "a1",
+      toolName: "analyze_text",
+      args: { text: "Proxima builds fast glass interfaces. Glass interfaces stay readable." },
+      ctx,
+    });
+    expect(metrics.ok).toBe(true);
+    expect(JSON.parse(metrics.output)).toMatchObject({ words: 9, sentences: 2 });
+
+    const extracted = await registry.invoke({
+      callId: "e1",
+      toolName: "extract_structured",
+      args: { text: "Reach ops@proxima.ai or visit https://proxima.ai by 2026-11-25.", kind: "emails" },
+      ctx,
+    });
+    expect(extracted.ok).toBe(true);
+    expect(JSON.parse(extracted.output)).toEqual({
+      kind: "emails",
+      count: 1,
+      items: ["ops@proxima.ai"],
+    });
+
+    const table = await registry.invoke({
+      callId: "t1",
+      toolName: "format_table",
+      args: {
+        headers: ["Metric", "Value"],
+        rows: [
+          ["Latency", "120ms"],
+          ["Status", "OK"],
+        ],
+      },
+      ctx,
+    });
+    expect(table.ok).toBe(true);
+    expect(table.output).toContain("| Metric | Value |");
+    expect(table.output).toContain("| Latency | 120ms |");
+  });
 });

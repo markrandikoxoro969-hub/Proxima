@@ -26,6 +26,7 @@ export function useChat({
   initialActivePage,
   notify,
   mode = "thinking",
+  agentMode = false,
   selectedSkills = [],
 }: {
   initialSessions: SessionSummary[];
@@ -35,6 +36,8 @@ export function useChat({
   notify: Notify;
   /** Answer style chosen in the composer, applied to each new reply. */
   mode?: ChatMode;
+  /** Opt in to PROXIMA's multi-step autonomous agent loop. */
+  agentMode?: boolean;
   /** Enabled catalog skills selected in Settings and applied to every new reply. */
   selectedSkills?: string[];
 }) {
@@ -105,6 +108,7 @@ export function useChat({
       images,
       retryOf,
       skills,
+      approvedStepId,
     }: {
       key: string;
       text: string;
@@ -112,6 +116,7 @@ export function useChat({
       images: { id: string; url: string; width: number; height: number; name: string }[];
       retryOf?: string;
       skills?: string[];
+      approvedStepId?: string;
     }) => {
       const now = new Date().toISOString();
       // Context for the AI: the most recent turns of this chat (max 20).
@@ -195,6 +200,9 @@ export function useChat({
           attachments: attachments.length ? attachments : undefined,
           images: images.length ? images.map((image) => ({ id: image.id })) : undefined,
           retry: retryOf ? true : undefined,
+          agentMode: agentMode || undefined,
+          agentContinue: approvedStepId ? true : undefined,
+          approvedStepId,
           showReasoning,
           mode: answerMode,
           skills: skills?.length ? skills : undefined,
@@ -240,14 +248,10 @@ export function useChat({
             dispatch({ type: "filePreview", key: currentKey, id: assistantId, ...draft }),
           onAgentApproval: (approval) => {
             dispatch({
-              type: "failed",
+              type: "approvalRequired",
               key: currentKey,
               id: assistantId,
-              error: {
-                code: "approval_required",
-                message: `Action "${approval.title}" (${approval.toolName}) requires your approval before continuing.`,
-                retryable: true,
-              },
+              approval,
             });
             notify(`Approval needed for "${approval.title}".`, "info");
           },
@@ -273,7 +277,7 @@ export function useChat({
       );
       if (abortRef.current === controller) abortRef.current = null;
     },
-    [mode, notify, showReasoning, temporary],
+    [agentMode, mode, notify, showReasoning, temporary],
   );
 
   const send = useCallback(
@@ -291,9 +295,9 @@ export function useChat({
     [run, selectedSkills],
   );
 
-  /** "Try again" on a failed or stopped reply. */
+  /** "Try again" on a failed or stopped reply, or approve a paused agent step. */
   const retry = useCallback(
-    async (assistantId: string) => {
+    async (assistantId: string, approvedStepId?: string) => {
       const s = stateRef.current;
       if (s.streamingKey) return;
       const key = s.activeKey;
@@ -329,9 +333,20 @@ export function useChat({
         }),
         retryOf: assistantId,
         skills: selectedSkills,
+        approvedStepId,
       });
     },
     [run, selectedSkills],
+  );
+
+  const approveStep = useCallback(
+    async (assistantId: string) => {
+      const s = stateRef.current;
+      const msg = s.conversations[s.activeKey]?.messages.find((m) => m.id === assistantId);
+      if (!msg?.pendingApproval?.stepId) return;
+      await retry(assistantId, msg.pendingApproval.stepId);
+    },
+    [retry],
   );
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
@@ -421,6 +436,7 @@ export function useChat({
     newChat,
     send,
     retry,
+    approveStep,
     stop,
     loadOlder,
     loadMoreSessions,

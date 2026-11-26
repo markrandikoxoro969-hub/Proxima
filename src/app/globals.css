@@ -237,6 +237,22 @@ html.dark {
  * Blur is 12px on desktop and 8px on phones: past that the GPU cost climbs
  * quickly and nobody can see the difference behind a 0.7-alpha surface.
  */
+.proxima-text-glow {
+  text-shadow: 0 0 22px color-mix(in srgb, var(--fg) 30%, transparent);
+}
+
+.proxima-logo-glow {
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--fg) 38%, transparent));
+}
+
+html.dark .proxima-text-glow {
+  text-shadow: 0 0 28px rgba(255, 255, 255, 0.42);
+}
+
+html.dark .proxima-logo-glow {
+  filter: drop-shadow(0 0 22px rgba(255, 255, 255, 0.55)) drop-shadow(0 0 8px rgba(255, 255, 255, 0.28));
+}
+
 @utility glass {
   background-color: var(--glass-bg);
   background-image: var(--glass-reflection);

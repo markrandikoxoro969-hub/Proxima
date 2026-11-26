@@ -33,6 +33,7 @@ const Markdown = dynamic(() => import("./markdown"), {
 export const MessageItem = memo(function MessageItem({
   message,
   onRetry,
+  onApproveStep,
   canRetry,
   speaking,
   onRead,
@@ -40,6 +41,7 @@ export const MessageItem = memo(function MessageItem({
 }: {
   message: UiMessage;
   onRetry: (id: string) => void;
+  onApproveStep?: (id: string) => void;
   canRetry: boolean;
   /** This reply is being read aloud right now. */
   speaking?: boolean;
@@ -52,6 +54,7 @@ export const MessageItem = memo(function MessageItem({
     <AssistantMessage
       message={message}
       onRetry={onRetry}
+      onApproveStep={onApproveStep}
       canRetry={canRetry}
       speaking={speaking}
       onRead={onRead}
@@ -125,6 +128,7 @@ function UserMessage({ message }: { message: UiMessage }) {
 function AssistantMessage({
   message,
   onRetry,
+  onApproveStep,
   canRetry,
   speaking,
   onRead,
@@ -132,6 +136,7 @@ function AssistantMessage({
 }: {
   message: UiMessage;
   onRetry: (id: string) => void;
+  onApproveStep?: (id: string) => void;
   canRetry: boolean;
   speaking?: boolean;
   onRead?: (id: string, text: string) => void;
@@ -236,7 +241,34 @@ function AssistantMessage({
           </div>
         )}
 
-        {message.status === "stopped" && (
+        {message.pendingApproval && (
+          <div
+            role="status"
+            className="glass-card mt-3 flex flex-col gap-3 rounded-2xl p-4 text-sm sm:flex-row sm:items-center"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="font-extrabold text-fg">Approval required</p>
+              <p className="mt-0.5 text-xs text-muted">
+                {message.pendingApproval.title}{" "}
+                <span className="glass-pill ml-1 inline-block rounded-full px-2 py-0.5 font-mono text-[10px] text-fg">
+                  {message.pendingApproval.toolName}
+                </span>
+              </p>
+            </div>
+            {onApproveStep && (
+              <button
+                type="button"
+                disabled={!canRetry}
+                onClick={() => onApproveStep(message.id)}
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-inverse px-4 text-xs font-extrabold text-on-inverse transition-opacity hover:opacity-90 disabled:opacity-40"
+              >
+                Approve &amp; continue
+              </button>
+            )}
+          </div>
+        )}
+
+        {message.status === "stopped" && !message.pendingApproval && (
           <div className="mt-3 flex items-center gap-3 text-xs font-bold text-subtle">
             <span>Stopped</span>
             <ActionButton onClick={() => onRetry(message.id)} disabled={!canRetry} label="Regenerate" />
