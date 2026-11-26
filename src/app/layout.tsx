@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ProximaSplash } from "@/components/brand/proxima-splash";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { PerfGuards } from "@/components/system/perf-guards";
 import { ThemeBackdrop } from "@/components/theme/theme-backdrop";
@@ -79,6 +80,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           Skip to content
         </a>
         <ThemeProvider>
+          {/* Original Proxima loading splash on load, refresh & tab return. */}
+          <ProximaSplash />
           {/* Sky / Ocean / Nature paint a slow background behind every page. */}
           <ThemeBackdrop />
           {children}

@@ -105,8 +105,8 @@ export const ChatHeader = memo(function ChatHeader({
             type="button"
             onClick={onOpenPalette}
             aria-label="Open command palette"
-            title="Quick search & commands (⌘K)"
-            className="hidden h-11 shrink-0 items-center gap-2 rounded-xl glass-pill px-3 text-xs font-extrabold tracking-[0.14em] text-muted uppercase transition-colors duration-200 hover:border-[var(--glass-border-strong)] hover:bg-surface-hover hover:text-fg md:inline-flex"
+            title="Quick search"
+            className="hidden h-10 shrink-0 items-center gap-2 rounded-xl glass-pill px-3 text-xs font-extrabold tracking-[0.14em] text-muted uppercase transition-colors duration-200 hover:border-[var(--glass-border-strong)] hover:bg-surface-hover hover:text-fg md:inline-flex"
           >
             <svg
               viewBox="0 0 24 24"
@@ -122,9 +122,6 @@ export const ChatHeader = memo(function ChatHeader({
               <path d="m20 20-3.5-3.5" />
             </svg>
             <span className="hidden xl:inline">Search</span>
-            <kbd className="rounded-md border border-line bg-surface-solid px-1.5 py-0.5 font-mono text-[10px] font-bold text-subtle">
-              ⌘K
-            </kbd>
           </button>
         )}
         <ThemeAudioToggle />

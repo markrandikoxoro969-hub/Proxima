@@ -27,25 +27,12 @@ import { cn } from "@/lib/cn";
 import { SPRING } from "@/lib/motion/tokens";
 import { site } from "@/lib/site";
 
-const ENGINE_LABEL: Record<EngineStatus, string> = {
-  checking: "Checking engine…",
-  online: "Engine online",
-  waking: "Engine waking up",
-  offline: "Engine offline",
-};
-const ENGINE_DOT: Record<EngineStatus, string> = {
-  checking: "bg-subtle",
-  online: "bg-emerald-500 shadow-[0_0_10px_rgb(16_185_129/0.7)]",
-  waking: "bg-amber-400 animate-pulse",
-  offline: "bg-red-500",
-};
-
 type SidebarProps = {
   sessions: SessionSummary[];
   activeKey: string;
   streamingKey: string | null;
   hasMore: boolean;
-  engine: EngineStatus;
+  engine?: EngineStatus;
   profile: Profile;
   /** Mobile left-side navigation drawer state (ignored on large screens). */
   open: boolean;
@@ -132,7 +119,6 @@ function SidebarContent({
   activeKey,
   streamingKey,
   hasMore,
-  engine,
   profile,
   onToggleCollapse,
   onClose,
@@ -164,7 +150,7 @@ function SidebarContent({
             type="button"
             onClick={onToggleCollapse}
             aria-label="Collapse sidebar"
-            title="Collapse sidebar (⌘B)"
+            title="Collapse sidebar"
             className="hidden tap items-center justify-center rounded-xl text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-fg lg:inline-flex"
           >
             <SidebarSimple weight="bold" className="size-5" aria-hidden />
@@ -269,12 +255,6 @@ function SidebarContent({
       </nav>
 
       <div className="flex flex-col gap-1 border-t border-line px-3 pt-3 pb-4">
-        <div className="flex items-center gap-2.5 px-3 py-2" role="status" aria-live="polite">
-          <span className={cn("size-2 rounded-full", ENGINE_DOT[engine])} aria-hidden />
-          <span className="text-[10px] font-extrabold tracking-[0.25em] text-muted uppercase">
-            {ENGINE_LABEL[engine]}
-          </span>
-        </div>
         <Link
           href="/studio"
           onClick={onClose}

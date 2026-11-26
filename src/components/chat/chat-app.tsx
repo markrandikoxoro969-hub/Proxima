@@ -49,7 +49,8 @@ import { ChatHeader } from "./chat-header";
 import type { Command } from "./command-palette";
 import { EmptyState } from "./empty-state";
 import type { SettingsTab } from "./settings-dialog";
-import { VoiceMenu } from "./voice-menu";
+
+const VoiceMenu = dynamic(() => import("./voice-menu").then((module) => module.VoiceMenu));
 
 const MessageList = dynamic(() => import("./message-list").then((module) => module.MessageList), {
   loading: () => (
@@ -64,7 +65,7 @@ const Composer = dynamic(() => import("./composer").then((module) => module.Comp
       <span className="sr-only">Loading message composer…</span>
       <div
         aria-hidden
-        className="mx-auto h-24 max-w-3xl animate-pulse rounded-3xl border border-line bg-surface-solid motion-reduce:animate-none"
+        className="mx-auto h-20 max-w-2xl animate-pulse rounded-[1.45rem] border border-line bg-surface-solid motion-reduce:animate-none"
       />
     </div>
   ),
@@ -583,6 +584,13 @@ function ChatScreen({
         run: toggleDesktopSidebar,
       },
       {
+        id: "agent-mode",
+        label: agentMode ? "Turn off autonomous agent mode" : "Turn on autonomous agent mode",
+        icon: <Sparkle weight={agentMode ? "fill" : "bold"} className="size-4" />,
+        keywords: "agent autonomous multi-step tools plan verify",
+        run: () => setAgentMode((v) => !v),
+      },
+      {
         id: "image",
         label: "Create or edit a picture",
         icon: <ImageSquare weight="bold" className="size-4" />,
@@ -625,6 +633,7 @@ function ChatScreen({
       },
     ],
     [
+      agentMode,
       copyLastReply,
       desktopCollapsed,
       newChat,
