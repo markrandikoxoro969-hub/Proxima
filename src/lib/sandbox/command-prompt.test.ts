@@ -4,13 +4,16 @@ import { createDefaultToolRegistry } from "@/lib/ai/agent/tools";
 import { buildSandboxDocument } from "@/lib/chat/client/code-bundle";
 import { identitySystemSection } from "@/lib/identity";
 import {
+  createCommandTagStreamFilter,
   executeChatCommands,
   extractProximaCommands,
   extractWorkspaceFilesFromHistory,
+  formatTerminalToolBlock,
   formatTerminalTranscript,
   hasCommandPromptIntent,
   parseSlashCommand,
 } from "./chat-command-bridge";
+import { extractGeneratedFiles } from "@/lib/chat/client/code-bundle";
 import { createCommandPromptState, executeCommandLine } from "./command-prompt";
 import { runProximaCommand } from "./server-command";
 import { assertSafePublicUrl, extractTextFromHtml, formatScrapedPage } from "./web-scrape";
@@ -168,5 +171,50 @@ describe("Proxima Command Prompt engine", () => {
 
     // Coding failover timeout is fast (20s default instead of 2.5 minutes)
     expect(openRouterFirstTokenTimeoutMs({})).toBe(20_000);
+  });
+
+  it("intercepts chunked <proxima_cmd> tags without leaking, supports ||/2>&1/curl -o, and renders reload-safe terminal cards", async () => {
+    const filter = createCommandTagStreamFilter();
+    const chunks = [
+      "Let me check ",
+      "that for you. <pro",
+      "xima_cmd>echo hi && ",
+      "ls -la</proxima_",
+      "cmd> Almost done!",
+    ];
+    let visible = "";
+    for (const c of chunks) visible += filter.push(c);
+    const flushed = filter.flush();
+    visible += flushed.text;
+
+    expect(visible).toBe("Let me check that for you.  Almost done!");
+    expect(visible).not.toContain("proxima_cmd");
+    expect(flushed.commands).toEqual(["echo hi && ls -la"]);
+
+    // Supports || fallback chaining, 2>&1 stderr merge, and /dev/null sink
+    const state = createCommandPromptState([]);
+    const fallback = await executeCommandLine("cat missing.txt 2>/dev/null || echo recovered", state);
+    expect(fallback.exitCode).toBe(0);
+    expect(fallback.stdout).toBe("recovered");
+    expect(fallback.stderr).toBe("");
+
+    // Supports curl -sL -o <file>
+    const curlSave = await executeCommandLine("curl -sL https://example.com -o page.txt && cat page.txt", state, {
+      fetchUrl: async () => ({ ok: true, text: "Hello from live site" }),
+    });
+    expect(curlSave.exitCode).toBe(0);
+    expect(curlSave.stdout).toContain("Hello from live site");
+
+    // Arena-style terminal card block is never misclassified as a generated code file for Sandbox/ZIP
+    const card = formatTerminalToolBlock({
+      command: "ls -la",
+      cwd: "/workspace",
+      stdout: "index.html",
+      stderr: "",
+      exitCode: 0,
+      durationMs: 12,
+    });
+    expect(card).toContain("```proxima-terminal");
+    expect(extractGeneratedFiles(card)).toEqual([]);
   });
 });

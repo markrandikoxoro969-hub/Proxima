@@ -158,6 +158,8 @@ export function extractGeneratedFiles(markdown: string): GeneratedFile[] {
     // Support info string like `tsx src/App.tsx` or `js title="app.js"`
     const infoTokens = rawInfo.split(/\s+/).filter(Boolean);
     const language = (infoTokens[0] ?? "").toLowerCase();
+    // Never treat Proxima's inline Arena-style terminal execution cards as generated code files.
+    if (language === "proxima-terminal") continue;
     let explicitPath: string | null = null;
     for (const token of infoTokens.slice(1)) {
       const cleaned = token.replace(/^(?:title|file|filename)=["']?|["']$/gi, "");

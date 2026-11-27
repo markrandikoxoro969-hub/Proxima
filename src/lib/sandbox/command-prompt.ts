@@ -247,9 +247,9 @@ function tokenizeShell(input: string, env: Record<string, string>): string[] {
   return tokens;
 }
 
-/** Splits chained commands on top-level `&&` and `;` outside quotes. */
-function splitChainedCommands(line: string): { cmd: string; op: "&&" | ";" | null }[] {
-  const parts: { cmd: string; op: "&&" | ";" | null }[] = [];
+/** Splits chained commands on top-level `&&`, `||`, and `;` outside quotes. */
+function splitChainedCommands(line: string): { cmd: string; op: "&&" | "||" | ";" | null }[] {
+  const parts: { cmd: string; op: "&&" | "||" | ";" | null }[] = [];
   let buf = "";
   let inSingle = false;
   let inDouble = false;
@@ -269,6 +269,12 @@ function splitChainedCommands(line: string): { cmd: string; op: "&&" | ";" | nul
     if (!inSingle && !inDouble) {
       if (ch === "&" && line[i + 1] === "&") {
         parts.push({ cmd: buf.trim(), op: "&&" });
+        buf = "";
+        i += 1;
+        continue;
+      }
+      if (ch === "|" && line[i + 1] === "|") {
+        parts.push({ cmd: buf.trim(), op: "||" });
         buf = "";
         i += 1;
         continue;
@@ -399,19 +405,30 @@ async function executePipelineSegment(
     return { stdout: "", stderr: "", exitCode: 0, filesChanged: false };
   }
 
-  // Handle output redirection (`>` or `>>`) at the end of a segment.
+  // Handle output redirection (`>`, `>>`) and stderr redirection (`2>&1`, `2>/dev/null`).
   let redirectMode: ">" | ">>" | null = null;
   let redirectTarget: string | null = null;
+  let mergeStderr = false;
+  let discardStderr = false;
   const tokens: string[] = [];
   for (let i = 0; i < rawTokens.length; i += 1) {
     const tok = rawTokens[i]!;
-    if ((tok === ">" || tok === ">>") && i + 1 < rawTokens.length) {
+    if (tok === "2" && rawTokens[i + 1] === ">" && rawTokens[i + 2] === "&1") {
+      mergeStderr = true;
+      i += 2;
+    } else if (tok === "2" && rawTokens[i + 1] === ">" && rawTokens[i + 2] === "/dev/null") {
+      discardStderr = true;
+      i += 2;
+    } else if ((tok === ">" || tok === ">>") && i + 1 < rawTokens.length) {
       redirectMode = tok;
       redirectTarget = rawTokens[i + 1]!;
       i += 1;
     } else {
       tokens.push(tok);
     }
+  }
+  if (tokens.length === 0) {
+    return { stdout: "", stderr: "", exitCode: 0, filesChanged: false };
   }
 
   const cmd = tokens[0]!.toLowerCase();
@@ -923,7 +940,32 @@ async function executePipelineSegment(
     case "scrape":
     case "fetch":
     case "curl": {
-      const targetUrl = args.find((a) => /^https?:\/\//i.test(a)) ?? args.find((a) => !a.startsWith("-"));
+      // Parse standard curl flags (`-s`, `-S`, `-L`, `-k`, `-f`, `-i`, `-I`, `-o <file>`, `-H <hdr>`, `-A <ua>`).
+      let outFile: string | null = null;
+      let targetUrl: string | undefined;
+      for (let i = 0; i < args.length; i += 1) {
+        const a = args[i]!;
+        if ((a === "-o" || a === "--output") && i + 1 < args.length) {
+          outFile = args[i + 1]!;
+          i += 1;
+        } else if (
+          (a === "-H" ||
+            a === "--header" ||
+            a === "-A" ||
+            a === "--user-agent" ||
+            a === "-X" ||
+            a === "--request" ||
+            a === "-m" ||
+            a === "--max-time") &&
+          i + 1 < args.length
+        ) {
+          i += 1;
+        } else if (a.startsWith("-")) {
+          continue;
+        } else if (!targetUrl || /^https?:\/\//i.test(a)) {
+          targetUrl = a;
+        }
+      }
       if (!targetUrl) {
         stderr = `${cmd}: usage: ${cmd} https://example.com`;
         exitCode = 1;
@@ -939,11 +981,58 @@ async function executePipelineSegment(
       if (!fetched.ok) {
         stderr = `${cmd}: ${fetched.error}`;
         exitCode = 1;
+      } else if (outFile) {
+        const resolved = resolveWorkspacePath(state.cwd, outFile);
+        if (!resolved) {
+          stderr = `${cmd}: invalid output path: ${outFile}`;
+          exitCode = 1;
+        } else {
+          upsertFile(resolved, fetched.text);
+          stdout = `Saved ${fetched.text.length} chars from ${normalizedUrl} to ${resolved}`;
+        }
       } else {
         stdout = fetched.text;
       }
       break;
     }
+
+    case "sort": {
+      const reverse = args.includes("-r");
+      const unique = args.includes("-u");
+      const target = args.find((a) => !a.startsWith("-"));
+      const source = target ? (findFile(resolveWorkspacePath(state.cwd, target) ?? "")?.content ?? "") : stdin;
+      let lines = source.split(/\r?\n/);
+      lines.sort((a, b) => (reverse ? b.localeCompare(a) : a.localeCompare(b)));
+      if (unique) lines = Array.from(new Set(lines));
+      stdout = lines.join("\n");
+      break;
+    }
+
+    case "uniq": {
+      const target = args.find((a) => !a.startsWith("-"));
+      const source = target ? (findFile(resolveWorkspacePath(state.cwd, target) ?? "")?.content ?? "") : stdin;
+      const outLines: string[] = [];
+      for (const line of source.split(/\r?\n/)) {
+        if (outLines[outLines.length - 1] !== line) outLines.push(line);
+      }
+      stdout = outLines.join("\n");
+      break;
+    }
+
+    case "which": {
+      const name = args[0];
+      stdout = name ? `/bin/${name}` : "";
+      exitCode = name ? 0 : 1;
+      break;
+    }
+
+    case "true":
+      exitCode = 0;
+      break;
+
+    case "false":
+      exitCode = 1;
+      break;
 
     case "pip":
     case "pip3": {
@@ -1151,24 +1240,35 @@ async function executePipelineSegment(
       break;
   }
 
+  if (discardStderr) {
+    stderr = "";
+  } else if (mergeStderr && stderr) {
+    stdout = stdout ? `${stdout}\n${stderr}` : stderr;
+    stderr = "";
+  }
+
   // Apply stdout redirection if requested (`>` or `>>`).
   if (redirectMode && redirectTarget && exitCode === 0) {
-    const resolved = resolveWorkspacePath(state.cwd, redirectTarget);
-    if (!resolved) {
-      return {
-        stdout: "",
-        stderr: `proxima-sh: ${redirectTarget}: invalid path`,
-        exitCode: 1,
-        filesChanged,
-      };
+    if (redirectTarget === "/dev/null") {
+      stdout = "";
+    } else {
+      const resolved = resolveWorkspacePath(state.cwd, redirectTarget);
+      if (!resolved) {
+        return {
+          stdout: "",
+          stderr: `proxima-sh: ${redirectTarget}: invalid path`,
+          exitCode: 1,
+          filesChanged,
+        };
+      }
+      const existing = findFile(resolved);
+      const nextContent =
+        redirectMode === ">>" && existing
+          ? `${existing.content}${existing.content.endsWith("\n") || !existing.content ? "" : "\n"}${stdout}`
+          : stdout;
+      upsertFile(resolved, nextContent);
+      stdout = "";
     }
-    const existing = findFile(resolved);
-    const nextContent =
-      redirectMode === ">>" && existing
-        ? `${existing.content}${existing.content.endsWith("\n") || !existing.content ? "" : "\n"}${stdout}`
-        : stdout;
-    upsertFile(resolved, nextContent);
-    stdout = "";
   }
 
   return {
@@ -1245,6 +1345,7 @@ export async function executeCommandLine(
     if (pipeInput) stdouts.push(pipeInput);
     lastExit = segExit;
     if (part.op === "&&" && lastExit !== 0) break;
+    if (part.op === "||" && lastExit === 0) break;
   }
 
   return {
