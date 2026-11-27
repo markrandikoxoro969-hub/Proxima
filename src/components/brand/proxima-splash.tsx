@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { globalConfig } from "@/lib/global-config";
 
-const LOGO_TEXT = "Proxima";
+const LOGO_TEXT = globalConfig.app.shortName;
+const SPLASH_ENABLED = globalConfig.features.launchSplashEnabled;
 const TYPE_INTERVAL_MS = 90;
 const HOLD_AFTER_TYPE_MS = 650;
 const FADE_DURATION_MS = 400;
@@ -13,7 +15,7 @@ const FADE_DURATION_MS = 400;
  * leaves the page/tab and returns (visibilitychange / bfcache pageshow).
  */
 export function ProximaSplash() {
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(SPLASH_ENABLED);
   const [fading, setFading] = useState(false);
   const [typed, setTyped] = useState("");
   const timersRef = useRef<{

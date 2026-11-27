@@ -17,12 +17,14 @@
  * Nothing in this file touches the network or reads a secret into the browser:
  * it is only ever imported by server code.
  */
-export const DEFAULT_RENDER_URL = "https://sujancoreapi.onrender.com/chat";
+import { globalConfig } from "@/lib/global-config";
+
+export const DEFAULT_RENDER_URL = globalConfig.ai.render.url;
 /** Kept for older code/tests that imported the old name. */
 export const DEFAULT_SUJAN_CORE_URL = DEFAULT_RENDER_URL;
 
-export const DEFAULT_NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
-export const DEFAULT_NVIDIA_MODEL = "nvidia/nemotron-3-ultra-550b-a55b";
+export const DEFAULT_NVIDIA_BASE_URL = globalConfig.ai.nvidia.baseUrl;
+export const DEFAULT_NVIDIA_MODEL = globalConfig.ai.nvidia.model;
 /**
  * Hard ceiling for one answer, including the model's private reasoning. It must
  * be at least the largest mode budget (Coding: 16384), otherwise a long answer
@@ -30,19 +32,18 @@ export const DEFAULT_NVIDIA_MODEL = "nvidia/nemotron-3-ultra-550b-a55b";
  * is lower, the provider asks for a continuation instead of leaving half a file
  * on screen (see providers/nvidia.ts).
  */
-export const DEFAULT_NVIDIA_MAX_TOKENS = 16_384;
+export const DEFAULT_NVIDIA_MAX_TOKENS = globalConfig.ai.nvidia.maxTokens;
 /**
  * Used when someone attaches a picture and the main model is text-only.
- * Nemotron 3 Nano Omni reads the picture (OCR, screenshots, charts, objects)
- * and hands a description to the main model, so pictures work without changing
- * NVIDIA_MODEL. It runs with thinking off here so the description arrives
- * quickly and the small token budget is spent on observations, not reasoning.
- * Set NVIDIA_VISION_MODEL to another vision id (or "off") to override.
+ * Set `ai.nvidia.visionModel` in `/config.json` or `NVIDIA_VISION_MODEL` in env to override.
  */
-export const DEFAULT_NVIDIA_VISION_MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning";
+export const DEFAULT_NVIDIA_VISION_MODEL = globalConfig.ai.nvidia.visionModel;
 
-/** The default provider when AI_PROVIDER is not set. */
-export const DEFAULT_AI_PROVIDER = "nvidia";
+/** The default provider when AI_PROVIDER is not set (sourced from `/config.json`). */
+export const DEFAULT_AI_PROVIDER: NormalizedProviderId =
+  globalConfig.ai.defaultProvider === "render" || globalConfig.ai.defaultProvider === "mock"
+    ? globalConfig.ai.defaultProvider
+    : "nvidia";
 
 export const KNOWN_AI_PROVIDERS = ["nvidia", "render", "sujan-core", "mock"] as const;
 export type AiProviderId = (typeof KNOWN_AI_PROVIDERS)[number];
@@ -115,7 +116,8 @@ export type NvidiaSettings = {
  * take effect without a rebuild.
  */
 export function resolveNvidiaSettings(env: Record<string, string | undefined> = process.env): NvidiaSettings {
-  const thinking = (env.NVIDIA_ENABLE_THINKING ?? "true").trim().toLowerCase();
+  const defaultThinking = globalConfig.ai.nvidia.enableThinking ? "true" : "false";
+  const thinking = (env.NVIDIA_ENABLE_THINKING ?? defaultThinking).trim().toLowerCase();
   const vision = (env.NVIDIA_VISION_MODEL ?? "").trim();
   const apiKey = (env.NVIDIA_API_KEY ?? "").trim();
   // The two models can belong to different NVIDIA accounts. When no separate
@@ -127,9 +129,9 @@ export function resolveNvidiaSettings(env: Record<string, string | undefined> = 
     model: (env.NVIDIA_MODEL ?? "").trim() || DEFAULT_NVIDIA_MODEL,
     visionModel: /^(off|none|false|0)$/i.test(vision) ? "" : vision || DEFAULT_NVIDIA_VISION_MODEL,
     maxTokens: number(env.NVIDIA_MAX_TOKENS, DEFAULT_NVIDIA_MAX_TOKENS),
-    // On by default: the model reasons silently before it answers.
+    // On by default (configurable in /config.json): the model reasons silently before it answers.
     enableThinking: thinking !== "false" && thinking !== "0" && thinking !== "off",
     baseURL: (env.NVIDIA_BASE_URL ?? "").trim() || DEFAULT_NVIDIA_BASE_URL,
-    firstTokenTimeoutMs: number(env.NVIDIA_TIMEOUT_MS, 45_000),
+    firstTokenTimeoutMs: number(env.NVIDIA_TIMEOUT_MS, globalConfig.ai.nvidia.firstTokenTimeoutMs),
   };
 }

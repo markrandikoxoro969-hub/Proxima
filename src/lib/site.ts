@@ -1,22 +1,24 @@
+import { globalConfig } from "./global-config";
+
 /**
- * Public site information. Safe for the browser (no secrets here!).
+ * Public site information sourced from root `/config.json`.
+ * Safe for the browser (no secrets here!).
  * Secrets live only in environment variables read on the server.
  */
 export const site = {
-  name: "PROXIMA",
-  shortName: "Proxima",
-  tagline: "Premium Core AI",
-  description:
-    "PROXIMA answers plainly. Code, files and long questions in one quiet, private chat — with voice input and live replies.",
-  version: "1.0.2VBETA",
-  developer: "Sujan Shrestha",
-  supportDeveloper: "Aayusha Shrestha",
-  /** Launch anchor: 6 months prior to 2026-11-25 so Proxima's live age timer starts at 6 months and counts up continuously. */
-  bornAtIso: "2026-05-25T00:00:00Z",
+  name: globalConfig.app.name,
+  shortName: globalConfig.app.shortName,
+  tagline: globalConfig.app.tagline,
+  description: globalConfig.app.description,
+  version: globalConfig.app.version,
+  developer: globalConfig.identity.developers.lead,
+  supportDeveloper: globalConfig.identity.developers.support,
+  /** Launch anchor from config.json so Proxima's live age timer counts up continuously. */
+  bornAtIso: globalConfig.identity.bornAtIso,
   /** Full public URL, e.g. https://proxima.vercel.app (see resolveSiteUrl below). */
   url: resolveSiteUrl(),
   links: {
-    facebook: "https://m.facebook.com/profile.php?id=61583876866265",
+    facebook: globalConfig.identity.links.facebook,
   },
 } as const;
 

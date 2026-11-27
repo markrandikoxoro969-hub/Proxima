@@ -1,0 +1,74 @@
+{
+  "$comment": "Global Proxima configuration — change her name, version, identity, AI models, coding model, voice engines, defaults, and feature switches in one place. Keep secret API keys in .env.local / Vercel env vars (never here).",
+  "app": {
+    "name": "PROXIMA",
+    "shortName": "Proxima",
+    "tagline": "Premium Core AI",
+    "description": "PROXIMA answers plainly. Code, files and long questions in one quiet, private chat — with voice input and live replies.",
+    "version": "1.0.2VBETA",
+    "defaultTheme": "proxima"
+  },
+  "identity": {
+    "name": "Proxima",
+    "gender": "female",
+    "bornAtIso": "2026-05-25T00:00:00Z",
+    "developers": {
+      "lead": "Sujan Shrestha",
+      "support": "Aayusha Shrestha"
+    },
+    "links": {
+      "facebook": "https://m.facebook.com/profile.php?id=61583876866265"
+    },
+    "systemPromptExtras": ""
+  },
+  "ai": {
+    "defaultProvider": "nvidia",
+    "defaultMode": "thinking",
+    "historyLimit": 20,
+    "timeoutMs": 110000,
+    "codingTimeoutMs": 290000,
+    "nvidia": {
+      "baseUrl": "https://integrate.api.nvidia.com/v1",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b",
+      "visionModel": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      "maxTokens": 16384,
+      "enableThinking": true,
+      "firstTokenTimeoutMs": 45000
+    },
+    "openrouter": {
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "codingModel": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "codingMaxTokens": 65536,
+      "firstTokenTimeoutMs": 20000
+    },
+    "render": {
+      "url": "https://sujancoreapi.onrender.com/chat"
+    }
+  },
+  "speech": {
+    "defaultProvider": "auto",
+    "openaiModel": "gpt-4o-mini-tts",
+    "pollinationsModel": "tts-1",
+    "pollinationsUrl": "https://gen.pollinations.ai",
+    "voices": {
+      "edge": {
+        "girl": "en-US-AvaNeural",
+        "boy": "en-US-AndrewNeural"
+      },
+      "openai": {
+        "girl": "marin",
+        "boy": "cedar"
+      },
+      "pollinations": {
+        "girl": "nova",
+        "boy": "onyx"
+      }
+    }
+  },
+  "features": {
+    "commandPromptEnabled": true,
+    "maxCommandRounds": 4,
+    "sandboxEnabled": true,
+    "launchSplashEnabled": true
+  }
+}

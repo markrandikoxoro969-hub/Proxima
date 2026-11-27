@@ -12,14 +12,20 @@
  * Keys are read only inside the provider that needs them. They are never
  * logged, returned, or sent to the browser.
  */
+import { globalConfig } from "@/lib/global-config";
+
 export const KNOWN_SPEECH_PROVIDERS = ["auto", "openai", "pollinations", "edge", "off"] as const;
 export type SpeechProviderId = (typeof KNOWN_SPEECH_PROVIDERS)[number];
 export type ConcreteSpeechProviderId = Exclude<SpeechProviderId, "auto" | "off">;
 
-export const DEFAULT_SPEECH_PROVIDER: SpeechProviderId = "auto";
-export const DEFAULT_OPENAI_TTS_MODEL = "gpt-4o-mini-tts";
-export const DEFAULT_POLLINATIONS_TTS_MODEL = "tts-1";
-export const DEFAULT_POLLINATIONS_TTS_URL = "https://gen.pollinations.ai";
+export const DEFAULT_SPEECH_PROVIDER: SpeechProviderId = (
+  KNOWN_SPEECH_PROVIDERS as readonly string[]
+).includes(globalConfig.speech.defaultProvider)
+  ? (globalConfig.speech.defaultProvider as SpeechProviderId)
+  : "auto";
+export const DEFAULT_OPENAI_TTS_MODEL = globalConfig.speech.openaiModel;
+export const DEFAULT_POLLINATIONS_TTS_MODEL = globalConfig.speech.pollinationsModel;
+export const DEFAULT_POLLINATIONS_TTS_URL = globalConfig.speech.pollinationsUrl;
 
 export type SpeechSettings = {
   /** What SPEECH_PROVIDER said, after forgiving common mistakes. */
@@ -46,22 +52,22 @@ export function resolveSpeechSettings(env: Record<string, string | undefined> = 
   };
 }
 
-/** Edge voices are the "free, no key" neural pair. Both are conversational. */
+/** Edge voices are the "free, no key" neural pair (sourced from `/config.json`). */
 export const DEFAULT_EDGE_VOICES: Record<"girl" | "boy", string> = {
-  girl: "en-US-AvaNeural",
-  boy: "en-US-AndrewNeural",
+  girl: globalConfig.speech.voices.edge.girl,
+  boy: globalConfig.speech.voices.edge.boy,
 };
 
-/** OpenAI's newest built-in voices; `gpt-4o-mini-tts` also takes instructions. */
+/** OpenAI's newest built-in voices (sourced from `/config.json`). */
 export const DEFAULT_OPENAI_VOICES: Record<"girl" | "boy", string> = {
-  girl: "marin",
-  boy: "cedar",
+  girl: globalConfig.speech.voices.openai.girl,
+  boy: globalConfig.speech.voices.openai.boy,
 };
 
-/** Pollinations exposes OpenAI-compatible voice names on its speech endpoint. */
+/** Pollinations exposes OpenAI-compatible voice names (sourced from `/config.json`). */
 export const DEFAULT_POLLINATIONS_VOICES: Record<"girl" | "boy", string> = {
-  girl: "nova",
-  boy: "onyx",
+  girl: globalConfig.speech.voices.pollinations.girl,
+  boy: globalConfig.speech.voices.pollinations.boy,
 };
 
 const VOICE_DEFAULTS: Record<ConcreteSpeechProviderId, Record<"girl" | "boy", string>> = {

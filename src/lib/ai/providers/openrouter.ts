@@ -1,12 +1,13 @@
 import "server-only";
 import { cleanEnvValue } from "@/lib/env-clean";
+import { globalConfig } from "@/lib/global-config";
 import { resolveNvidiaSettings } from "../settings";
 import type { AiProvider } from "../types";
 import { createNvidiaProvider, type NvidiaOptions } from "./nvidia";
 
-export const OPENROUTER_CODING_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free";
-export const OPENROUTER_CODING_MAX_TOKENS = 65_536;
-export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+export const OPENROUTER_CODING_MODEL = globalConfig.ai.openrouter.codingModel;
+export const OPENROUTER_CODING_MAX_TOKENS = globalConfig.ai.openrouter.codingMaxTokens;
+export const OPENROUTER_BASE_URL = globalConfig.ai.openrouter.baseUrl;
 
 export const openRouterKey = (env: Record<string, string | undefined> = process.env) =>
   cleanEnvValue(env.OPENROUTER_API_KEY, "OPENROUTER_API_KEY") ?? "";

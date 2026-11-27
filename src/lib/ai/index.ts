@@ -1,4 +1,5 @@
 import "server-only";
+import { globalConfig } from "@/lib/global-config";
 import { createFallbackProvider } from "./providers/chain";
 import { createMockProvider } from "./providers/mock";
 import { createNvidiaProvider, nvidiaConfigured } from "./providers/nvidia";
@@ -28,7 +29,9 @@ const create: Record<NormalizedProviderId, (url: string) => AiProvider> = {
 /** Give the free OpenRouter endpoint a fast bounded window before falling over to NVIDIA. */
 export function openRouterFirstTokenTimeoutMs(env: Record<string, string | undefined> = process.env): number {
   const value = Number(env.OPENROUTER_TIMEOUT_MS);
-  return Number.isFinite(value) && value > 0 ? Math.min(value, 275_000) : 20_000;
+  return Number.isFinite(value) && value > 0
+    ? Math.min(value, 275_000)
+    : globalConfig.ai.openrouter.firstTokenTimeoutMs;
 }
 
 let cached: { key: string; provider: AiProvider } | undefined;
@@ -103,11 +106,13 @@ export function resetAiProviderCache(): void {
 export { resolveAiSettings } from "./settings";
 export { SYSTEM_PROMPT } from "./prompt";
 
-export const AI_TIMEOUT_MS = () => Number(process.env.AI_TIMEOUT_MS) || 110_000;
+export const AI_TIMEOUT_MS = () => Number(process.env.AI_TIMEOUT_MS) || globalConfig.ai.timeoutMs;
 /** Coding has more time for long streamed files; the hosting platform may enforce a lower cap. */
 export const AI_CODING_TIMEOUT_MS = () => {
   const value = Number(process.env.AI_CODING_TIMEOUT_MS);
-  return Number.isFinite(value) && value > 0 ? Math.min(value, 295_000) : 290_000;
+  return Number.isFinite(value) && value > 0
+    ? Math.min(value, 295_000)
+    : globalConfig.ai.codingTimeoutMs;
 };
 
 export { AiProviderError, type AiDelta, type AiProvider, type AiRequest } from "./types";
