@@ -46,6 +46,7 @@ import {
   extractWorkspaceFilesFromHistory,
   formatTerminalToolBlock,
   formatToolObservationForModel,
+  hasCommandPromptIntent,
   parseSlashCommand,
   stripProximaCommandTags,
 } from "@/lib/sandbox/chat-command-bridge";
@@ -660,7 +661,12 @@ export const POST = withApi(async (request: Request) => {
           //   persistent workspace with fading `$ <cmd>` status + collapsible terminal cards,
           //   and real stdout/stderr/exitCode are fed back so Proxima can chain follow-up
           //   commands, self-correct errors, or deliver her grounded final answer.
-          const MAX_COMMAND_ROUNDS = 4;
+          // In Coding mode, only enable autonomous shell commands when the user
+          // actually asked for a shell/terminal/scrape task — never let Coding
+          // mode detour HTML/CSS/JS requests through `cat << 'EOF'` heredocs.
+          const allowCommandExecution =
+            answerMode !== "coding" || hasCommandPromptIntent(input.message);
+          const MAX_COMMAND_ROUNDS = allowCommandExecution ? 4 : 1;
           const resumeInstruction =
             resumedAssistant && !resumeCodingProgress
               ? "\n\nThe previous assistant reply was interrupted. Continue from its saved output in the conversation history. Do not repeat completed sections or files, and finish every requested file before claiming the task is complete."
@@ -750,7 +756,7 @@ export const POST = withApi(async (request: Request) => {
               }
             }
 
-            const commands = isFinalRound ? [] : flushed.commands;
+            const commands = !allowCommandExecution || isFinalRound ? [] : flushed.commands;
             if (commands.length === 0) break;
 
             executedAnyCommands = true;
