@@ -433,7 +433,7 @@ export const POST = withApi(async (request: Request) => {
       try {
         if (directSlashCommand) {
           receivedAny = true;
-          sse.send("status", { state: "thinking", message: "Running command in Proxima Command Prompt…" });
+          sse.send("status", { state: "thinking", message: `$ ${directSlashCommand}` });
           const workspaceFiles = extractWorkspaceFilesFromHistory(history);
           const { runs } = await executeChatCommands([directSlashCommand], workspaceFiles);
           const transcript = formatTerminalTranscript(runs);
@@ -659,11 +659,12 @@ export const POST = withApi(async (request: Request) => {
             : "Current /workspace is empty (you can create files with echo/touch/mkdir or run node -e).";
           const cmdSystem = [
             system,
-            "COMMAND PROMPT EXECUTION MODE:",
+            "AUTONOMOUS COMMAND PROMPT MODE:",
             fileHint,
-            "You have a LIVE, working sandboxed command prompt right now.",
-            "To execute one or more commands, output `<proxima_cmd>EXACT_COMMAND</proxima_cmd>` (up to 4 commands). Do NOT fabricate or guess terminal output — emit the `<proxima_cmd>` tag(s) and wait for the real execution result.",
-            "If the user did not actually ask you to run a command, simply answer naturally in your own voice (and confirm that you DO have access to your built-in Command Prompt).",
+            "You have full free will to use your live sandboxed command prompt (`proxima-sh`) right now.",
+            "Available live commands include `pip install beautifulsoup4 requests`, `scrape <url>`, `curl <url>`, `python3 -c \"...\"`, `node -e \"...\"`, and standard file/shell commands.",
+            "If running commands will give real live data (such as scraping a website's text, installing bs4, running code, or inspecting files), output 1 to 4 `<proxima_cmd>EXACT_COMMAND</proxima_cmd>` tags and DO NOT fabricate or guess command output.",
+            "If the user asked to scrape/read a website without providing a URL yet, ask politely for the URL (confirming you're ready to install bs4 and scrape its text right away).",
           ].join("\n\n");
 
           let draft = "";
@@ -685,20 +686,26 @@ export const POST = withApi(async (request: Request) => {
 
           const commands = extractProximaCommands(draft);
           if (commands.length > 0) {
+            const { runs } = await executeChatCommands(commands, workspaceFiles, {
+              stepDelayMs: commands.length > 1 ? 260 : 120,
+              onCommandStart: (cmd) => {
+                sse.send("status", {
+                  state: "thinking",
+                  message: `$ ${cmd}`,
+                });
+              },
+            });
+            const transcript = formatTerminalTranscript(runs);
             sse.send("status", {
               state: "thinking",
-              message: "Running command in Proxima Command Prompt…",
+              message: "Analyzing command output…",
             });
-            const { runs } = await executeChatCommands(commands, workspaceFiles);
-            const transcript = formatTerminalTranscript(runs);
-            raw = transcript;
-            sentText = transcript;
-            sse.send("token", { text: transcript });
 
             const followUpSystem = [
               system,
-              "You just executed real commands inside your built-in Proxima Command Prompt (`proxima-sh`).",
-              "Give a short, clear, helpful follow-up grounded strictly in the real command output below. Do not repeat the raw terminal block verbatim and do not emit `<proxima_cmd>` again.",
+              "You just autonomously executed real commands inside your built-in Proxima Command Prompt (`proxima-sh`).",
+              "Provide a clear, detailed, well-structured answer (including key points, takeaways, and practical guidance if you scraped a website) grounded strictly in the real command output below.",
+              "Do NOT repeat huge raw text dumps verbatim and do NOT emit `<proxima_cmd>` again.",
             ].join("\n\n");
 
             const followUpDeltas = generateReply(provider, {
@@ -712,15 +719,17 @@ export const POST = withApi(async (request: Request) => {
               system: followUpSystem,
             });
 
-            let addedSpacer = false;
+            // Keep compact command summary collapsible/clean above the detailed answer
+            const commandChips = runs
+              .map((r) => `> \`$ ${r.command}\`${r.exitCode === 0 ? "" : ` *(exit ${r.exitCode})*`}`)
+              .join("\n");
+            const headerBlock = `${commandChips}\n\n`;
+            raw = headerBlock;
+            sentText = headerBlock;
+            sse.send("token", { text: headerBlock });
+
             for await (const delta of followUpDeltas) {
               if (delta.type !== "text" || !delta.text) continue;
-              if (!addedSpacer) {
-                addedSpacer = true;
-                raw += "\n\n";
-                sentText += "\n\n";
-                sse.send("token", { text: "\n\n" });
-              }
               raw += delta.text;
               sentText += delta.text;
               sse.send("token", { text: delta.text });

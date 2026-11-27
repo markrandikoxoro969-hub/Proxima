@@ -3,12 +3,15 @@ import vm from "node:vm";
 import {
   createCommandPromptState,
   executeCommandLine,
+  type CommandRuntime,
   type JsEvaluator,
   type VirtualFile,
+  type WebFetcher,
 } from "./command-prompt";
+import { fetchAndScrapeUrl, formatScrapedPage } from "./web-scrape";
 
 const JS_TIMEOUT_MS = 1_500;
-const MAX_OUTPUT_CHARS = 6_000;
+const MAX_OUTPUT_CHARS = 12_000;
 
 function formatArg(arg: unknown): string {
   if (typeof arg === "string") return arg;
@@ -87,6 +90,24 @@ export const serverSandboxedJsEvaluator: JsEvaluator = (code, files) => {
   }
 };
 
+/** SSRF-safe server web scraper bound to Proxima's `scrape` / `curl` / `python3` commands. */
+export const serverSafeWebFetcher: WebFetcher = async (url) => {
+  try {
+    const page = await fetchAndScrapeUrl(url);
+    return { ok: true, text: formatScrapedPage(page), title: page.title, url: page.url };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to fetch URL.",
+    };
+  }
+};
+
+export const serverCommandRuntime: CommandRuntime = {
+  evalJs: serverSandboxedJsEvaluator,
+  fetchUrl: serverSafeWebFetcher,
+};
+
 /**
  * Runs a command inside Proxima's isolated command prompt with optional
  * virtual workspace files. Used by Proxima's `run_command` agent tool.
@@ -103,7 +124,7 @@ export async function runProximaCommand(options: {
   files: VirtualFile[];
 }> {
   const initialState = createCommandPromptState(options.files ?? [], options.cwd ?? "");
-  const result = await executeCommandLine(options.command, initialState, serverSandboxedJsEvaluator);
+  const result = await executeCommandLine(options.command, initialState, serverCommandRuntime);
   return {
     exitCode: result.exitCode,
     cwd: result.state.cwd,

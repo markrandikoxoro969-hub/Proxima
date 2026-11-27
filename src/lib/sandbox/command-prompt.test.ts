@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { openRouterFirstTokenTimeoutMs } from "@/lib/ai";
 import { createDefaultToolRegistry } from "@/lib/ai/agent/tools";
 import { buildSandboxDocument } from "@/lib/chat/client/code-bundle";
 import { identitySystemSection } from "@/lib/identity";
@@ -12,6 +13,7 @@ import {
 } from "./chat-command-bridge";
 import { createCommandPromptState, executeCommandLine } from "./command-prompt";
 import { runProximaCommand } from "./server-command";
+import { assertSafePublicUrl, extractTextFromHtml, formatScrapedPage } from "./web-scrape";
 
 describe("Proxima Command Prompt engine", () => {
   it("supports directory navigation, file CRUD, redirects, pipes, and chaining", async () => {
@@ -124,5 +126,47 @@ describe("Proxima Command Prompt engine", () => {
     expect(runs[0]!.exitCode).toBe(0);
     expect(runs[0]!.stdout).toBe("from-history");
     expect(formatTerminalTranscript(runs)).toContain("proxima@sandbox:/workspace$ node src/hi.js");
+  });
+
+  it("supports pip install bs4, live HTML text scraping, SSRF blocking, and fast OpenRouter failover", async () => {
+    // Free-will scraping intent detection
+    expect(
+      hasCommandPromptIntent(
+        "i want to scrap https://example.com only its texts so i can know the key points",
+      ),
+    ).toBe(true);
+
+    // SSRF guard blocks local, metadata, private IPs, and non-http protocols
+    await expect(assertSafePublicUrl("http://127.0.0.1:3000/secret")).rejects.toThrow(/Blocked/i);
+    await expect(assertSafePublicUrl("http://169.254.169.254/latest/meta-data")).rejects.toThrow(/Blocked/i);
+    await expect(assertSafePublicUrl("http://localhost/admin")).rejects.toThrow(/Blocked/i);
+    await expect(assertSafePublicUrl("file:///etc/passwd")).rejects.toThrow(/Only http/i);
+
+    // HTML extraction strips scripts/styles and extracts title, headings, and readable text
+    const html = `<!doctype html><html><head><title>Proxima Docs</title><meta name="description" content="Fast AI workspace"><style>body{color:red}</style></head><body><script>alert(1)</script><h1>Welcome to Proxima</h1><p>Build &amp; run code safely.</p><h2>Key Features</h2><p>Sandbox + Command Prompt.</p></body></html>`;
+    const scraped = extractTextFromHtml(html, "https://docs.proxima.ai", 200);
+    expect(scraped.title).toBe("Proxima Docs");
+    expect(scraped.description).toBe("Fast AI workspace");
+    expect(scraped.headings).toEqual(["Welcome to Proxima", "Key Features"]);
+    expect(scraped.text).toContain("Build & run code safely.");
+    expect(scraped.text).not.toContain("alert(1)");
+    expect(scraped.text).not.toContain("color:red");
+
+    // pip install bs4 + python3 scraper workflow inside proxima-sh
+    const state = createCommandPromptState([]);
+    const res = await executeCommandLine(
+      'pip install beautifulsoup4 requests && python3 -c "import requests; from bs4 import BeautifulSoup; r = requests.get(\'https://docs.proxima.ai\'); print(BeautifulSoup(r.text, \'html.parser\').get_text())"',
+      state,
+      {
+        fetchUrl: async (url) => ({ ok: true, text: formatScrapedPage(extractTextFromHtml(html, url, 200)) }),
+      },
+    );
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toContain("Successfully installed beautifulsoup4-4.12.3 requests-2.32.3");
+    expect(res.stdout).toContain("Title: Proxima Docs");
+    expect(res.stdout).toContain("Build & run code safely.");
+
+    // Coding failover timeout is fast (20s default instead of 2.5 minutes)
+    expect(openRouterFirstTokenTimeoutMs({})).toBe(20_000);
   });
 });

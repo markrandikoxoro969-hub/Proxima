@@ -6,7 +6,7 @@ import {
   formatPromptCwd,
   type CommandPromptState,
 } from "./command-prompt";
-import { serverSandboxedJsEvaluator } from "./server-command";
+import { serverCommandRuntime } from "./server-command";
 
 export type ExecutedCommandRun = {
   command: string;
@@ -25,23 +25,38 @@ export function parseSlashCommand(message: string): string | null {
 }
 
 /**
- * Detects natural-language requests asking Proxima to execute something inside
- * her command prompt / terminal (without misfiring on general chat or coding builds).
+ * Detects requests where Proxima can autonomously exercise her Command Prompt
+ * (web scraping / reading URLs, installing packages like bs4, running scripts,
+ * or executing shell commands) without slowing down ordinary conversation.
  */
 export function hasCommandPromptIntent(message: string): boolean {
   const text = message.trim();
-  if (!text || text.length > 1500) return false;
+  if (!text || text.length > 2000) return false;
   if (parseSlashCommand(text)) return true;
 
-  // Explicit mention of running/executing/testing in command prompt / terminal / shell / cmd
+  // Web scraping / URL text extraction / reading a live site
+  const hasUrl = /https?:\/\/[^\s]+|\bwww\.[a-z0-9-]+(?:\.[a-z]{2,})+/i.test(text);
+  const wantsWebScrape =
+    /\b(?:scrap(?:e|ing|ped)?|crawl(?:ing)?|bs4|beautifulsoup|extract\s+(?:only\s+)?(?:the\s+)?text|fetch\s+(?:the\s+)?(?:site|website|page|url)|read\s+(?:this\s+)?(?:site|website|page|link|url)|key\s*points?\s+(?:of|from)\s+(?:this\s+)?(?:site|website|page|link|url))\b/i.test(
+      text,
+    );
+  if (wantsWebScrape || hasUrl) return true;
+
+  // Explicit mention of running/executing/installing/testing in command prompt / terminal / shell / cmd
   const mentionsShell =
-    /\b(?:command\s*prompt|terminal|shell|proxima-sh|cmd(?:\.exe)?)\b/i.test(text);
+    /\b(?:command\s*prompt|terminal|shell|proxima-sh|cmd(?:\.exe)?|pip3?|curl|python3?)\b/i.test(text);
   const asksToRun =
-    /\b(?:run|execute|exec|test|check|list|try|prove|show|open|use|eval|evaluate)\b/i.test(text);
+    /\b(?:run|execute|exec|install|test|check|list|try|prove|show|open|use|eval|evaluate|scrape|scrap|fetch)\b/i.test(
+      text,
+    );
   if (mentionsShell && asksToRun) return true;
 
-  // Direct inline command syntax like `node -e ...`, `ls -la`, `uname -a`, `echo ...`
-  if (/\b(?:run|execute|exec)\s+[`"']?(?:ls|tree|pwd|cat|echo|node|npm|grep|find|wc|uname|date|whoami|mkdir|touch|env|json)\b/i.test(text)) {
+  // Direct inline command syntax like `node -e ...`, `ls -la`, `uname -a`, `pip install ...`
+  if (
+    /\b(?:run|execute|exec|install)\s+[`"']?(?:ls|tree|pwd|cat|echo|node|npm|pip3?|python3?|scrape|curl|grep|find|wc|uname|date|whoami|mkdir|touch|env|json)\b/i.test(
+      text,
+    )
+  ) {
     return true;
   }
 
@@ -86,13 +101,23 @@ export function extractWorkspaceFilesFromHistory(
 export async function executeChatCommands(
   commands: readonly string[],
   initialFiles: readonly GeneratedFile[] = [],
+  options?: {
+    onCommandStart?: (command: string, index: number, total: number) => void;
+    stepDelayMs?: number;
+  },
 ): Promise<{ runs: ExecutedCommandRun[]; state: CommandPromptState }> {
   let state = createCommandPromptState(initialFiles);
   const runs: ExecutedCommandRun[] = [];
+  const stepDelayMs = options?.stepDelayMs ?? 0;
 
-  for (const command of commands) {
+  for (let i = 0; i < commands.length; i += 1) {
+    const command = commands[i]!;
+    options?.onCommandStart?.(command, i, commands.length);
+    if (stepDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, stepDelayMs));
+    }
     const cwdBefore = formatPromptCwd(state.cwd);
-    const res = await executeCommandLine(command, state, serverSandboxedJsEvaluator);
+    const res = await executeCommandLine(command, state, serverCommandRuntime);
     state = res.state;
     runs.push({
       command,
