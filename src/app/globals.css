@@ -116,9 +116,8 @@ html.dark {
   --color-on-inverse: var(--inverse-fg);
   --color-accent: var(--accent);
 
-  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
-  --font-display-face: var(--font-space-grotesk), var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, monospace;
 }
 
 @theme {
@@ -194,9 +193,7 @@ html.dark {
     overflow-x: clip;
     /* Themes may change the voice (see THEME_FONT_STACKS in lib/theme/palettes). */
     font-family: var(--font-body, var(--font-sans));
-    font-weight: 560;
-    letter-spacing: -0.008em;
-    font-feature-settings: "cv02" 1, "cv03" 1, "cv04" 1, "ss01" 1;
+    font-weight: 500;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     /* Only colours fade on theme change — cheap, no layout work. */
@@ -705,9 +702,7 @@ html.dark .proxima-logo-glow {
 /* ---------- Markdown replies ---------- */
 .markdown {
   font-size: 15px;
-  font-weight: 540;
   line-height: 1.75;
-  letter-spacing: -0.006em;
   overflow-wrap: anywhere;
 }
 .markdown > div > :first-child,
@@ -725,10 +720,9 @@ html.dark .proxima-logo-glow {
 .markdown h3,
 .markdown h4 {
   margin: 1.4em 0 0.5em;
-  font-family: var(--font-display-face, var(--font-sans));
-  font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.025em;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 .markdown h1 {
   font-size: 1.5em;
@@ -768,12 +762,10 @@ html.dark .proxima-logo-glow {
 .markdown :not(pre) > code {
   border: 1px solid var(--line);
   background: var(--surface-hover);
-  border-radius: 0.45em;
-  padding: 0.12em 0.44em;
+  border-radius: 0.4em;
+  padding: 0.1em 0.4em;
   font-family: var(--font-mono);
-  font-weight: 640;
-  font-size: 0.85em;
-  letter-spacing: -0.012em;
+  font-size: 0.86em;
 }
 .markdown table {
   width: 100%;
@@ -819,9 +811,6 @@ html.dark .proxima-logo-glow {
 .code-block pre,
 .code-block code {
   font-family: var(--font-mono);
-  font-weight: 580;
-  letter-spacing: -0.012em;
-  font-feature-settings: "ss01" 1, "zero" 1;
   font-variant-ligatures: none; /* show "->" and "!=" exactly as typed */
   tab-size: 2;
 }
@@ -858,7 +847,6 @@ html.dark {
 .token.rule,
 .token.builtin {
   color: var(--tok-keyword);
-  font-weight: 700;
 }
 .token.string,
 .token.char,
@@ -877,7 +865,6 @@ html.dark {
 .token.function,
 .token.class-name {
   color: var(--tok-function);
-  font-weight: 700;
 }
 .token.punctuation,
 .token.operator {
@@ -889,7 +876,6 @@ html.dark {
 .token.deleted,
 .token.attr-name {
   color: var(--tok-tag);
-  font-weight: 650;
 }
 .token.bold {
   font-weight: 700;
@@ -1780,19 +1766,10 @@ html[data-scene="media"] .markdown.is-streaming {
     0 0 22px rgb(244 63 94 / 0.18) !important;
 }
 
-/* Bold, sculptural display headings (Space Grotesk + Plus Jakarta Sans). */
+/* Headings follow the theme's display voice (Ocean → rounded, others → Montserrat). */
 h1,
 h2,
 h3,
 .font-display {
-  font-family: var(--font-display-face, var(--font-display, var(--font-sans)));
-  letter-spacing: -0.025em;
-}
-
-code,
-pre,
-kbd,
-samp {
-  font-family: var(--font-mono);
-  font-weight: 580;
+  font-family: var(--font-display, var(--font-sans));
 }

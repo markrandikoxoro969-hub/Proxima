@@ -198,14 +198,16 @@ function theme(
 }
 
 /**
- * Font stacks per voice. Self-hosted variable fonts keep theme switching at
- * zero network cost while pairing Plus Jakarta Sans + Space Grotesk.
+ * Font stacks per voice. Nothing is downloaded for these: Sky and Nature use the
+ * Montserrat that is already loaded, Ocean asks the OS for a rounded face and
+ * falls back to Montserrat where there isn't one. That keeps a theme switch at
+ * zero network cost (see README → Themes for why no webfont file ships).
  */
 export const THEME_FONT_STACKS: Record<ThemeDisplay, string> = {
-  geometric: 'var(--font-jakarta), ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif',
+  geometric: 'var(--font-montserrat), ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif',
   rounded:
-    'ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", var(--font-jakarta), ui-sans-serif, system-ui, sans-serif',
-  site: 'var(--font-jakarta), ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif',
+    'ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", "Quicksand", var(--font-montserrat), ui-sans-serif, system-ui, sans-serif',
+  site: 'var(--font-montserrat), ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif',
 };
 
 /**
