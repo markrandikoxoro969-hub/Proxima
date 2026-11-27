@@ -94,8 +94,10 @@ html.dark {
     0 24px 68px rgb(0 0 0 / 0.58),
     inset 0 1px 0 var(--glass-highlight),
     inset 0 -1px 0 rgb(255 255 255 / 0.06);
+  --glass-dropdown-bg: color-mix(in srgb, var(--surface-solid) 82%, transparent);
   --glass-blur: 18px;
-  --glass-blur-elevated: 24px;
+  --glass-blur-elevated: 26px;
+  --glass-blur-dropdown: 28px;
   color-scheme: dark;
 }
 
@@ -280,23 +282,26 @@ html.dark .proxima-logo-glow {
   background-image: var(--glass-reflection);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(var(--glass-blur)) saturate(145%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(145%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(175%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(175%);
 }
 
 @media (max-width: 767px) {
   :root {
-    --glass-blur: 9px;
-    --glass-blur-elevated: 12px;
+    --glass-blur: 15px;
+    --glass-blur-elevated: 20px;
+    --glass-blur-dropdown: 24px;
   }
 }
 
-/* Elevated optical surface without blur cost — ideal for cards, dialogs & lists. */
+/* Elevated frosted optical surface for cards, dialogs & lists. */
 @utility glass-solid {
   background-color: var(--glass-bg-elevated);
   background-image: var(--glass-reflection);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%);
 }
 
 /* Classy, understated matte editorial card (no glassy blur or specular gloss). */
@@ -343,22 +348,24 @@ html.dark .proxima-logo-glow {
   animation: controls-morph-back 260ms var(--ease-premium) both;
 }
 
-/* Layered structural glass container (settings sections, studio workspace). */
+/* Layered structural glass container (settings sections, studio workspace, composer). */
 @utility glass-panel {
   background-color: var(--glass-bg);
   background-image: var(--glass-reflection);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(var(--glass-blur)) saturate(145%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(145%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(175%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(175%);
 }
 
-/* Interactive glass card with subtle border brightening on hover. */
+/* Interactive frosted glass card with subtle border brightening on hover. */
 @utility glass-card {
   background-color: var(--glass-bg-elevated);
   background-image: var(--glass-reflection);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%);
   transition: border-color 200ms var(--ease-premium), background-color 200ms var(--ease-premium),
     transform 200ms var(--ease-premium);
 }
@@ -369,8 +376,8 @@ html.dark .proxima-logo-glow {
   background-image: var(--glass-reflection);
   border: 1px solid var(--glass-border-strong);
   box-shadow: var(--glass-shadow-elevated);
-  backdrop-filter: blur(var(--glass-blur-elevated)) saturate(150%);
-  -webkit-backdrop-filter: blur(var(--glass-blur-elevated)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur-elevated)) saturate(185%);
+  -webkit-backdrop-filter: blur(var(--glass-blur-elevated)) saturate(185%);
 }
 
 /* Floating dropdowns, popovers, and command palettes. */
@@ -403,28 +410,34 @@ html.dark .proxima-logo-glow {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(165%);
 }
 
-/* Translucent search & text inputs with smooth focus illumination. */
+/* Translucent frosted search & text inputs with smooth focus illumination. */
 @utility glass-input {
   background-color: var(--glass-bg-subtle);
   border: 1px solid var(--glass-border);
   box-shadow: inset 0 1px 0 var(--glass-highlight);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
   transition: border-color 180ms var(--ease-premium), background-color 180ms var(--ease-premium),
     box-shadow 180ms var(--ease-premium);
 }
 
-/* Quiet frosted pill chip (badges, shortcuts, status indicators). */
+/* Quiet frosted pill chip (badges, floating buttons, status indicators). */
 @utility glass-pill {
   background-color: var(--glass-bg-subtle);
   border: 1px solid var(--glass-border);
   box-shadow: inset 0 1px 0 var(--glass-highlight);
+  backdrop-filter: blur(12px) saturate(165%);
+  -webkit-backdrop-filter: blur(12px) saturate(165%);
 }
 
-/* Tactile glass secondary button surface. */
+/* Tactile frosted glass secondary button surface. */
 @utility glass-button {
   background-color: var(--glass-bg-subtle);
   background-image: var(--glass-reflection);
   border: 1px solid var(--glass-border);
   box-shadow: inset 0 1px 0 var(--glass-highlight);
+  backdrop-filter: blur(12px) saturate(165%);
+  -webkit-backdrop-filter: blur(12px) saturate(165%);
 }
 
 @utility text-glow {
@@ -1671,24 +1684,53 @@ html[data-scene="media"] .glass,
 html[data-scene="media"] .lg\:glass,
 html[data-scene="media"] .glass-header,
 html[data-scene="media"] .glass-panel,
+html[data-scene="media"] .glass-card,
+html[data-scene="media"] .glass-solid,
 html[data-scene="media"] .glass-nav,
-html[data-scene="media"] .glass-dialog,
-html[data-scene="media"] .glass-dropdown {
-  background-color: color-mix(in srgb, var(--surface-solid) 48%, transparent);
+html[data-scene="media"] .glass-dialog {
+  background-color: color-mix(in srgb, var(--surface-solid) 52%, transparent);
+  backdrop-filter: blur(18px) saturate(175%);
+  -webkit-backdrop-filter: blur(18px) saturate(175%);
+  box-shadow: var(--glass-shadow);
+}
+
+html[data-scene="media"] .glass-pill,
+html[data-scene="media"] .glass-button,
+html[data-scene="media"] .glass-input {
+  background-color: color-mix(in srgb, var(--surface-solid) 44%, transparent);
   backdrop-filter: blur(14px) saturate(165%);
   -webkit-backdrop-filter: blur(14px) saturate(165%);
-  box-shadow: var(--glass-shadow);
+}
+
+html[data-scene="media"] .glass-dropdown {
+  background-color: color-mix(in srgb, var(--surface-solid) 78%, transparent);
+  backdrop-filter: blur(28px) saturate(185%);
+  -webkit-backdrop-filter: blur(28px) saturate(185%);
+  box-shadow: var(--glass-shadow-elevated);
 }
 
 @media (max-width: 767px) {
   html[data-scene="media"] .glass,
   html[data-scene="media"] .glass-header,
   html[data-scene="media"] .glass-panel,
+  html[data-scene="media"] .glass-card,
+  html[data-scene="media"] .glass-solid,
   html[data-scene="media"] .glass-nav,
-  html[data-scene="media"] .glass-dialog,
+  html[data-scene="media"] .glass-dialog {
+    backdrop-filter: blur(14px) saturate(165%);
+    -webkit-backdrop-filter: blur(14px) saturate(165%);
+  }
+
+  html[data-scene="media"] .glass-pill,
+  html[data-scene="media"] .glass-button,
+  html[data-scene="media"] .glass-input {
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+  }
+
   html[data-scene="media"] .glass-dropdown {
-    backdrop-filter: blur(10px) saturate(150%);
-    -webkit-backdrop-filter: blur(10px) saturate(150%);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
   }
 }
 

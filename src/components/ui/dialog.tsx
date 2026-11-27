@@ -62,7 +62,7 @@ export function Dialog({
       className={cn(
         "m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl glass-dialog p-0 text-fg",
         "max-h-[min(90dvh,48rem)] overflow-y-auto overscroll-contain",
-        "backdrop:bg-black/55 backdrop:backdrop-blur-[3px] open:animate-scale-in",
+        "backdrop:bg-black/55 backdrop:backdrop-blur-md open:animate-scale-in",
         className,
       )}
     >

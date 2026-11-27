@@ -49,7 +49,7 @@ export const CommandPalette = memo(function CommandPalette({
             aria-label="Close command menu"
             onClick={onClose}
             tabIndex={-1}
-            className="absolute inset-0 bg-black/50 backdrop-blur-[3px]"
+            className="absolute inset-0 bg-black/50 backdrop-blur-md"
           />
           <PalettePanel onClose={onClose} commands={commands} />
         </m.div>
