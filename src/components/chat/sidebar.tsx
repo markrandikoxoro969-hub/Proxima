@@ -78,7 +78,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
         aria-hidden
         onClick={onClose}
         className={cn(
-          "fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px] transition-opacity duration-300 ease-premium lg:hidden",
+          "fixed inset-0 z-40 bg-black/50 backdrop-blur-md transition-opacity duration-300 ease-premium lg:hidden",
           open ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       />

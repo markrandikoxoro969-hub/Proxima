@@ -50,8 +50,6 @@ import type { Command } from "./command-palette";
 import { EmptyState } from "./empty-state";
 import type { SettingsTab } from "./settings-dialog";
 
-const VoiceMenu = dynamic(() => import("./voice-menu").then((module) => module.VoiceMenu));
-
 const MessageList = dynamic(() => import("./message-list").then((module) => module.MessageList), {
   loading: () => (
     <div role="status" aria-label="Loading conversation" className="min-h-0 flex-1">
@@ -711,18 +709,16 @@ function ChatScreen({
     );
   }, [speechInput]);
 
-  const headerVoiceMenu = useMemo(
-    () => (
-      <VoiceMenu
-        supported={voiceSupported}
-        settings={voice}
-        speaking={voiceSpeaking}
-        activeEngine={voiceEngine}
-        onChange={setVoice}
-        onStop={stopVoice}
-        onSample={sampleVoice}
-      />
-    ),
+  const headerVoiceMenuProps = useMemo(
+    () => ({
+      supported: voiceSupported,
+      settings: voice,
+      speaking: voiceSpeaking,
+      activeEngine: voiceEngine,
+      onChange: setVoice,
+      onStop: stopVoice,
+      onSample: sampleVoice,
+    }),
     [voiceSupported, voice, voiceSpeaking, voiceEngine, setVoice, stopVoice, sampleVoice],
   );
 
@@ -783,7 +779,7 @@ function ChatScreen({
             onOpenSidebar={openSidebar}
             onNewChat={newChat}
             voiceInput={headerVoiceInput}
-            voiceMenu={headerVoiceMenu}
+            voiceMenuProps={headerVoiceMenuProps}
           />
 
           <AnimatePresence mode="wait" initial={false}>

@@ -479,7 +479,7 @@ function ThoughtFor({ ms }: { ms: number }) {
  */
 function ReasoningBlock({ text, streaming }: { text: string; streaming: boolean }) {
   return (
-    <details className="group/reasoning mt-3 rounded-2xl border border-line bg-surface-hover/50 px-3.5 py-2.5">
+    <details className="group/reasoning mt-3 rounded-2xl glass-card px-3.5 py-2.5">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-bold text-subtle select-none [&::-webkit-details-marker]:hidden">
         <CaretDown
           weight="bold"

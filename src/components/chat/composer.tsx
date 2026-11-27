@@ -452,9 +452,9 @@ export const Composer = memo(function Composer({
 
       <form
         className={cn(
-          "glass-panel relative mx-auto w-full max-w-2xl rounded-[1.45rem] transition-[box-shadow,border-color] duration-300",
-          "focus-within:border-line-strong focus-within:shadow-glow",
-          dragging && "border-line-strong shadow-glow-strong",
+          "relative z-10 mx-auto w-full max-w-2xl rounded-[1.45rem] transition-[box-shadow,border-color] duration-300",
+          "focus-within:shadow-glow",
+          dragging && "shadow-glow-strong",
           activeMeme?.kind === "wasted" && "composer-wasted-ring",
           activeMeme?.kind === "skull" && "composer-skull-ring",
         )}
@@ -477,6 +477,14 @@ export const Composer = memo(function Composer({
           void addFiles(e.dataTransfer.files);
         }}
       >
+        {/* Sibling frosted glass layer so <form> does NOT create a CSS Backdrop Root and popovers (Mode, Skills, Vibes) blur cleanly over messages. */}
+        <div
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-0 -z-10 rounded-[1.45rem] glass-panel transition-[border-color] duration-300",
+            dragging && "border-line-strong",
+          )}
+        />
         <ComposerMemeStage active={activeMeme} onDismiss={dismissMeme} />
         <ComposerPeeker
           focused={focused}
