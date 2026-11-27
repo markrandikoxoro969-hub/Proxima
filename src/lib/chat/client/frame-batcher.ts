@@ -7,14 +7,18 @@
  * characters every ~30ms, and speeds up when a large burst arrives, so the
  * words flow steadily without ever falling far behind the model.
  */
-const TICK_MS = 30;
-/** Normal reveal rate: ~16 chars / 30ms = ~530 chars per second. */
-const NORMAL_CHARS = 16;
-/** A burst gets through faster, but still over several ticks (no jump). */
-const BUSY_CHARS = 40;
-const FLOOD_CHARS = 96;
-const BUSY_AT = 180;
-const FLOOD_AT = 600;
+/**
+ * Silky 60fps adaptive cadence (~16ms tick) so streamed prose and code glide
+ * smoothly without landslide bursts or stuttering jumps.
+ */
+const TICK_MS = 16;
+/** Normal reveal rate: ~14 chars / 16ms (~875 chars/sec, silky typewriter feel). */
+const NORMAL_CHARS = 14;
+/** Larger chunks glide smoothly over multiple frames instead of dumping all at once. */
+const BUSY_CHARS = 32;
+const FLOOD_CHARS = 72;
+const BUSY_AT = 160;
+const FLOOD_AT = 560;
 
 export class FrameBatcher {
   private pending = "";
