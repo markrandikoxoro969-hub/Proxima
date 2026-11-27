@@ -31,7 +31,7 @@ const PLAN_INSTRUCTIONS = [
   "Plan this coding task as files, but do not write any source code yet.",
   'Return only JSON in this exact shape: {"files":[{"path":"relative/path.ext","purpose":"one short sentence"}]}.',
   `List only the essential files needed to finish the task, in dependency order, up to ${MAX_PLANNED_FILES} files.`,
-  "Keep the file count minimal for fast generation: prefer 1 file for scripts/components and 2-3 combined files (e.g. index.html, styles.css, app.js) for web apps unless the user explicitly requests a larger folder layout. Never add unrequested README, linter, or boilerplate config files.",
+  "Keep the file count minimal for fast, reliable, cohesive generation: prefer 1 self-contained file for animations/scripts/demos and 2-3 tightly linked files (index.html, styles.css, app.js) for full websites/web apps unless the user explicitly asks for a larger folder layout. Never add unrequested README, package.json, linter, or boilerplate config files.",
   "Use safe relative POSIX paths. Never include absolute paths, parent-directory segments, or duplicate paths.",
   "Do not include Markdown fences, commentary, or files the user did not ask for.",
 ].join("\n");
@@ -221,10 +221,12 @@ export async function generateCodingFile(
 ): Promise<string> {
   const marker = `<<<PROXIMA_FILE_COMPLETE:${randomUUID()}>>>`;
   const fileInstructions = [
-    "Implement exactly one file from a multi-file coding task.",
-    "Return one Markdown fenced code block containing the complete source file, then the exact completion marker below.",
+    "Implement exactly one file from a multi-file coding task to production quality.",
+    "Return one Markdown fenced code block containing the complete, visually polished, bug-free source file, then the exact completion marker below.",
     "Use a fence long enough that any Markdown fences inside the source cannot close it.",
-    "Do not return a plan, explanations, placeholders, ellipses, or source for any other file.",
+    "Match every exact DOM element ID, CSS class name, link/script path, and exported function signature from previously completed files so the entire project runs seamlessly on first load with zero broken references.",
+    "Make UI/CSS/JS rich, modern, responsive on mobile and desktop, interactive (mouse + touch), and self-contained with zero placeholders, ellipses, or TODO stubs.",
+    "Do not return a plan, explanations, or source for any other file.",
     "The file is not complete unless you include the closing code fence and the exact marker as the final nonblank line.",
     `Required final marker: ${marker}`,
   ].join("\n");

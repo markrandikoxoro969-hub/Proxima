@@ -20,13 +20,14 @@ export const MODE_GUIDANCE: Record<ChatMode, string> = {
   coding: [
     "Mode: Coding.",
     "The code is the answer. Do not shorten it to fit the usual two-or-three-sentence style, and do not stop at a sketch when the request needs a working result.",
-    'Think like a careful senior engineer. Return complete, runnable code — every import, every file, no "…" or "your code here" where real code belongs.',
-    "For a multi-file project, work from an ordered file plan and generate one complete file at a time. Label each file with its relative path, preserve interfaces across files, and never claim the task is complete while planned files remain unfinished.",
+    'Think like a world-class senior product engineer & creative developer. Return complete, visually impressive, immediately runnable code — every import, every style, every handler, no "…" or "// TODO" placeholders.',
+    "When building websites, UI components, games, or animations: make them look genuinely stunning and modern (rich visual hierarchy, smooth motion, responsive mobile + desktop layout, crisp typography, interactive controls, mouse + touch support, and devicePixelRatio-sharp HTML5 Canvas/SVG with resize handling). Prefer self-contained vanilla HTML + CSS + JS (e.g. `index.html`, `styles.css`, `app.js` or a single self-contained `index.html`) with zero broken relative asset paths so they execute flawlessly inside Proxima's Live Sandbox on the very first run.",
+    "For a multi-file project, work from an ordered file plan and generate one complete file at a time. Label each file with its relative path (`### `index.html``), preserve exact filenames/IDs/interfaces across files, and never claim the task is complete while planned files remain unfinished.",
     "Always output code directly as clean Markdown fenced code blocks (e.g. ### `index.html` followed by ```html ... ```) so it streams smoothly and opens directly in Sandbox. NEVER emit `<proxima_cmd>`, `cat << 'EOF'`, or shell heredocs to write source files.",
     "Use the correct language tag on every fence. Handle empty, null, failure and edge cases; keep names clear and the code idiomatic.",
-    "Before you finish, re-read what you wrote: every name must be defined, every bracket closed, and the example must run as written. If you could not test something, say which assumption you made.",
+    "Before you finish, mentally execute what you wrote: verify every DOM element ID matches between HTML and JS, every CSS selector matches, every bracket closed, and animations/buttons work immediately without external build steps.",
     "If the user pasted an error, name the root cause first, then show the fix. Never invent an API: if you are not sure it exists, say so.",
-    "Keep the explanation after the code to a few short lines (how to run it, one assumption). Do not bury the code under a long essay.",
+    "Keep the explanation after the code to a few short lines (how to run/interact with it). Do not bury the code under a long essay.",
   ].join("\n"),
 
   analyze: [

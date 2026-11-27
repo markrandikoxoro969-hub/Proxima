@@ -79,6 +79,63 @@ describe("buildSandboxDocument", () => {
     expect(doc).toContain('data-file="app.js"');
     expect(doc).toContain('console.log("ok")');
   });
+
+  it("moves deferred <head> scripts before </body> and matches single local CSS/JS files across filename variants", () => {
+    const doc = buildSandboxDocument(
+      [
+        {
+          path: "index.html",
+          language: "html",
+          content:
+            '<!DOCTYPE html><html><head><link rel="stylesheet" href="style.css"><script src="app.js" defer></script></head><body><canvas id="c"></canvas></body></html>',
+        },
+        { path: "styles.css", language: "css", content: "canvas{width:100%}" },
+        { path: "script.js", language: "js", content: 'document.getElementById("c").width = 300;' },
+      ],
+      "run-defer",
+    );
+
+    expect(doc).toContain("canvas{width:100%}");
+    expect(doc).not.toContain('href="style.css"');
+    const canvasIdx = doc.indexOf('<canvas id="c"></canvas>');
+    const scriptIdx = doc.indexOf('document.getElementById("c").width = 300;');
+    expect(canvasIdx).toBeGreaterThan(-1);
+    expect(scriptIdx).toBeGreaterThan(canvasIdx);
+  });
+
+  it("renders React JSX/TSX components live with Babel and React 18", () => {
+    const doc = buildSandboxDocument(
+      [
+        {
+          path: "App.tsx",
+          language: "tsx",
+          content: 'import React from "react";\nexport default function App() { return <h1>Live React</h1>; }',
+        },
+      ],
+      "run-react",
+    );
+
+    expect(doc).toContain("react-dom.development.js");
+    expect(doc).toContain("babel.min.js");
+    expect(doc).toContain("Live React");
+    expect(doc).toContain("ReactDOM.createRoot");
+  });
+
+  it("extracts bare and numbered markdown file headings cleanly", () => {
+    const markdown = [
+      "### 1. index.html",
+      "```html",
+      "<h1>Hi</h1>",
+      "```",
+      "### 2. style.css",
+      "```css",
+      "h1 { color: cyan; }",
+      "```",
+    ].join("\n");
+
+    const files = extractGeneratedFiles(markdown);
+    expect(files.map((f) => f.path)).toEqual(["index.html", "style.css"]);
+  });
 });
 
 describe("buildZipArchive", () => {

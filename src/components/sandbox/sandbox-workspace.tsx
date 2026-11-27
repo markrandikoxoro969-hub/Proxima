@@ -557,9 +557,9 @@ export function SandboxWorkspace() {
           <iframe
             key={runCounter}
             title="Proxima Live Sandbox Preview"
-            sandbox="allow-scripts allow-forms allow-modals"
+            sandbox="allow-scripts allow-forms allow-modals allow-popups allow-pointer-lock"
             srcDoc={srcDoc}
-            className="block h-full w-full flex-1 border-0 bg-white"
+            className="block h-full w-full flex-1 border-0 bg-[#0b0d12]"
           />
         </div>
       </div>

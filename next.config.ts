@@ -45,6 +45,24 @@ const csp = [
   .filter(Boolean)
   .join("; ");
 
+const sandboxCsp = [
+  "default-src 'self' https: data: blob:",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:",
+  "style-src 'self' 'unsafe-inline' https:",
+  "img-src 'self' blob: data: https:",
+  "font-src 'self' data: https:",
+  "connect-src 'self' https: wss: ws:",
+  "media-src 'self' blob: data: https:",
+  "worker-src 'self' blob:",
+  "frame-src 'self' blob: data:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  allowFraming ? "" : "frame-ancestors 'none'",
+  isVercel ? "upgrade-insecure-requests" : "",
+]
+  .filter(Boolean)
+  .join("; ");
+
 const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -99,6 +117,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },
+      {
+        // `/sandbox` hosts the strictly sandboxed live preview `<iframe srcDoc>`
+        // (without `allow-same-origin`). Relax CSP on `/sandbox` only so generated
+        // websites can load CDN libraries (Three.js, Tailwind, Chart.js, React,
+        // Google Fonts, public images/APIs) inside the isolated preview.
+        source: "/sandbox",
+        headers: [{ key: "Content-Security-Policy", value: sandboxCsp }],
+      },
       {
         // Static theme videos, posters, and meme stickers cache locally so
         // looping and switching themes never stalls on repeat downloads.
