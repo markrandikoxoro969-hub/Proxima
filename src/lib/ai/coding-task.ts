@@ -30,8 +30,8 @@ const MAX_DRAFT_CHARS = 100_000;
 const PLAN_INSTRUCTIONS = [
   "Plan this coding task as files, but do not write any source code yet.",
   'Return only JSON in this exact shape: {"files":[{"path":"relative/path.ext","purpose":"one short sentence"}]}.',
-  `List every file needed to finish the task, in dependency order, up to ${MAX_PLANNED_FILES} files.`,
-  "Prefer the smallest complete set; include essential config and tests when the request needs them.",
+  `List only the essential files needed to finish the task, in dependency order, up to ${MAX_PLANNED_FILES} files.`,
+  "Keep the file count minimal for fast generation: prefer 1 file for scripts/components and 2-3 combined files (e.g. index.html, styles.css, app.js) for web apps unless the user explicitly requests a larger folder layout. Never add unrequested README, linter, or boilerplate config files.",
   "Use safe relative POSIX paths. Never include absolute paths, parent-directory segments, or duplicate paths.",
   "Do not include Markdown fences, commentary, or files the user did not ask for.",
 ].join("\n");
@@ -161,6 +161,7 @@ export function readCodingTaskProgress(value: unknown): CodingTaskProgress | nul
 export async function planCodingTask(provider: AiProvider, request: AiRequest): Promise<CodingFilePlan[]> {
   const planRequest: AiRequest = {
     ...request,
+    history: request.history?.slice(-6),
     mode: "coding",
     system: `${request.system ?? ""}\n\n${PLAN_INSTRUCTIONS}`.trim(),
     message: `Coding task to plan:\n${request.message}`,
@@ -249,12 +250,13 @@ export async function generateCodingFile(
         provider,
         {
           ...request,
+          history: request.history?.slice(-6),
           mode: "coding",
           system: `${request.system ?? ""}\n\n${fileInstructions}`.trim(),
           message: [prompt, repairPrompt].filter(Boolean).join("\n\n"),
         },
         (text) => {
-          if (!onDraft || Date.now() - lastDraftAt < 250) return;
+          if (!onDraft || Date.now() - lastDraftAt < 75) return;
           const preview = draftSource(text);
           if (preview) {
             lastDraftAt = Date.now();

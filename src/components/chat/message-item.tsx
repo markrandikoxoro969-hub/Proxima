@@ -14,6 +14,7 @@ import {
   Planet,
   Play,
   SpeakerHigh,
+  TerminalWindow,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
@@ -225,9 +226,15 @@ function AssistantMessage({
         )}
 
         {streaming && message.content && message.statusMessage && (
-          <p role="status" className="mt-3 text-sm text-muted">
-            {message.statusMessage}
-          </p>
+          message.statusMessage.startsWith("$ ") ? (
+            <div className="mt-3">
+              <LiveCommandTicker command={message.statusMessage.slice(2)} />
+            </div>
+          ) : (
+            <p role="status" className="mt-3 text-sm text-muted">
+              {message.statusMessage}
+            </p>
+          )
         )}
         {streaming && message.content && <span className="stream-caret" aria-hidden />}
 
@@ -518,12 +525,22 @@ function Thinking({
     return () => window.clearInterval(timer);
   }, [reduced]);
 
+  const isLiveCommand = Boolean(message && message.startsWith("$ "));
+
   return (
     <div className="flex flex-col gap-2 py-1.5" role="status" aria-live="polite">
-      <span className="sr-only">{waking ? "Waking up the engine" : `Proxima is ${label.toLowerCase()}`}</span>
+      <span className="sr-only">
+        {isLiveCommand
+          ? `Running command ${message?.slice(2)}`
+          : waking
+            ? "Waking up the engine"
+            : `Proxima is ${label.toLowerCase()}`}
+      </span>
       <div className="flex items-center gap-2.5" aria-hidden>
         <span className="thinking-orb" />
-        <span className="thinking-label text-sm">{waking ? "Waking up" : label}</span>
+        <span className="thinking-label text-sm">
+          {isLiveCommand ? "Running command" : waking ? "Waking up" : label}
+        </span>
         <span className="thinking-dots">
           <span />
           <span />
@@ -531,11 +548,54 @@ function Thinking({
         </span>
         {seconds > 0 && <span className="font-mono text-[11px] text-subtle tabular-nums">{seconds}s</span>}
       </div>
-      {waking && (
+      {isLiveCommand && message ? (
+        <LiveCommandTicker command={message.slice(2)} />
+      ) : waking ? (
         <p className="max-w-md text-xs text-subtle">
           {message ?? "The engine was asleep. The first reply can take up to a minute."}
         </p>
-      )}
+      ) : message ? (
+        <p className="max-w-md text-xs text-subtle">{message}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Animated frosted command ticker showing each command Proxima executes live
+ * with a smooth blur + fade transition between consecutive commands.
+ */
+function LiveCommandTicker({ command }: { command: string }) {
+  const reduced = useReducedMotion();
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="inline-flex max-w-full items-center gap-2.5 overflow-hidden rounded-2xl glass-card px-3.5 py-2"
+    >
+      <span className="relative flex size-2.5 shrink-0 items-center justify-center" aria-hidden>
+        {!reduced && (
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400/75" />
+        )}
+        <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+      </span>
+      <TerminalWindow weight="bold" className="size-4 shrink-0 text-emerald-500" aria-hidden />
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <AnimatePresence mode="wait" initial={false}>
+          <m.div
+            key={command}
+            initial={reduced ? { opacity: 1 } : { opacity: 0, y: 6, filter: "blur(5px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={reduced ? { opacity: 0 } : { opacity: 0, y: -6, filter: "blur(5px)" }}
+            transition={{ duration: 0.28, ease: EASE }}
+            className="flex min-w-0 items-center gap-1.5 font-mono text-xs"
+          >
+            <span className="shrink-0 font-bold text-emerald-500">$</span>
+            <span className="thinking-label truncate font-semibold text-fg">{command}</span>
+          </m.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

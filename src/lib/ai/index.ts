@@ -25,10 +25,10 @@ const create: Record<NormalizedProviderId, (url: string) => AiProvider> = {
   mock: createMockProvider,
 };
 
-/** Give the free OpenRouter endpoint more time to produce its first token. */
+/** Give the free OpenRouter endpoint a fast bounded window before falling over to NVIDIA. */
 export function openRouterFirstTokenTimeoutMs(env: Record<string, string | undefined> = process.env): number {
   const value = Number(env.OPENROUTER_TIMEOUT_MS);
-  return Number.isFinite(value) && value > 0 ? Math.min(value, 275_000) : 150_000;
+  return Number.isFinite(value) && value > 0 ? Math.min(value, 275_000) : 20_000;
 }
 
 let cached: { key: string; provider: AiProvider } | undefined;

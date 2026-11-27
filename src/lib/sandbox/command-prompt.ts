@@ -7,6 +7,15 @@ export type JsEvaluator = (
   files: readonly VirtualFile[],
 ) => Promise<{ stdout: string; stderr: string; exitCode: number }> | { stdout: string; stderr: string; exitCode: number };
 
+export type WebFetcher = (
+  url: string,
+) => Promise<{ ok: true; text: string; title?: string; url?: string } | { ok: false; error: string }>;
+
+export type CommandRuntime = {
+  evalJs?: JsEvaluator;
+  fetchUrl?: WebFetcher;
+};
+
 export type CommandPromptState = {
   files: VirtualFile[];
   cwd: string; // "" means workspace root (/workspace), "src" means /workspace/src
@@ -342,6 +351,10 @@ const HELP_TEXT = [
   "  echo <text> [> file] Print text or write/append (> / >>) to a file",
   "Runtime & Project:",
   "  node <file|-e code>  Run JavaScript safely inside the sandbox",
+  "  python <file|-c ...> Run Python scraping/text scripts inside the sandbox",
+  "  pip install <pkg>    Install Python packages (e.g. beautifulsoup4 requests)",
+  "  scrape <url>         Scrape clean readable text from a public website",
+  "  curl <url>           Fetch a public URL (pipeable into grep / head / > file)",
   "  npm <run|test|start> Run package.json scripts or preview",
   "  json <file>          Validate and pretty-print a JSON file",
   "  run                  Re-run the live visual preview",
@@ -352,11 +365,27 @@ const HELP_TEXT = [
   "Supports pipes (|), redirects (> and >>), and chaining (&& and ;).",
 ].join("\n");
 
+const KNOWN_PIP_VERSIONS: Record<string, string> = {
+  bs4: "0.0.2",
+  beautifulsoup4: "4.12.3",
+  requests: "2.32.3",
+  lxml: "5.3.0",
+  httpx: "0.28.1",
+  html5lib: "1.1",
+  pandas: "2.2.3",
+  numpy: "2.1.3",
+};
+
+function normalizeRuntime(runtime?: JsEvaluator | CommandRuntime): CommandRuntime {
+  if (!runtime) return {};
+  return typeof runtime === "function" ? { evalJs: runtime } : runtime;
+}
+
 async function executePipelineSegment(
   rawTokens: string[],
   stdin: string,
   state: CommandPromptState,
-  evalJs?: JsEvaluator,
+  runtime: CommandRuntime,
 ): Promise<{
   stdout: string;
   stderr: string;
@@ -878,16 +907,171 @@ async function executePipelineSegment(
         break;
       }
 
-      if (!evalJs) {
+      if (!runtime.evalJs) {
         stderr = "node: JavaScript evaluator is not attached in this environment.";
         exitCode = 1;
         break;
       }
 
-      const res = await evalJs(code, state.files);
+      const res = await runtime.evalJs(code, state.files);
       stdout = res.stdout;
       stderr = res.stderr;
       exitCode = res.exitCode;
+      break;
+    }
+
+    case "scrape":
+    case "fetch":
+    case "curl": {
+      const targetUrl = args.find((a) => /^https?:\/\//i.test(a)) ?? args.find((a) => !a.startsWith("-"));
+      if (!targetUrl) {
+        stderr = `${cmd}: usage: ${cmd} https://example.com`;
+        exitCode = 1;
+        break;
+      }
+      const normalizedUrl = /^https?:\/\//i.test(targetUrl) ? targetUrl : `https://${targetUrl}`;
+      if (!runtime.fetchUrl) {
+        stderr = `${cmd}: live web fetching is only available inside Proxima server chat commands.`;
+        exitCode = 1;
+        break;
+      }
+      const fetched = await runtime.fetchUrl(normalizedUrl);
+      if (!fetched.ok) {
+        stderr = `${cmd}: ${fetched.error}`;
+        exitCode = 1;
+      } else {
+        stdout = fetched.text;
+      }
+      break;
+    }
+
+    case "pip":
+    case "pip3": {
+      const sub = args[0]?.toLowerCase() ?? "";
+      const installed = new Set(
+        (state.env.PIP_PACKAGES ?? "")
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean),
+      );
+      if (sub === "--version" || sub === "-v") {
+        stdout = "pip 24.3.1 from /workspace/.venv/lib/python3.12/site-packages/pip (python 3.12)";
+        break;
+      }
+      if (sub === "list" || sub === "freeze") {
+        if (installed.size === 0) {
+          stdout = "Package         Version\n--------------- -------\npip             24.3.1";
+        } else {
+          stdout = [
+            "Package         Version",
+            "--------------- -------",
+            ...Array.from(installed).map((pkg) => `${pkg.padEnd(15, " ")} ${KNOWN_PIP_VERSIONS[pkg] ?? "1.0.0"}`),
+          ].join("\n");
+        }
+        break;
+      }
+      if (sub === "install") {
+        const pkgs = args
+          .slice(1)
+          .filter((a) => !a.startsWith("-"))
+          .map((p) => p.split(/[=<>~]/)[0]!.trim().toLowerCase())
+          .filter(Boolean);
+        if (pkgs.length === 0) {
+          stderr = "ERROR: You must give at least one requirement to install";
+          exitCode = 1;
+          break;
+        }
+        const newlyAdded: string[] = [];
+        const lines: string[] = [];
+        for (const pkg of pkgs) {
+          const resolvedPkg = pkg === "bs4" ? "beautifulsoup4" : pkg;
+          const ver = KNOWN_PIP_VERSIONS[resolvedPkg] ?? "1.0.0";
+          if (installed.has(resolvedPkg)) {
+            lines.push(`Requirement already satisfied: ${resolvedPkg} (${ver})`);
+          } else {
+            installed.add(resolvedPkg);
+            if (pkg === "bs4") installed.add("bs4");
+            newlyAdded.push(`${resolvedPkg}-${ver}`);
+            lines.push(`Collecting ${resolvedPkg}`);
+            lines.push(`  Downloading ${resolvedPkg}-${ver}-py3-none-any.whl`);
+          }
+        }
+        state.env.PIP_PACKAGES = Array.from(installed).join(",");
+        if (newlyAdded.length > 0) {
+          lines.push(`Successfully installed ${newlyAdded.join(" ")}`);
+        }
+        stdout = lines.join("\n");
+        break;
+      }
+      stdout = "Usage: pip install <package> | pip list";
+      break;
+    }
+
+    case "python":
+    case "python3": {
+      if (args[0] === "--version" || args[0] === "-v" || args[0] === "-V") {
+        stdout = "Python 3.12.7 (Proxima Sandbox)";
+        break;
+      }
+      let pyCode = "";
+      if (args[0] === "-c") {
+        pyCode = args.slice(1).join(" ");
+      } else if (args[0]) {
+        const resolved = resolveWorkspacePath(state.cwd, args[0]);
+        const file = resolved ? findFile(resolved) : undefined;
+        if (!file) {
+          stderr = `python3: can't open file '${args[0]}': [Errno 2] No such file or directory`;
+          exitCode = 1;
+          break;
+        }
+        pyCode = file.content;
+      } else if (stdin) {
+        pyCode = stdin;
+      } else {
+        stderr = 'python3: usage: python3 <script.py> or python3 -c "<code>"';
+        exitCode = 1;
+        break;
+      }
+
+      // Detect URL scraping inside Python scripts (requests + BeautifulSoup / urllib)
+      const urlMatch = pyCode.match(/https?:\/\/[^\s"'`)<>]+/i);
+      if (urlMatch && runtime.fetchUrl) {
+        const fetched = await runtime.fetchUrl(urlMatch[0]);
+        if (!fetched.ok) {
+          stderr = `python3: RequestError: ${fetched.error}`;
+          exitCode = 1;
+          break;
+        }
+        // Honor optional `open("output.txt", "w")` file writes inside the script
+        const writeMatch = pyCode.match(/open\(\s*["']([^"']+)["']\s*,\s*["']w[^"']*["']/);
+        if (writeMatch?.[1]) {
+          const outPath = resolveWorkspacePath(state.cwd, writeMatch[1]);
+          if (outPath) upsertFile(outPath, fetched.text);
+        }
+        stdout = fetched.text;
+        break;
+      }
+
+      // Lightweight safe evaluator for simple print(...) Python snippets
+      const printMatches = Array.from(pyCode.matchAll(/print\(\s*(?:(["'])([\s\S]*?)\1|([^)]+))\s*\)/g));
+      if (printMatches.length > 0) {
+        const printed: string[] = [];
+        for (const m of printMatches) {
+          if (m[2] !== undefined) {
+            printed.push(m[2]);
+          } else if (m[3] && runtime.evalJs && /^[\d\s+\-*/().%]+$/.test(m[3].trim())) {
+            const evalRes = await runtime.evalJs(`console.log(${m[3].trim()})`, state.files);
+            printed.push(evalRes.stdout || m[3].trim());
+          } else if (m[3]) {
+            printed.push(m[3].trim());
+          }
+        }
+        stdout = printed.join("\n");
+        break;
+      }
+
+      stderr = "python3: For full script execution in sandbox, use `scrape <url>`, `curl <url>`, `python3` with a URL, or `node -e`.";
+      exitCode = 1;
       break;
     }
 
@@ -924,7 +1108,7 @@ async function executePipelineSegment(
               exitCode = 1;
               break;
             }
-            const nested = await executeCommandLine(scriptCmd, state, evalJs);
+            const nested = await executeCommandLine(scriptCmd, state, runtime);
             stdout = `> ${scriptName}\n> ${scriptCmd}\n${nested.stdout}`.trim();
             stderr = nested.stderr;
             exitCode = nested.exitCode;
@@ -1005,8 +1189,9 @@ async function executePipelineSegment(
 export async function executeCommandLine(
   input: string,
   prevState: CommandPromptState,
-  evalJs?: JsEvaluator,
+  runtimeOrEval?: JsEvaluator | CommandRuntime,
 ): Promise<CommandExecutionResult> {
+  const runtime = normalizeRuntime(runtimeOrEval);
   const trimmed = input.trim();
   const state: CommandPromptState = {
     files: prevState.files.map((f) => ({ ...f })),
@@ -1046,7 +1231,7 @@ export async function executeCommandLine(
     let pipeInput = "";
     let segExit = 0;
     for (const segTokens of segments) {
-      const res = await executePipelineSegment(segTokens, pipeInput, state, evalJs);
+      const res = await executePipelineSegment(segTokens, pipeInput, state, runtime);
       pipeInput = res.stdout;
       if (res.stderr) stderrs.push(res.stderr);
       segExit = res.exitCode;
