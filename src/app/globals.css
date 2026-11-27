@@ -94,8 +94,10 @@ html.dark {
     0 24px 68px rgb(0 0 0 / 0.58),
     inset 0 1px 0 var(--glass-highlight),
     inset 0 -1px 0 rgb(255 255 255 / 0.06);
+  --glass-dropdown-bg: color-mix(in srgb, var(--surface-solid) 82%, transparent);
   --glass-blur: 18px;
-  --glass-blur-elevated: 24px;
+  --glass-blur-elevated: 26px;
+  --glass-blur-dropdown: 28px;
   color-scheme: dark;
 }
 
@@ -1672,12 +1674,18 @@ html[data-scene="media"] .lg\:glass,
 html[data-scene="media"] .glass-header,
 html[data-scene="media"] .glass-panel,
 html[data-scene="media"] .glass-nav,
-html[data-scene="media"] .glass-dialog,
-html[data-scene="media"] .glass-dropdown {
+html[data-scene="media"] .glass-dialog {
   background-color: color-mix(in srgb, var(--surface-solid) 48%, transparent);
   backdrop-filter: blur(14px) saturate(165%);
   -webkit-backdrop-filter: blur(14px) saturate(165%);
   box-shadow: var(--glass-shadow);
+}
+
+html[data-scene="media"] .glass-dropdown {
+  background-color: color-mix(in srgb, var(--surface-solid) 78%, transparent);
+  backdrop-filter: blur(26px) saturate(185%);
+  -webkit-backdrop-filter: blur(26px) saturate(185%);
+  box-shadow: var(--glass-shadow-elevated);
 }
 
 @media (max-width: 767px) {
@@ -1685,10 +1693,14 @@ html[data-scene="media"] .glass-dropdown {
   html[data-scene="media"] .glass-header,
   html[data-scene="media"] .glass-panel,
   html[data-scene="media"] .glass-nav,
-  html[data-scene="media"] .glass-dialog,
-  html[data-scene="media"] .glass-dropdown {
+  html[data-scene="media"] .glass-dialog {
     backdrop-filter: blur(10px) saturate(150%);
     -webkit-backdrop-filter: blur(10px) saturate(150%);
+  }
+
+  html[data-scene="media"] .glass-dropdown {
+    backdrop-filter: blur(22px) saturate(175%);
+    -webkit-backdrop-filter: blur(22px) saturate(175%);
   }
 }
 

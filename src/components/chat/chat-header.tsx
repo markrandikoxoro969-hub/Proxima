@@ -89,7 +89,16 @@ export const ChatHeader = memo(function ChatHeader({
 
   return (
     <div className="shrink-0 px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-1 sm:px-4">
-      <header className="relative z-20 mx-auto flex max-w-5xl items-center gap-1.5 rounded-[1.5rem] glass-header px-2.5 py-1.5 sm:gap-2.5 sm:px-3.5">
+      <header className="relative z-20 mx-auto flex max-w-5xl items-center gap-1.5 rounded-[1.5rem] px-2.5 py-1.5 sm:gap-2.5 sm:px-3.5">
+        {/*
+         * Separate sibling backdrop layer so <header> itself does NOT become a CSS Backdrop Root;
+         * this allows the floating Controls / Themes dropdown below to apply real backdrop-filter
+         * blur over the scrolling chat messages behind it.
+         */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 rounded-[1.5rem] glass-header"
+        />
         <button
           type="button"
           onClick={onOpenSidebar}
