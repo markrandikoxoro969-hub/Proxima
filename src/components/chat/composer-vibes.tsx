@@ -269,12 +269,234 @@ export function ComposerPeeker({
   );
 }
 
+export const PROXIMA_VIBE_ACTION_EVENT = "proxima:vibe-action";
+
+export type ComposerVibeAction =
+  | { type: "meme"; kind: ComposerMemeKind }
+  | { type: "poke" };
+
+/** Dispatches a meme pop or peeker poke from the top Controls hub to the Composer. */
+export function dispatchComposerVibeAction(action: ComposerVibeAction) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent<ComposerVibeAction>(PROXIMA_VIBE_ACTION_EVENT, { detail: action }));
+}
+
 /**
- * Compact composer toolbar popover for:
- *   - Popping memes on demand (Skull, Wasted)
- *   - Picking any of the 7 anime companions (Ledge, Rift, Anya, Gojo, Kiyo, Kanna, Wall)
- *   - Toggling auto typing-box memes & companion
- *   - One-tap switching between all 10 live video / photo aesthetic themes
+ * Reusable inner content for the Vibes / Emoji / Companions menu — rendered
+ * inside the top liquid-morphing Controls hub alongside Themes.
+ */
+export function VibeMenuContent({
+  onTriggerMeme,
+  onPokePeeker,
+  onClose,
+  syncAccount = true,
+  showHeader = true,
+}: {
+  onTriggerMeme?: (kind: ComposerMemeKind) => void;
+  onPokePeeker?: () => void;
+  onClose?: () => void;
+  syncAccount?: boolean;
+  showHeader?: boolean;
+}) {
+  const [prefs, updatePrefs] = useComposerVibes();
+  const themeCtx = useOptionalTheme();
+
+  const triggerMeme = (kind: ComposerMemeKind) => {
+    if (onTriggerMeme) {
+      onTriggerMeme(kind);
+    } else {
+      dispatchComposerVibeAction({ type: "meme", kind });
+    }
+    onClose?.();
+  };
+
+  const chooseTheme = (id: string) => {
+    if (!themeCtx) return;
+    themeCtx.setPalette(id);
+    if (syncAccount) {
+      const palette = getBuiltInTheme(id);
+      api
+        .updateProfile({ themePalette: id, ...(palette ? { theme: palette.mode } : {}) })
+        .catch(() => {
+          /* applied locally */
+        });
+    }
+  };
+
+  const chooseCompanion = (id: PeekerCompanionId) => {
+    updatePrefs({ peekerEnabled: true, peekerId: id });
+    if (onPokePeeker) {
+      onPokePeeker();
+    } else {
+      dispatchComposerVibeAction({ type: "poke" });
+    }
+  };
+
+  return (
+    <div>
+      {showHeader && (
+        <div className="mb-2 flex items-center justify-between px-0.5">
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
+            <Sparkle weight="fill" className="size-3 text-[var(--accent-text)]" aria-hidden />
+            Memes &amp; Companions
+          </span>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close vibes menu"
+              className="grid size-6 place-items-center rounded-lg text-subtle hover:bg-surface-hover hover:text-fg"
+            >
+              <X weight="bold" className="size-3.5" aria-hidden />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Instant pop meme triggers */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <button
+          type="button"
+          onClick={() => triggerMeme("skull")}
+          className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface-hover/50 px-2.5 py-1.5 text-left transition-colors hover:border-red-400/50 hover:bg-surface-hover"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={COMPOSER_MEMES.skull.src} alt="" className="h-7 w-auto object-contain" />
+          <span className="text-[11px] font-extrabold">Pop Skull</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => triggerMeme("wasted")}
+          className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface-hover/50 px-2.5 py-1.5 text-left transition-colors hover:border-red-400/50 hover:bg-surface-hover"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={COMPOSER_MEMES.wasted.src} alt="" className="h-4 w-auto object-contain" />
+          <span className="text-[11px] font-extrabold">Wasted</span>
+        </button>
+      </div>
+
+      {/* Companion character picker */}
+      <div className="mt-2.5 border-t border-line pt-2">
+        <div className="mb-1.5 flex items-center justify-between px-0.5">
+          <p className="text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
+            Typing Box Companion
+          </p>
+          <button
+            type="button"
+            onClick={() => updatePrefs({ peekerEnabled: !prefs.peekerEnabled })}
+            className="text-[10px] font-bold text-muted hover:text-fg"
+          >
+            {prefs.peekerEnabled ? "Hide" : "Show"}
+          </button>
+        </div>
+        <div className="grid grid-cols-4 gap-1">
+          {PEEKER_COMPANIONS.map((item) => {
+            const selected = prefs.peekerEnabled && prefs.peekerId === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => chooseCompanion(item.id)}
+                className={cn(
+                  "relative flex flex-col items-center gap-1 rounded-xl border p-1.5 transition-colors",
+                  selected
+                    ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                    : "border-line bg-surface-hover/40 hover:bg-surface-hover",
+                )}
+                title={item.alt}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.src}
+                  alt=""
+                  decoding="async"
+                  className="h-8 w-auto max-w-full object-contain"
+                />
+                <span className="truncate text-[10px] font-bold text-fg">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Auto-meme switch */}
+      <div className="mt-2 border-t border-line pt-2">
+        <VibeSwitch
+          label="Auto typing memes"
+          hint="Pops on bruh, cooked, wasted, rip, crash…"
+          checked={prefs.memesEnabled}
+          onChange={(checked) => updatePrefs({ memesEnabled: checked })}
+        />
+      </div>
+
+      {/* Quick Live Theme strip */}
+      {themeCtx && (
+        <div className="mt-2 border-t border-line pt-2">
+          <div className="mb-1.5 flex items-center justify-between px-0.5">
+            <p className="text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
+              Quick Live Themes
+            </p>
+            <span className="text-[9px] font-bold tracking-wider text-muted uppercase">
+              {themeCtx.device === "mobile" ? "Mobile" : "Desktop"}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-1">
+            {mediaThemesForDevice(themeCtx.device).map((palette) => {
+              const active = themeCtx.theme.id === palette.id;
+              const thumb = palette.media?.poster ?? palette.media?.src;
+              const isVideo = palette.media?.kind === "video";
+              return (
+                <button
+                  key={palette.id}
+                  type="button"
+                  onClick={() => chooseTheme(palette.id)}
+                  className={cn(
+                    "group relative h-11 overflow-hidden rounded-lg border text-left transition-[border-color,transform] active:scale-95",
+                    active ? "border-[var(--accent)] ring-1 ring-[var(--accent)]/40" : "border-line",
+                  )}
+                  title={palette.name}
+                >
+                  {thumb && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={thumb}
+                      alt=""
+                      decoding="async"
+                      className="size-full object-cover"
+                      style={{ objectPosition: palette.media?.position ?? "50% 40%" }}
+                    />
+                  )}
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent"
+                  />
+                  <span className="absolute top-1 left-1 text-white/85">
+                    {isVideo ? (
+                      <FilmStrip weight="fill" className="size-2.5" aria-hidden />
+                    ) : (
+                      <ImageIcon weight="fill" className="size-2.5" aria-hidden />
+                    )}
+                  </span>
+                  {active && (
+                    <span className="absolute top-1 right-1 grid size-3.5 place-items-center rounded-full bg-white text-black">
+                      <Check weight="bold" className="size-2" aria-hidden />
+                    </span>
+                  )}
+                  <span className="absolute inset-x-1 bottom-0.5 truncate text-[9px] font-extrabold text-white">
+                    {palette.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Compact popover wrapper kept for standalone reuse.
  */
 export function VibeMenu({
   onTriggerMeme,
@@ -286,9 +508,8 @@ export function VibeMenu({
   syncAccount?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [prefs, updatePrefs] = useComposerVibes();
+  const [prefs] = useComposerVibes();
   useMuffleThemeAudio(open, "vibe-menu");
-  const themeCtx = useOptionalTheme();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -311,24 +532,6 @@ export function VibeMenu({
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
-
-  const chooseTheme = (id: string) => {
-    if (!themeCtx) return;
-    themeCtx.setPalette(id);
-    if (syncAccount) {
-      const palette = getBuiltInTheme(id);
-      api
-        .updateProfile({ themePalette: id, ...(palette ? { theme: palette.mode } : {}) })
-        .catch(() => {
-          /* applied locally */
-        });
-    }
-  };
-
-  const chooseCompanion = (id: PeekerCompanionId) => {
-    updatePrefs({ peekerEnabled: true, peekerId: id });
-    onPokePeeker();
-  };
 
   return (
     <div ref={rootRef} className="contents">
@@ -357,165 +560,12 @@ export function VibeMenu({
           aria-label="Memes and aesthetic vibes"
           className="glass-dropdown animate-scale-in absolute bottom-full left-0 z-40 mb-2 max-h-[min(74dvh,32rem)] w-[min(21.5rem,calc(100vw-1.5rem))] origin-bottom-left overflow-y-auto overscroll-contain rounded-2xl p-2.5"
         >
-          <div className="mb-2 flex items-center justify-between px-0.5">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
-              <Sparkle weight="fill" className="size-3 text-[var(--accent-text)]" aria-hidden />
-              Memes &amp; Companions
-            </span>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close vibes menu"
-              className="grid size-6 place-items-center rounded-lg text-subtle hover:bg-surface-hover hover:text-fg"
-            >
-              <X weight="bold" className="size-3.5" aria-hidden />
-            </button>
-          </div>
-
-          {/* Instant pop meme triggers */}
-          <div className="grid grid-cols-2 gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                onTriggerMeme("skull");
-                setOpen(false);
-              }}
-              className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface-hover/50 px-2.5 py-1.5 text-left transition-colors hover:border-red-400/50 hover:bg-surface-hover"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={COMPOSER_MEMES.skull.src} alt="" className="h-7 w-auto object-contain" />
-              <span className="text-[11px] font-extrabold">Pop Skull</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onTriggerMeme("wasted");
-                setOpen(false);
-              }}
-              className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface-hover/50 px-2.5 py-1.5 text-left transition-colors hover:border-red-400/50 hover:bg-surface-hover"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={COMPOSER_MEMES.wasted.src} alt="" className="h-4 w-auto object-contain" />
-              <span className="text-[11px] font-extrabold">Wasted</span>
-            </button>
-          </div>
-
-          {/* Companion character picker */}
-          <div className="mt-2.5 border-t border-line pt-2">
-            <div className="mb-1.5 flex items-center justify-between px-0.5">
-              <p className="text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
-                Typing Box Companion
-              </p>
-              <button
-                type="button"
-                onClick={() => updatePrefs({ peekerEnabled: !prefs.peekerEnabled })}
-                className="text-[10px] font-bold text-muted hover:text-fg"
-              >
-                {prefs.peekerEnabled ? "Hide" : "Show"}
-              </button>
-            </div>
-            <div className="grid grid-cols-4 gap-1">
-              {PEEKER_COMPANIONS.map((item) => {
-                const selected = prefs.peekerEnabled && prefs.peekerId === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => chooseCompanion(item.id)}
-                    className={cn(
-                      "relative flex flex-col items-center gap-1 rounded-xl border p-1.5 transition-colors",
-                      selected
-                        ? "border-[var(--accent)] bg-[var(--accent)]/10"
-                        : "border-line bg-surface-hover/40 hover:bg-surface-hover",
-                    )}
-                    title={item.alt}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={item.src}
-                      alt=""
-                      decoding="async"
-                      className="h-8 w-auto max-w-full object-contain"
-                    />
-                    <span className="truncate text-[10px] font-bold text-fg">{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Auto-meme switch */}
-          <div className="mt-2 border-t border-line pt-2">
-            <VibeSwitch
-              label="Auto typing memes"
-              hint="Pops on bruh, cooked, wasted, rip, crash…"
-              checked={prefs.memesEnabled}
-              onChange={(checked) => updatePrefs({ memesEnabled: checked })}
-            />
-          </div>
-
-          {/* Quick Live Theme strip */}
-          {themeCtx && (
-            <div className="mt-2 border-t border-line pt-2">
-              <div className="mb-1.5 flex items-center justify-between px-0.5">
-                <p className="text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
-                  Quick Live Themes
-                </p>
-                <span className="text-[9px] font-bold tracking-wider text-muted uppercase">
-                  {themeCtx.device === "mobile" ? "Mobile" : "Desktop"}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-1">
-                {mediaThemesForDevice(themeCtx.device).map((palette) => {
-                  const active = themeCtx.theme.id === palette.id;
-                  const thumb = palette.media?.poster ?? palette.media?.src;
-                  const isVideo = palette.media?.kind === "video";
-                  return (
-                    <button
-                      key={palette.id}
-                      type="button"
-                      onClick={() => chooseTheme(palette.id)}
-                      className={cn(
-                        "group relative h-11 overflow-hidden rounded-lg border text-left transition-[border-color,transform] active:scale-95",
-                        active ? "border-[var(--accent)] ring-1 ring-[var(--accent)]/40" : "border-line",
-                      )}
-                      title={palette.name}
-                    >
-                      {thumb && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={thumb}
-                          alt=""
-                          decoding="async"
-                          className="size-full object-cover"
-                          style={{ objectPosition: palette.media?.position ?? "50% 40%" }}
-                        />
-                      )}
-                      <span
-                        aria-hidden
-                        className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent"
-                      />
-                      <span className="absolute top-1 left-1 text-white/85">
-                        {isVideo ? (
-                          <FilmStrip weight="fill" className="size-2.5" aria-hidden />
-                        ) : (
-                          <ImageIcon weight="fill" className="size-2.5" aria-hidden />
-                        )}
-                      </span>
-                      {active && (
-                        <span className="absolute top-1 right-1 grid size-3.5 place-items-center rounded-full bg-white text-black">
-                          <Check weight="bold" className="size-2" aria-hidden />
-                        </span>
-                      )}
-                      <span className="absolute inset-x-1 bottom-0.5 truncate text-[9px] font-extrabold text-white">
-                        {palette.name}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          <VibeMenuContent
+            onTriggerMeme={onTriggerMeme}
+            onPokePeeker={onPokePeeker}
+            onClose={() => setOpen(false)}
+            syncAccount={syncAccount}
+          />
         </div>
       )}
     </div>

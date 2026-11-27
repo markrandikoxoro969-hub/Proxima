@@ -331,13 +331,9 @@ describe("<Composer />", () => {
     expect(onSend).toHaveBeenCalledWith("Review", [{ name: "app.py", content: "print('hi')" }], []);
   });
 
-  it("pops reactive memes on typing-box slang and lets you switch companions", async () => {
+  it("pops reactive memes on typing-box slang and reacts to companion updates", async () => {
     const { input } = setup();
     expect(screen.getByRole("button", { name: "Poke Ledge companion" })).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Memes and aesthetic vibes" }));
-    await userEvent.click(screen.getByRole("button", { name: "Gojo" }));
-    expect(screen.getByRole("button", { name: "Poke Gojo companion" })).toBeInTheDocument();
 
     await userEvent.type(input, "bruh");
     expect(await screen.findByAltText("Glowing red-eye skull meme")).toBeInTheDocument();

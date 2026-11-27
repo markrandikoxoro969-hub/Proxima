@@ -11,6 +11,7 @@ import {
   Palette,
   Planet,
   SlidersHorizontal,
+  SmileyWink,
   SpeakerHigh,
   SpeakerSlash,
   Waveform,
@@ -29,6 +30,8 @@ import {
 } from "react";
 import { exportUrl } from "@/lib/chat/client/api";
 import { VOICE_PROFILES } from "@/lib/chat/client/voice";
+import { getPeekerCompanion } from "@/lib/chat/client/composer-memes";
+import { useComposerVibes } from "@/lib/chat/client/use-composer-vibes";
 import type { VoiceMenuProps } from "@/components/chat/voice-menu";
 import { cn } from "@/lib/cn";
 import { ThemeAudioToggle } from "@/components/theme/theme-audio-toggle";
@@ -68,7 +71,28 @@ const VoiceMenuContent = dynamic(
   },
 );
 
-type PanelView = "main" | "sound" | "themes" | "export";
+const VibeMenuContent = dynamic(
+  () => import("@/components/chat/composer-vibes").then((mod) => mod.VibeMenuContent),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="space-y-2 py-2" aria-busy="true">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="h-11 animate-pulse rounded-xl bg-surface-hover" />
+          <div className="h-11 animate-pulse rounded-xl bg-surface-hover" />
+        </div>
+        <div className="grid grid-cols-4 gap-1.5">
+          <div className="h-14 animate-pulse rounded-xl bg-surface-hover" />
+          <div className="h-14 animate-pulse rounded-xl bg-surface-hover" />
+          <div className="h-14 animate-pulse rounded-xl bg-surface-hover" />
+          <div className="h-14 animate-pulse rounded-xl bg-surface-hover" />
+        </div>
+      </div>
+    ),
+  },
+);
+
+type PanelView = "main" | "sound" | "themes" | "vibes" | "export";
 
 const MORPH_EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -103,6 +127,7 @@ export const ChatHeader = memo(function ChatHeader({
   voiceMenuProps?: VoiceMenuProps;
 }) {
   const { theme } = useTheme();
+  const [vibes] = useComposerVibes();
   const [controlsOpen, setControlsOpen] = useState(false);
   const [panelView, setPanelView] = useState<PanelView>("main");
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -111,7 +136,7 @@ export const ChatHeader = memo(function ChatHeader({
   const measureRef = useRef<HTMLDivElement>(null);
   const controlsMenuId = useId();
 
-  useMuffleThemeAudio(controlsOpen && panelView === "sound", "header-sound-menu");
+  useMuffleThemeAudio(controlsOpen && (panelView === "sound" || panelView === "vibes"), "header-sound-menu");
 
   const closeControls = useCallback(() => {
     setControlsOpen(false);
@@ -183,8 +208,10 @@ export const ChatHeader = memo(function ChatHeader({
     ? VOICE_PROFILES[voiceMenuProps.settings.voice].label
     : null;
 
+  const activeCompanion = getPeekerCompanion(vibes.peekerId);
+
   const panelWidthClass =
-    panelView === "themes" || panelView === "sound"
+    panelView === "themes" || panelView === "sound" || panelView === "vibes"
       ? "w-[min(92vw,22rem)]"
       : "w-[min(90vw,19rem)]";
 
@@ -193,9 +220,11 @@ export const ChatHeader = memo(function ChatHeader({
       ? "Theme menu"
       : panelView === "sound"
         ? "Sound and voice menu"
-        : panelView === "export"
-          ? "Export menu"
-          : "Workspace controls";
+        : panelView === "vibes"
+          ? "Memes and aesthetic vibes"
+          : panelView === "export"
+            ? "Export menu"
+            : "Workspace controls";
 
   return (
     <div className="shrink-0 px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-1 sm:px-4">
@@ -446,6 +475,43 @@ export const ChatHeader = memo(function ChatHeader({
                                   />
                                 </button>
 
+                                <button
+                                  type="button"
+                                  onClick={() => navigateView("vibes")}
+                                  aria-label="Open memes and aesthetic vibes menu"
+                                  className="flex w-full items-center justify-between gap-2.5 rounded-2xl glass-pill px-3 py-2.5 text-left transition-colors duration-200 hover:border-[var(--glass-border-strong)] hover:bg-surface-hover"
+                                >
+                                  <span className="flex min-w-0 items-center gap-2.5">
+                                    <span
+                                      className={cn(
+                                        "inline-flex size-8 shrink-0 items-center justify-center rounded-xl",
+                                        vibes.memesEnabled || vibes.peekerEnabled
+                                          ? "bg-[var(--accent)]/15 text-[var(--accent-text)]"
+                                          : "bg-surface-hover text-fg",
+                                      )}
+                                    >
+                                      <SmileyWink weight="bold" className="size-4.5" aria-hidden />
+                                    </span>
+                                    <span className="min-w-0">
+                                      <span className="block text-xs font-extrabold tracking-wide text-fg uppercase">
+                                        Vibes &amp; Memes
+                                      </span>
+                                      <span className="block truncate text-[11px] font-medium text-muted">
+                                        {vibes.peekerEnabled
+                                          ? `${activeCompanion.label} · ${vibes.memesEnabled ? "Memes on" : "Memes off"}`
+                                          : vibes.memesEnabled
+                                            ? "Auto memes on"
+                                            : "Off"}
+                                      </span>
+                                    </span>
+                                  </span>
+                                  <CaretRight
+                                    weight="bold"
+                                    className="size-4 shrink-0 text-subtle"
+                                    aria-hidden
+                                  />
+                                </button>
+
                                 <div className="flex items-center justify-between gap-1.5 rounded-2xl glass-pill p-1.5">
                                   {onOpenPalette ? (
                                     <button
@@ -550,6 +616,37 @@ export const ChatHeader = memo(function ChatHeader({
                             </div>
                             <div className="max-h-[min(68dvh,28rem)] overflow-y-auto overscroll-contain pr-0.5">
                               <ThemeMenuContent syncAccount onAfterSelect={closeControls} />
+                            </div>
+                          </m.div>
+                        )}
+
+                        {panelView === "vibes" && (
+                          <m.div
+                            key="vibes"
+                            role="dialog"
+                            aria-label="Memes and aesthetic vibes"
+                            initial={{ opacity: 0, x: 18 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 18 }}
+                            transition={{ duration: 0.2, ease: MORPH_EASE }}
+                          >
+                            <div className="mb-2 flex items-center justify-between gap-2 border-b border-line pb-2">
+                              <button
+                                type="button"
+                                onClick={() => navigateView("main")}
+                                aria-label="Back to controls"
+                                className="inline-flex h-8 items-center gap-1 rounded-full glass-pill px-2.5 text-[11px] font-extrabold tracking-[0.12em] text-muted uppercase transition-colors duration-200 hover:bg-surface-hover hover:text-fg"
+                              >
+                                <CaretLeft weight="bold" className="size-3.5" aria-hidden />
+                                <span>Back</span>
+                              </button>
+                              <span className="flex items-center gap-1.5 pr-1 text-xs font-extrabold tracking-[0.14em] text-fg uppercase">
+                                <SmileyWink weight="fill" className="size-4 text-[var(--accent-text)]" aria-hidden />
+                                Vibes &amp; Memes
+                              </span>
+                            </div>
+                            <div className="max-h-[min(68dvh,28rem)] overflow-y-auto overscroll-contain pr-0.5">
+                              <VibeMenuContent showHeader={false} onClose={closeControls} />
                             </div>
                           </m.div>
                         )}
