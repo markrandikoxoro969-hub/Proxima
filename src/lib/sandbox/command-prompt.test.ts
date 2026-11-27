@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultToolRegistry } from "@/lib/ai/agent/tools";
 import { buildSandboxDocument } from "@/lib/chat/client/code-bundle";
+import { identitySystemSection } from "@/lib/identity";
+import {
+  executeChatCommands,
+  extractProximaCommands,
+  extractWorkspaceFilesFromHistory,
+  formatTerminalTranscript,
+  hasCommandPromptIntent,
+  parseSlashCommand,
+} from "./chat-command-bridge";
 import { createCommandPromptState, executeCommandLine } from "./command-prompt";
 import { runProximaCommand } from "./server-command";
 
@@ -85,5 +94,35 @@ describe("Proxima Command Prompt engine", () => {
     expect(doc).toContain('name="viewport"');
     expect(doc).toContain("width=device-width, initial-scale=1.0");
     expect(doc).toContain("<!DOCTYPE html>");
+  });
+
+  it("wires Proxima self-awareness and natural chat command-prompt bridge cleanly", async () => {
+    const sys = identitySystemSection();
+    expect(sys).toContain("Command Prompt");
+    expect(sys).toContain("proxima-sh");
+    expect(sys).toContain("<proxima_cmd>");
+
+    expect(parseSlashCommand("/cmd ls -la")).toBe("ls -la");
+    expect(parseSlashCommand("/sh node -e 'console.log(1)'")).toBe("node -e 'console.log(1)'");
+    expect(parseSlashCommand("hello world")).toBeNull();
+
+    expect(hasCommandPromptIntent("run uname -a in your command prompt")).toBe(true);
+    expect(hasCommandPromptIntent("execute `node -e 'console.log(2+2)'`")).toBe(true);
+    expect(hasCommandPromptIntent("tell me a bedtime story")).toBe(false);
+
+    const extracted = extractProximaCommands(
+      'Sure! <proxima_cmd>uname && node -e "console.log(99 + 1)"</proxima_cmd>',
+    );
+    expect(extracted).toEqual(['uname && node -e "console.log(99 + 1)"']);
+
+    const historyFiles = extractWorkspaceFilesFromHistory([
+      { content: "### `src/hi.js`\n```js\nconsole.log('from-history');\n```" },
+    ]);
+    expect(historyFiles.map((f) => f.path)).toEqual(["src/hi.js"]);
+
+    const { runs } = await executeChatCommands(["node src/hi.js"], historyFiles);
+    expect(runs[0]!.exitCode).toBe(0);
+    expect(runs[0]!.stdout).toBe("from-history");
+    expect(formatTerminalTranscript(runs)).toContain("proxima@sandbox:/workspace$ node src/hi.js");
   });
 });

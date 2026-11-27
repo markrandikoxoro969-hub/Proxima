@@ -38,6 +38,15 @@ import { getApiUserId } from "@/lib/auth/api";
 import { attachmentMeta, composePrompt, DEFAULT_TITLE, makeTitle } from "@/lib/chat/compose";
 import { db } from "@/lib/db";
 import { chatImageAttachment, loadChatImages } from "@/lib/image/store";
+import {
+  executeChatCommands,
+  extractProximaCommands,
+  extractWorkspaceFilesFromHistory,
+  formatTerminalTranscript,
+  hasCommandPromptIntent,
+  parseSlashCommand,
+  stripProximaCommandTags,
+} from "@/lib/sandbox/chat-command-bridge";
 import { IMAGE_LIMITS } from "@/lib/image/limits";
 import { cleanIdentityLeaks, identitySystemSection } from "@/lib/identity";
 import { memoryEnabled, memoryPrompt, relevantMemories, rememberMessage } from "@/lib/memory/store";
@@ -396,20 +405,42 @@ export const POST = withApi(async (request: Request) => {
 
       let codingProgress = resumeCodingProgress;
       let agentCheckpoint = resumeAgentCheckpoint;
+      const directSlashCommand = !resumedAssistant ? parseSlashCommand(input.message) : null;
       const codeBuildIntent = isExplicitCodeBuildRequest(input.message);
       const fileByFile = Boolean(
-        !resumeAgentCheckpoint &&
+        !directSlashCommand &&
+          !resumeAgentCheckpoint &&
           !explicitAgentIntent &&
           (resumeCodingProgress || (answerMode === "coding" && codeBuildIntent && !resumedAssistant)),
       );
       const runAgentLoop = Boolean(
-        !fileByFile &&
+        !directSlashCommand &&
+          !fileByFile &&
           (resumeAgentCheckpoint || (explicitAgentIntent && !resumedAssistant)),
       );
-      const finalAnswer = () => (fileByFile || runAgentLoop ? raw : stripFiller(cleanIdentityLeaks(raw)));
+      const runCommandPromptBridge = Boolean(
+        !directSlashCommand &&
+          !fileByFile &&
+          !runAgentLoop &&
+          !resumedAssistant &&
+          hasCommandPromptIntent(input.message),
+      );
+      const finalAnswer = () =>
+        directSlashCommand || fileByFile || runAgentLoop || runCommandPromptBridge
+          ? raw
+          : stripFiller(cleanIdentityLeaks(raw));
 
       try {
-        if (fileByFile) {
+        if (directSlashCommand) {
+          receivedAny = true;
+          sse.send("status", { state: "thinking", message: "Running command in Proxima Command Prompt…" });
+          const workspaceFiles = extractWorkspaceFilesFromHistory(history);
+          const { runs } = await executeChatCommands([directSlashCommand], workspaceFiles);
+          const transcript = formatTerminalTranscript(runs);
+          raw = transcript;
+          sentText = transcript;
+          sse.send("token", { text: transcript });
+        } else if (fileByFile) {
           const codingRequest = {
             message: prompt,
             sessionId,
@@ -621,6 +652,85 @@ export const POST = withApi(async (request: Request) => {
           raw += finalSegment;
           sentText = raw;
           sse.send("token", { text: finalSegment });
+        } else if (runCommandPromptBridge) {
+          const workspaceFiles = extractWorkspaceFilesFromHistory(history);
+          const fileHint = workspaceFiles.length
+            ? `Current workspace files in /workspace: ${workspaceFiles.map((f) => f.path).join(", ")}.`
+            : "Current /workspace is empty (you can create files with echo/touch/mkdir or run node -e).";
+          const cmdSystem = [
+            system,
+            "COMMAND PROMPT EXECUTION MODE:",
+            fileHint,
+            "You have a LIVE, working sandboxed command prompt right now.",
+            "To execute one or more commands, output `<proxima_cmd>EXACT_COMMAND</proxima_cmd>` (up to 4 commands). Do NOT fabricate or guess terminal output — emit the `<proxima_cmd>` tag(s) and wait for the real execution result.",
+            "If the user did not actually ask you to run a command, simply answer naturally in your own voice (and confirm that you DO have access to your built-in Command Prompt).",
+          ].join("\n\n");
+
+          let draft = "";
+          for await (const delta of generateReply(provider, {
+            message: prompt,
+            sessionId,
+            signal,
+            history,
+            showReasoning: false,
+            mode: answerMode,
+            images: providerPictures,
+            system: cmdSystem,
+          })) {
+            if (delta.type === "text") draft += delta.text;
+          }
+
+          if (signal.aborted) throw interruptedError();
+          receivedAny = true;
+
+          const commands = extractProximaCommands(draft);
+          if (commands.length > 0) {
+            sse.send("status", {
+              state: "thinking",
+              message: "Running command in Proxima Command Prompt…",
+            });
+            const { runs } = await executeChatCommands(commands, workspaceFiles);
+            const transcript = formatTerminalTranscript(runs);
+            raw = transcript;
+            sentText = transcript;
+            sse.send("token", { text: transcript });
+
+            const followUpSystem = [
+              system,
+              "You just executed real commands inside your built-in Proxima Command Prompt (`proxima-sh`).",
+              "Give a short, clear, helpful follow-up grounded strictly in the real command output below. Do not repeat the raw terminal block verbatim and do not emit `<proxima_cmd>` again.",
+            ].join("\n\n");
+
+            const followUpDeltas = generateReply(provider, {
+              message: `User request: ${input.message}\n\nReal command prompt execution result:\n${transcript}`,
+              sessionId,
+              signal,
+              history,
+              showReasoning: false,
+              mode: answerMode,
+              images: [],
+              system: followUpSystem,
+            });
+
+            let addedSpacer = false;
+            for await (const delta of followUpDeltas) {
+              if (delta.type !== "text" || !delta.text) continue;
+              if (!addedSpacer) {
+                addedSpacer = true;
+                raw += "\n\n";
+                sentText += "\n\n";
+                sse.send("token", { text: "\n\n" });
+              }
+              raw += delta.text;
+              sentText += delta.text;
+              sse.send("token", { text: delta.text });
+            }
+          } else {
+            const cleaned = stripFiller(cleanIdentityLeaks(stripProximaCommandTags(draft)));
+            raw = cleaned;
+            sentText = cleaned;
+            if (cleaned) sse.send("token", { text: cleaned });
+          }
         } else {
           const resumeInstruction =
             resumedAssistant && !resumeCodingProgress
