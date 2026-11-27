@@ -13,7 +13,6 @@ import {
   SlidersHorizontal,
   SpeakerHigh,
   SpeakerSlash,
-  TerminalWindow,
   Waveform,
 } from "@phosphor-icons/react";
 import { AnimatePresence, m } from "motion/react";
@@ -81,7 +80,6 @@ export const ChatHeader = memo(function ChatHeader({
   desktopCollapsed = false,
   onToggleDesktopSidebar,
   onOpenPalette,
-  onOpenSandbox,
   onOpenSidebar,
   onNewChat,
   voiceInput,
@@ -95,7 +93,6 @@ export const ChatHeader = memo(function ChatHeader({
   desktopCollapsed?: boolean;
   onToggleDesktopSidebar?: () => void;
   onOpenPalette?: () => void;
-  onOpenSandbox?: () => void;
   onOpenSidebar: () => void;
   onNewChat: () => void;
   /** Speech-input trigger, organized inside the floating glass controls menu. */
@@ -448,37 +445,6 @@ export const ChatHeader = memo(function ChatHeader({
                                     aria-hidden
                                   />
                                 </button>
-
-                                {onOpenSandbox && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      closeControls();
-                                      onOpenSandbox();
-                                    }}
-                                    aria-label="Open code sandbox"
-                                    className="flex w-full items-center justify-between gap-2.5 rounded-2xl glass-pill px-3 py-2.5 text-left transition-colors duration-200 hover:border-[var(--glass-border-strong)] hover:bg-surface-hover"
-                                  >
-                                    <span className="flex min-w-0 items-center gap-2.5">
-                                      <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-xl bg-surface-hover text-fg">
-                                        <TerminalWindow weight="bold" className="size-4.5" aria-hidden />
-                                      </span>
-                                      <span className="min-w-0">
-                                        <span className="block text-xs font-extrabold tracking-wide text-fg uppercase">
-                                          Sandbox
-                                        </span>
-                                        <span className="block truncate text-[11px] font-medium text-muted">
-                                          Live code preview &amp; .zip
-                                        </span>
-                                      </span>
-                                    </span>
-                                    <CaretRight
-                                      weight="bold"
-                                      className="size-4 shrink-0 text-subtle"
-                                      aria-hidden
-                                    />
-                                  </button>
-                                )}
 
                                 <div className="flex items-center justify-between gap-1.5 rounded-2xl glass-pill p-1.5">
                                   {onOpenPalette ? (

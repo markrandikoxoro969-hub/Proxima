@@ -380,10 +380,30 @@ export function buildSandboxDocument(files: GeneratedFile[], runId: string): str
       .map((f) => `<script data-file="${f.path}">\n${escapeInlineTag(f.content, "script")}\n</script>`)
       .join("\n");
 
+    const viewportMeta = /<meta\b[^>]*name=["']viewport["']/i.test(doc)
+      ? ""
+      : '<meta name="viewport" content="width=device-width, initial-scale=1.0" />';
+
     if (/<head\b[^>]*>/i.test(doc)) {
-      doc = doc.replace(/<head\b[^>]*>/i, (m) => `${m}\n${bridge}\n${extraCss}`);
+      doc = doc.replace(/<head\b[^>]*>/i, (m) => `${m}\n${viewportMeta}\n${bridge}\n${extraCss}`);
+    } else if (/<html\b[^>]*>/i.test(doc)) {
+      doc = doc.replace(
+        /<html\b[^>]*>/i,
+        (m) => `${m}\n<head>\n<meta charset="UTF-8" />\n${viewportMeta}\n${bridge}\n${extraCss}\n</head>`,
+      );
     } else {
-      doc = `${bridge}\n${extraCss}\n${doc}`;
+      doc = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+${viewportMeta}
+${bridge}
+${extraCss}
+</head>
+<body>
+${doc}
+</body>
+</html>`;
     }
 
     if (extraJs) {

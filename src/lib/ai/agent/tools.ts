@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { runProximaCommand } from "@/lib/sandbox/server-command";
 import type { AgentToolContext, AgentToolDefinition, AgentToolResult } from "./types";
 
 const MAX_DEFAULT_OUTPUT = 8_000;
@@ -362,6 +363,49 @@ export function createDefaultToolRegistry(): AgentToolRegistry {
           (row) => `| ${headers.map((_, i) => esc(row[i] ?? "")).join(" | ")} |`,
         );
         return [headerLine, divider, ...body].join("\n");
+      },
+    })
+    .register({
+      name: "run_command",
+      description:
+        "Execute a command in PROXIMA's isolated sandbox command prompt (ls, tree, cat, head, tail, grep, find, wc, mkdir, touch, cp, mv, rm, echo, json, npm, node <file>, node -e \"<code>\", pipes |, redirects > / >>, chaining && / ;). Optionally pass workspace files.",
+      permission: "read-only",
+      requiresApproval: false,
+      schema: z
+        .object({
+          command: z.string().min(1).max(2_000),
+          cwd: z.string().max(240).optional(),
+          files: z
+            .array(
+              z
+                .object({
+                  path: z.string().min(1).max(240),
+                  content: z.string().max(100_000),
+                  language: z.string().max(32).optional(),
+                })
+                .strict(),
+            )
+            .max(40)
+            .optional(),
+        })
+        .strict(),
+      execute: async ({ command, cwd, files }) => {
+        const res = await runProximaCommand({
+          command,
+          cwd,
+          files: files?.map((f) => ({
+            path: f.path,
+            content: f.content,
+            language: f.language ?? f.path.split(".").pop() ?? "txt",
+          })),
+        });
+        return JSON.stringify({
+          exitCode: res.exitCode,
+          cwd: res.cwd || "/workspace",
+          stdout: res.stdout,
+          stderr: res.stderr,
+          fileCount: res.files.length,
+        });
       },
     });
 }
