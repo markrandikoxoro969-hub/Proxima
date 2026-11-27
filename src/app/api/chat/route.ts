@@ -51,6 +51,7 @@ import {
   stripProximaCommandTags,
 } from "@/lib/sandbox/chat-command-bridge";
 import { createCommandPromptState } from "@/lib/sandbox/command-prompt";
+import { globalConfig } from "@/lib/global-config";
 import { IMAGE_LIMITS } from "@/lib/image/limits";
 import { cleanIdentityLeaks, identitySystemSection } from "@/lib/identity";
 import { memoryEnabled, memoryPrompt, relevantMemories, rememberMessage } from "@/lib/memory/store";
@@ -665,8 +666,11 @@ export const POST = withApi(async (request: Request) => {
           // actually asked for a shell/terminal/scrape task — never let Coding
           // mode detour HTML/CSS/JS requests through `cat << 'EOF'` heredocs.
           const allowCommandExecution =
-            answerMode !== "coding" || hasCommandPromptIntent(input.message);
-          const MAX_COMMAND_ROUNDS = allowCommandExecution ? 4 : 1;
+            globalConfig.features.commandPromptEnabled &&
+            (answerMode !== "coding" || hasCommandPromptIntent(input.message));
+          const MAX_COMMAND_ROUNDS = allowCommandExecution
+            ? Math.max(1, Math.min(8, globalConfig.features.maxCommandRounds))
+            : 1;
           const resumeInstruction =
             resumedAssistant && !resumeCodingProgress
               ? "\n\nThe previous assistant reply was interrupted. Continue from its saved output in the conversation history. Do not repeat completed sections or files, and finish every requested file before claiming the task is complete."

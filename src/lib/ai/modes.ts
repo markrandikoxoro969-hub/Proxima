@@ -12,11 +12,17 @@
  * long system instructions stay out of the browser bundle.
  */
 
+import { globalConfig } from "@/lib/global-config";
+
 export const CHAT_MODES = ["thinking", "fast", "coding", "analyze"] as const;
 export type ChatMode = (typeof CHAT_MODES)[number];
 
-/** Used when nothing is stored yet, and for requests from older clients. */
-export const DEFAULT_CHAT_MODE: ChatMode = "thinking";
+/** Used when nothing is stored yet, and for requests from older clients (from `/config.json`). */
+export const DEFAULT_CHAT_MODE: ChatMode = (CHAT_MODES as readonly string[]).includes(
+  globalConfig.ai.defaultMode,
+)
+  ? (globalConfig.ai.defaultMode as ChatMode)
+  : "thinking";
 
 export type ModeConfig = {
   id: ChatMode;
