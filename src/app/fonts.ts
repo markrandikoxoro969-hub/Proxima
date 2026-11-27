@@ -1,26 +1,37 @@
 import localFont from "next/font/local";
 
 /**
- * Self-hosted variable fonts (files live in ./fonts, licensed under OFL).
- * No request to Google at runtime or build time. One file per family covers
- * every weight (100–900), and next/font adds size-adjusted fallbacks so the
- * text doesn't jump when the font loads (protects CLS).
+ * Self-hosted premium variable fonts (files live in ./fonts, licensed under OFL).
+ * Zero runtime requests to Google; one compact variable file per family covers
+ * every weight cleanly with size-adjusted fallbacks to protect CLS.
+ *
+ * - Plus Jakarta Sans (200–800): crisp, bold luxury UI & reading sans-serif.
+ * - Space Grotesk (300–700): sculptural geometric display face for headings & brand.
+ * - Geist Mono (100–900): Swiss precision bold monospace for code blocks, Sandbox & Prompt.
  */
-export const montserrat = localFont({
-  src: "./fonts/Montserrat-Variable.woff2",
-  variable: "--font-montserrat",
-  weight: "100 900",
+export const plusJakartaSans = localFont({
+  src: "./fonts/PlusJakartaSans-Variable.woff2",
+  variable: "--font-jakarta",
+  weight: "200 800",
   display: "swap",
   preload: true,
   fallback: ["ui-sans-serif", "system-ui", "Segoe UI", "Roboto", "Arial", "sans-serif"],
 });
 
-export const jetbrainsMono = localFont({
-  src: "./fonts/JetBrainsMono-Variable.woff2",
-  variable: "--font-jetbrains",
-  weight: "100 800",
+export const spaceGrotesk = localFont({
+  src: "./fonts/SpaceGrotesk-Variable.woff2",
+  variable: "--font-space-grotesk",
+  weight: "300 700",
   display: "swap",
-  // Mono is only used for small labels/code — don't compete with the hero font.
+  preload: true,
+  fallback: ["ui-sans-serif", "system-ui", "Segoe UI", "sans-serif"],
+});
+
+export const geistMono = localFont({
+  src: "./fonts/GeistMono-Variable.woff2",
+  variable: "--font-geist-mono",
+  weight: "100 900",
+  display: "swap",
   preload: false,
   fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
 });

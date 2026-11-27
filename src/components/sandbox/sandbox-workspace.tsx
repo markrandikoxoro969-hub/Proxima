@@ -527,7 +527,7 @@ export function SandboxWorkspace() {
         autoCorrect="off"
         aria-label={activeFile ? `Edit ${activeFile.path}` : "Code editor"}
         className={cn(
-          "min-h-0 w-full flex-1 resize-none bg-transparent p-3.5 font-mono leading-relaxed text-fg outline-none selection:bg-accent/25",
+          "min-h-0 w-full flex-1 resize-none bg-transparent p-3.5 font-mono [font-weight:580] tracking-[-0.012em] leading-relaxed text-fg outline-none selection:bg-accent/25",
           mobileMode ? "text-[13px]" : "text-[13px] sm:p-4",
         )}
       />
