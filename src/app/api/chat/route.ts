@@ -39,14 +39,16 @@ import { attachmentMeta, composePrompt, DEFAULT_TITLE, makeTitle } from "@/lib/c
 import { db } from "@/lib/db";
 import { chatImageAttachment, loadChatImages } from "@/lib/image/store";
 import {
+  createCommandTagStreamFilter,
   executeChatCommands,
-  extractProximaCommands,
+  executeChatCommandsWithState,
   extractWorkspaceFilesFromHistory,
-  formatTerminalTranscript,
-  hasCommandPromptIntent,
+  formatTerminalToolBlock,
+  formatToolObservationForModel,
   parseSlashCommand,
   stripProximaCommandTags,
 } from "@/lib/sandbox/chat-command-bridge";
+import { createCommandPromptState } from "@/lib/sandbox/command-prompt";
 import { IMAGE_LIMITS } from "@/lib/image/limits";
 import { cleanIdentityLeaks, identitySystemSection } from "@/lib/identity";
 import { memoryEnabled, memoryPrompt, relevantMemories, rememberMessage } from "@/lib/memory/store";
@@ -418,17 +420,13 @@ export const POST = withApi(async (request: Request) => {
           !fileByFile &&
           (resumeAgentCheckpoint || (explicitAgentIntent && !resumedAssistant)),
       );
-      const runCommandPromptBridge = Boolean(
-        !directSlashCommand &&
-          !fileByFile &&
-          !runAgentLoop &&
-          !resumedAssistant &&
-          hasCommandPromptIntent(input.message),
-      );
+      let executedAnyCommands = false;
       const finalAnswer = () =>
-        directSlashCommand || fileByFile || runAgentLoop || runCommandPromptBridge
+        directSlashCommand || fileByFile || runAgentLoop
           ? raw
-          : stripFiller(cleanIdentityLeaks(raw));
+          : executedAnyCommands
+            ? stripProximaCommandTags(raw)
+            : stripFiller(cleanIdentityLeaks(stripProximaCommandTags(raw)));
 
       try {
         if (directSlashCommand) {
@@ -436,10 +434,10 @@ export const POST = withApi(async (request: Request) => {
           sse.send("status", { state: "thinking", message: `$ ${directSlashCommand}` });
           const workspaceFiles = extractWorkspaceFilesFromHistory(history);
           const { runs } = await executeChatCommands([directSlashCommand], workspaceFiles);
-          const transcript = formatTerminalTranscript(runs);
-          raw = transcript;
-          sentText = transcript;
-          sse.send("token", { text: transcript });
+          const cards = runs.map((r) => formatTerminalToolBlock(r, { expanded: true })).join("\n\n");
+          raw = cards;
+          sentText = cards;
+          sse.send("token", { text: cards });
         } else if (fileByFile) {
           const codingRequest = {
             message: prompt,
@@ -652,124 +650,149 @@ export const POST = withApi(async (request: Request) => {
           raw += finalSegment;
           sentText = raw;
           sse.send("token", { text: finalSegment });
-        } else if (runCommandPromptBridge) {
+        } else {
+          // Arena-AI-style autonomous streaming command loop:
+          // - Normal replies stream instantaneously with zero buffering penalty.
+          // - Whenever Proxima decides to emit `<proxima_cmd>...</proxima_cmd>` (on ANY
+          //   message), tags are silently intercepted (never leaked), executed live in a
+          //   persistent workspace with fading `$ <cmd>` status + collapsible terminal cards,
+          //   and real stdout/stderr/exitCode are fed back so Proxima can chain follow-up
+          //   commands, self-correct errors, or deliver her grounded final answer.
+          const MAX_COMMAND_ROUNDS = 4;
+          const resumeInstruction =
+            resumedAssistant && !resumeCodingProgress
+              ? "\n\nThe previous assistant reply was interrupted. Continue from its saved output in the conversation history. Do not repeat completed sections or files, and finish every requested file before claiming the task is complete."
+              : "";
           const workspaceFiles = extractWorkspaceFilesFromHistory(history);
-          const fileHint = workspaceFiles.length
-            ? `Current workspace files in /workspace: ${workspaceFiles.map((f) => f.path).join(", ")}.`
-            : "Current /workspace is empty (you can create files with echo/touch/mkdir or run node -e).";
-          const cmdSystem = [
-            system,
-            "AUTONOMOUS COMMAND PROMPT MODE:",
-            fileHint,
-            "You have full free will to use your live sandboxed command prompt (`proxima-sh`) right now.",
-            "Available live commands include `pip install beautifulsoup4 requests`, `scrape <url>`, `curl <url>`, `python3 -c \"...\"`, `node -e \"...\"`, and standard file/shell commands.",
-            "If running commands will give real live data (such as scraping a website's text, installing bs4, running code, or inspecting files), output 1 to 4 `<proxima_cmd>EXACT_COMMAND</proxima_cmd>` tags and DO NOT fabricate or guess command output.",
-            "If the user asked to scrape/read a website without providing a URL yet, ask politely for the URL (confirming you're ready to install bs4 and scrape its text right away).",
-          ].join("\n\n");
+          let workspaceState = createCommandPromptState(workspaceFiles);
+          const loopHistory: AiHistoryMessage[] = [...history];
+          let currentPrompt = `${prompt}${resumeInstruction}`;
+          let currentImages = providerPictures;
 
-          let draft = "";
-          for await (const delta of generateReply(provider, {
-            message: prompt,
-            sessionId,
-            signal,
-            history,
-            showReasoning: false,
-            mode: answerMode,
-            images: providerPictures,
-            system: cmdSystem,
-          })) {
-            if (delta.type === "text") draft += delta.text;
-          }
+          for (let round = 0; round < MAX_COMMAND_ROUNDS; round += 1) {
+            const isFinalRound = round === MAX_COMMAND_ROUNDS - 1;
+            const roundSystem =
+              round === 0
+                ? workspaceFiles.length > 0
+                  ? `${system}\n\nWorkspace files currently in /workspace: ${workspaceFiles.map((f) => f.path).join(", ")}.`
+                  : system
+                : [
+                    system,
+                    isFinalRound
+                      ? "You have completed your command prompt runs. Now write a clear, accurate, well-structured final answer grounded strictly in the real command outputs above. Do NOT emit `<proxima_cmd>` again."
+                      : "You just received real output from your Proxima Command Prompt (`proxima-sh`). If you need another command (e.g., to inspect a file, fix an error, or scrape another URL), emit `<proxima_cmd>EXACT_COMMAND</proxima_cmd>`. Otherwise, write your clear, well-structured final answer grounded strictly in the real command output. Never repeat raw huge outputs verbatim.",
+                  ].join("\n\n");
 
-          if (signal.aborted) throw interruptedError();
-          receivedAny = true;
+            const tagFilter = createCommandTagStreamFilter();
+            const roundGate = round === 0 ? gate : null;
+            let roundProse = "";
 
-          const commands = extractProximaCommands(draft);
-          if (commands.length > 0) {
-            const { runs } = await executeChatCommands(commands, workspaceFiles, {
-              stepDelayMs: commands.length > 1 ? 260 : 120,
-              onCommandStart: (cmd) => {
-                sse.send("status", {
-                  state: "thinking",
-                  message: `$ ${cmd}`,
-                });
-              },
+            const deltas = generateReply(provider, {
+              message: currentPrompt,
+              sessionId,
+              signal,
+              history: loopHistory,
+              showReasoning: round === 0 ? showReasoning : false,
+              mode: answerMode,
+              images: currentImages,
+              system: roundSystem,
             });
-            const transcript = formatTerminalTranscript(runs);
+
+            for await (const delta of deltas) {
+              if (delta.type === "activity") continue;
+              if (delta.type === "reasoning") {
+                if (showReasoning && delta.text) sse.send("reasoning", { text: delta.text });
+                continue;
+              }
+              receivedAny = true;
+              const visible = tagFilter.push(delta.text);
+              if (!visible) continue;
+              roundProse += visible;
+              raw += visible;
+              if (roundGate) {
+                const safe = roundGate.push(visible);
+                if (safe) {
+                  sentText += safe;
+                  sse.send("token", { text: safe });
+                }
+              } else {
+                sentText += visible;
+                sse.send("token", { text: visible });
+              }
+            }
+
+            if (signal.aborted) throw interruptedError();
+
+            const flushed = tagFilter.flush();
+            if (flushed.text) {
+              roundProse += flushed.text;
+              raw += flushed.text;
+              if (roundGate) {
+                const safe = roundGate.push(flushed.text);
+                if (safe) {
+                  sentText += safe;
+                  sse.send("token", { text: safe });
+                }
+              } else {
+                sentText += flushed.text;
+                sse.send("token", { text: flushed.text });
+              }
+            }
+
+            // Release any buffered first-sentence prose from round 0 before emitting terminal cards.
+            if (roundGate) {
+              const heldNow = roundGate.flush();
+              if (heldNow) {
+                sentText += heldNow;
+                sse.send("token", { text: heldNow });
+              }
+            }
+
+            const commands = isFinalRound ? [] : flushed.commands;
+            if (commands.length === 0) break;
+
+            executedAnyCommands = true;
+            const { runs, state: nextState } = await executeChatCommandsWithState(
+              commands,
+              workspaceState,
+              {
+                stepDelayMs: commands.length > 1 ? 180 : 80,
+                onCommandStart: (cmd) => {
+                  sse.send("status", {
+                    state: "thinking",
+                    message: `$ ${cmd}`,
+                  });
+                },
+                onCommandFinish: (run) => {
+                  const needsLeadingBreak = raw.length > 0 && !raw.endsWith("\n\n");
+                  const prefix = needsLeadingBreak ? (raw.endsWith("\n") ? "\n" : "\n\n") : "";
+                  const card = `${prefix}${formatTerminalToolBlock(run)}\n\n`;
+                  raw += card;
+                  sentText += card;
+                  sse.send("token", { text: card });
+                },
+              },
+            );
+            workspaceState = nextState;
+
+            if (signal.aborted) throw interruptedError();
+
             sse.send("status", {
               state: "thinking",
               message: "Analyzing command output…",
             });
 
-            const followUpSystem = [
-              system,
-              "You just autonomously executed real commands inside your built-in Proxima Command Prompt (`proxima-sh`).",
-              "Provide a clear, detailed, well-structured answer (including key points, takeaways, and practical guidance if you scraped a website) grounded strictly in the real command output below.",
-              "Do NOT repeat huge raw text dumps verbatim and do NOT emit `<proxima_cmd>` again.",
-            ].join("\n\n");
-
-            const followUpDeltas = generateReply(provider, {
-              message: `User request: ${input.message}\n\nReal command prompt execution result:\n${transcript}`,
-              sessionId,
-              signal,
-              history,
-              showReasoning: false,
-              mode: answerMode,
-              images: [],
-              system: followUpSystem,
-            });
-
-            // Keep compact command summary collapsible/clean above the detailed answer
-            const commandChips = runs
-              .map((r) => `> \`$ ${r.command}\`${r.exitCode === 0 ? "" : ` *(exit ${r.exitCode})*`}`)
+            // Feed assistant turn + real tool results into the next autonomous round.
+            const assistantSummary = [
+              roundProse.trim(),
+              commands.map((c) => `<proxima_cmd>${c}</proxima_cmd>`).join("\n"),
+            ]
+              .filter(Boolean)
               .join("\n");
-            const headerBlock = `${commandChips}\n\n`;
-            raw = headerBlock;
-            sentText = headerBlock;
-            sse.send("token", { text: headerBlock });
-
-            for await (const delta of followUpDeltas) {
-              if (delta.type !== "text" || !delta.text) continue;
-              raw += delta.text;
-              sentText += delta.text;
-              sse.send("token", { text: delta.text });
-            }
-          } else {
-            const cleaned = stripFiller(cleanIdentityLeaks(stripProximaCommandTags(draft)));
-            raw = cleaned;
-            sentText = cleaned;
-            if (cleaned) sse.send("token", { text: cleaned });
-          }
-        } else {
-          const resumeInstruction =
-            resumedAssistant && !resumeCodingProgress
-              ? "\n\nThe previous assistant reply was interrupted. Continue from its saved output in the conversation history. Do not repeat completed sections or files, and finish every requested file before claiming the task is complete."
-              : "";
-          const deltas = generateReply(provider, {
-            message: `${prompt}${resumeInstruction}`,
-            sessionId,
-            signal,
-            history,
-            showReasoning,
-            mode: answerMode,
-            images: providerPictures,
-            system,
-          });
-
-          for await (const delta of deltas) {
-            if (delta.type === "activity") continue;
-            if (delta.type === "reasoning") {
-              // Never stored, never counted as an answer, only sent when asked.
-              if (showReasoning && delta.text) sse.send("reasoning", { text: delta.text });
-              continue;
-            }
-            receivedAny = true;
-            raw += delta.text;
-            const safe = gate.push(delta.text);
-            if (safe) {
-              sentText += safe;
-              sse.send("token", { text: safe });
-            }
+            loopHistory.push({ role: "user", content: currentPrompt });
+            loopHistory.push({ role: "assistant", content: assistantSummary });
+            currentPrompt = `Real Command Prompt execution results:\n\n${formatToolObservationForModel(runs)}\n\nContinue helping the user with their original request: "${input.message}"`;
+            currentImages = [];
           }
         }
 
