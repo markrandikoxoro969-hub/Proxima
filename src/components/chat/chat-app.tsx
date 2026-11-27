@@ -30,6 +30,7 @@ import { ToastProvider, useToast } from "@/components/ui/toast";
 import { api } from "@/lib/chat/client/api";
 import { cn } from "@/lib/cn";
 import { DRAFT } from "@/lib/chat/client/chat-state";
+import type { GeneratedFile } from "@/lib/chat/client/code-bundle";
 import { draftFromImage, type DraftImage } from "@/lib/chat/client/images";
 import { useChat } from "@/lib/chat/client/use-chat";
 import { useChatMode } from "@/lib/chat/client/use-mode";
@@ -57,6 +58,10 @@ const MessageList = dynamic(() => import("./message-list").then((module) => modu
     </div>
   ),
 });
+const CodeSandboxModal = dynamic(
+  () => import("./code-sandbox-modal").then((module) => module.CodeSandboxModal),
+  { ssr: false },
+);
 const Composer = dynamic(() => import("./composer").then((module) => module.Composer), {
   loading: () => (
     <div role="status" aria-label="Loading message composer" className="shrink-0 px-4 pb-safe sm:px-6">
@@ -175,6 +180,10 @@ function ChatScreen({
   );
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [studioOpen, setStudioOpen] = useState(false);
+  const [sandboxState, setSandboxState] = useState<{ open: boolean; files: GeneratedFile[] }>({
+    open: false,
+    files: [],
+  });
   const [images, setImages] = useState<DraftImage[]>([]);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [listenSignal, setListenSignal] = useState(0);
@@ -662,6 +671,15 @@ function ChatScreen({
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
   const closePalette = useCallback(() => setPaletteOpen(false), []);
+  const openSandbox = useCallback((files: GeneratedFile[] = []) => {
+    setSandboxState({ open: true, files });
+  }, []);
+  const openBlankSandbox = useCallback(() => {
+    setSandboxState({ open: true, files: [] });
+  }, []);
+  const closeSandbox = useCallback(() => {
+    setSandboxState((prev) => ({ ...prev, open: false }));
+  }, []);
 
   // New objects here would defeat the memo() on Composer and ChatHeader, which
   // made both re-render for every streamed token.
@@ -776,6 +794,7 @@ function ChatScreen({
             desktopCollapsed={desktopCollapsed}
             onToggleDesktopSidebar={toggleDesktopSidebar}
             onOpenPalette={openPalette}
+            onOpenSandbox={openBlankSandbox}
             onOpenSidebar={openSidebar}
             onNewChat={newChat}
             voiceInput={headerVoiceInput}
@@ -818,6 +837,7 @@ function ChatScreen({
                   speakingId={speakingId}
                   onRead={readMessage}
                   onQuickAction={quickAction}
+                  onOpenSandbox={openSandbox}
                 />
               )}
             </m.div>
@@ -848,6 +868,15 @@ function ChatScreen({
       </p>
 
       <CommandPalette open={paletteOpen} onClose={closePalette} commands={commands} />
+
+      {sandboxState.open && (
+        <CodeSandboxModal
+          open={sandboxState.open}
+          initialFiles={sandboxState.files}
+          projectName={chat.activeSession?.title ?? "proxima-project"}
+          onClose={closeSandbox}
+        />
+      )}
 
       {studioOpen && (
         <ImageStudio

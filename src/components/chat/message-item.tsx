@@ -6,18 +6,22 @@ import {
   CaretDown,
   Check,
   Copy,
+  DownloadSimple,
+  FileCode,
   FileText,
   Lightbulb,
   ListChecks,
   Planet,
+  Play,
   SpeakerHigh,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import dynamic from "next/dynamic";
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { MODE_CONFIG } from "@/lib/ai/modes";
 import type { UiMessage } from "@/lib/chat/client/chat-state";
+import { extractGeneratedFiles, type GeneratedFile } from "@/lib/chat/client/code-bundle";
 import { hasUnclosedCodeFence } from "@/lib/chat/client/markdown-blocks";
 import { formatBytes } from "@/lib/chat/client/files";
 import { cn } from "@/lib/cn";
@@ -38,6 +42,7 @@ export const MessageItem = memo(function MessageItem({
   speaking,
   onRead,
   onQuickAction,
+  onOpenSandbox,
 }: {
   message: UiMessage;
   onRetry: (id: string) => void;
@@ -47,6 +52,7 @@ export const MessageItem = memo(function MessageItem({
   speaking?: boolean;
   onRead?: (id: string, text: string) => void;
   onQuickAction?: (instruction: string) => void;
+  onOpenSandbox?: (files: GeneratedFile[]) => void;
 }) {
   return message.role === "user" ? (
     <UserMessage message={message} />
@@ -59,6 +65,7 @@ export const MessageItem = memo(function MessageItem({
       speaking={speaking}
       onRead={onRead}
       onQuickAction={onQuickAction}
+      onOpenSandbox={onOpenSandbox}
     />
   );
 });
@@ -133,6 +140,7 @@ function AssistantMessage({
   speaking,
   onRead,
   onQuickAction,
+  onOpenSandbox,
 }: {
   message: UiMessage;
   onRetry: (id: string) => void;
@@ -141,14 +149,34 @@ function AssistantMessage({
   speaking?: boolean;
   onRead?: (id: string, text: string) => void;
   onQuickAction?: (instruction: string) => void;
+  onOpenSandbox?: (files: GeneratedFile[]) => void;
 }) {
   const streaming = message.status === "streaming";
   const waiting = streaming && !message.content;
   const { copied, copy } = useCopy();
+  const [zipping, setZipping] = useState(false);
   const done = !message.status && Boolean(message.content);
   // A reply that ends inside a fence was cut off. Offer the one action that
   // actually helps, instead of leaving half a file on screen.
   const cutOffCode = done && hasUnclosedCodeFence(message.content);
+  const generatedFiles = useMemo(
+    () => (done ? extractGeneratedFiles(message.content) : []),
+    [done, message.content],
+  );
+
+  const downloadZip = async () => {
+    if (!generatedFiles.length || zipping) return;
+    setZipping(true);
+    try {
+      const { downloadFilesAsZip } = await import("@/lib/chat/client/zip");
+      downloadFilesAsZip(
+        generatedFiles.map((f) => ({ path: f.path, content: f.content })),
+        "proxima-code-project.zip",
+      );
+    } finally {
+      setZipping(false);
+    }
+  };
 
   return (
     <m.div
@@ -272,6 +300,55 @@ function AssistantMessage({
           <div className="mt-3 flex items-center gap-3 text-xs font-bold text-subtle">
             <span>Stopped</span>
             <ActionButton onClick={() => onRetry(message.id)} disabled={!canRetry} label="Regenerate" />
+          </div>
+        )}
+
+        {done && generatedFiles.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5 rounded-2xl glass-card px-3.5 py-2.5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-xl glass-pill text-fg">
+                <FileCode weight="bold" className="size-4" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-extrabold text-fg">
+                  {generatedFiles.length === 1
+                    ? generatedFiles[0]!.path
+                    : `${generatedFiles.length} code files ready`}
+                </p>
+                {generatedFiles.length > 1 && (
+                  <p className="truncate font-mono text-[11px] text-subtle">
+                    {generatedFiles
+                      .slice(0, 3)
+                      .map((f) => f.path)
+                      .join(" · ")}
+                    {generatedFiles.length > 3 ? ` +${generatedFiles.length - 3} more` : ""}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {onOpenSandbox && (
+                <button
+                  type="button"
+                  onClick={() => onOpenSandbox(generatedFiles)}
+                  aria-label="Open generated code in sandbox"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full glass-pill px-3 text-xs font-extrabold text-fg transition-colors duration-200 hover:border-[var(--glass-border-strong)] hover:bg-surface-hover"
+                >
+                  <Play weight="fill" className="size-3.5 text-[var(--accent-text)]" aria-hidden />
+                  <span>Sandbox</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void downloadZip()}
+                disabled={zipping}
+                aria-label="Download generated code files as zip"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-inverse px-3 text-xs font-extrabold text-on-inverse transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                <DownloadSimple weight="bold" className="size-3.5" aria-hidden />
+                <span>{zipping ? "Zipping…" : "Download .zip"}</span>
+              </button>
+            </div>
           </div>
         )}
 
