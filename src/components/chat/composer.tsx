@@ -580,7 +580,7 @@ export const Composer = memo(function Composer({
           autoComplete="off"
           spellCheck
           aria-invalid={tooLong || undefined}
-          className="block max-h-[156px] w-full resize-none bg-transparent px-4 pt-3 pb-1.5 text-[15px] leading-snug placeholder:text-subtle focus:outline-none focus-visible:outline-none"
+          className="chat-composer-input block max-h-[156px] w-full resize-none bg-transparent px-4 pt-3 pb-1.5 text-[15.5px] font-bold leading-snug placeholder:font-semibold placeholder:text-subtle focus:outline-none focus-visible:outline-none"
         />
         {interim && (
           <p className="px-4 pb-1 text-xs text-subtle italic" aria-live="polite">
