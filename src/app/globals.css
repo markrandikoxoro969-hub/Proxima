@@ -650,10 +650,10 @@ html.dark .proxima-logo-glow {
 /* "Thought for 4s" */
 .thought-line {
   margin-bottom: 0.35rem;
-  font-family: var(--font-google-sans), "Google Sans", "Google Sans Text", sans-serif;
+  font-family: var(--font-montserrat), var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 900;
+  letter-spacing: 0.08em;
   color: var(--subtle);
   text-transform: uppercase;
   animation: fade-up 0.4s var(--ease-premium) both;
@@ -700,25 +700,30 @@ html.dark .proxima-logo-glow {
   }
 }
 
-/* ---------- Chat messages & Markdown replies (bold Google Sans 700) ---------- */
+/* ---------- Chat messages & Markdown replies (exact super-fat Montserrat 900 matching top-left Proxima) ---------- */
 .message-text,
 .chat-composer-input {
-  font-family: var(--font-google-sans), "Google Sans", "Google Sans Text", sans-serif;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-family: var(--font-montserrat), var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+}
+.chat-composer-input::placeholder {
+  font-family: var(--font-montserrat), var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.02em;
 }
 
 .markdown {
-  font-family: var(--font-google-sans), "Google Sans", "Google Sans Text", sans-serif;
+  font-family: var(--font-montserrat), var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-size: 15.5px;
-  font-weight: 700;
-  line-height: 1.7;
-  letter-spacing: -0.01em;
+  font-weight: 900;
+  line-height: 1.66;
+  letter-spacing: -0.025em;
   overflow-wrap: anywhere;
 }
 .markdown strong,
 .markdown b {
-  font-weight: 700;
+  font-weight: 900;
 }
 .markdown > div > :first-child,
 .markdown > :first-child {
@@ -735,10 +740,10 @@ html.dark .proxima-logo-glow {
 .markdown h3,
 .markdown h4 {
   margin: 1.4em 0 0.5em;
-  font-family: var(--font-google-sans), "Google Sans", "Google Sans Text", sans-serif;
-  font-weight: 700;
-  line-height: 1.28;
-  letter-spacing: -0.018em;
+  font-family: var(--font-montserrat), var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 900;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
 }
 .markdown h1 {
   font-size: 1.5em;
@@ -780,8 +785,8 @@ html.dark .proxima-logo-glow {
   background: var(--surface-hover);
   border-radius: 0.42em;
   padding: 0.12em 0.44em;
-  font-family: var(--font-google-sans-code), var(--font-mono), monospace;
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-weight: 800;
   font-size: 0.86em;
 }
 .markdown table {
@@ -827,7 +832,7 @@ html.dark .proxima-logo-glow {
 }
 .code-block pre,
 .code-block code {
-  font-family: var(--font-google-sans-code), var(--font-mono), monospace;
+  font-family: var(--font-mono);
   font-weight: 700;
   letter-spacing: -0.01em;
   font-variant-ligatures: none; /* show "->" and "!=" exactly as typed */

@@ -24,26 +24,3 @@ export const jetbrainsMono = localFont({
   preload: false,
   fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
 });
-
-/** Official Google Sans (500–700) used for bold chat messages, replies & composer. */
-export const googleSans = localFont({
-  src: [
-    { path: "./fonts/GoogleSans-500.woff2", weight: "500", style: "normal" },
-    { path: "./fonts/GoogleSans-600.woff2", weight: "600", style: "normal" },
-    { path: "./fonts/GoogleSans-700.woff2", weight: "700", style: "normal" },
-  ],
-  variable: "--font-google-sans",
-  display: "swap",
-  preload: false,
-  fallback: ["Google Sans", "Google Sans Text", "sans-serif"],
-});
-
-/** Official Google Sans Code variable monospace for bold code blocks & inline code. */
-export const googleSansCode = localFont({
-  src: "./fonts/GoogleSansCode-Variable.woff2",
-  variable: "--font-google-sans-code",
-  weight: "300 800",
-  display: "swap",
-  preload: false,
-  fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
-});
