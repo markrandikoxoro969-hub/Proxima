@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { describe, expect, it, vi } from "vitest";
 import { MotionProvider } from "@/components/motion/motion-provider";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { isThemeAudioMuffled } from "@/lib/theme/use-theme-audio";
 import { ChatHeader } from "./chat-header";
 
 const mockVoiceMenuProps = {
@@ -59,27 +60,28 @@ describe("<ChatHeader />", () => {
       expect(within(header).getByRole("button", { name: "Open theme menu" })).toBeVisible(),
     );
 
-    // Morph into Themes view inside the same glass card
+    // Morph into Themes view inside the same glass card — muffles live video audio cleanly
     fireEvent.click(within(header).getByRole("button", { name: "Open theme menu" }));
-    await waitFor(() =>
-      expect(within(header).getByRole("menu", { name: "Theme" })).toBeVisible(),
-    );
+    const themeMenu = await within(header).findByRole("menu", { name: "Theme" });
+    await waitFor(() => expect(themeMenu).toBeVisible());
+    expect(isThemeAudioMuffled()).toBe(true);
 
-    // Back to Controls
-    fireEvent.click(within(header).getByRole("button", { name: "Back to controls" }));
+    // Back to Controls releases muffle
+    fireEvent.click(within(themeMenu).getByRole("button", { name: "Back to controls" }));
     await waitFor(() =>
       expect(within(header).getByRole("button", { name: "Open memes and aesthetic vibes menu" })).toBeVisible(),
     );
+    expect(isThemeAudioMuffled()).toBe(false);
 
     // Morph into Vibes & Memes view right alongside Themes
     fireEvent.click(within(header).getByRole("button", { name: "Open memes and aesthetic vibes menu" }));
-    await waitFor(() =>
-      expect(within(header).getByRole("dialog", { name: "Memes and aesthetic vibes" })).toBeVisible(),
-    );
-    expect(await within(header).findByRole("button", { name: "Gojo" })).toBeVisible();
+    const vibesDialog = await within(header).findByRole("dialog", { name: "Memes and aesthetic vibes" });
+    await waitFor(() => expect(vibesDialog).toBeVisible());
+    expect(await within(vibesDialog).findByRole("button", { name: "Gojo" })).toBeVisible();
+    expect(isThemeAudioMuffled()).toBe(true);
 
     // Back to Controls
-    fireEvent.click(within(header).getByRole("button", { name: "Back to controls" }));
+    fireEvent.click(within(vibesDialog).getByRole("button", { name: "Back to controls" }));
     await waitFor(() =>
       expect(within(header).getByRole("button", { name: "Voice input" })).toBeVisible(),
     );

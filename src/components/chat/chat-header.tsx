@@ -136,7 +136,18 @@ export const ChatHeader = memo(function ChatHeader({
   const measureRef = useRef<HTMLDivElement>(null);
   const controlsMenuId = useId();
 
-  useMuffleThemeAudio(controlsOpen && (panelView === "sound" || panelView === "vibes"), "header-sound-menu");
+  useMuffleThemeAudio(
+    controlsOpen && (panelView === "themes" || panelView === "sound" || panelView === "vibes"),
+    "header-controls-menu",
+  );
+
+  // Pre-warm lazy sub-menu chunks the instant the user interacts with Controls
+  // so morphing into Themes / Sound / Vibes never flashes a skeleton or double-jumps.
+  const preloadSubmenus = useCallback(() => {
+    void import("@/components/theme/theme-menu");
+    void import("@/components/chat/voice-menu");
+    void import("@/components/chat/composer-vibes");
+  }, []);
 
   const closeControls = useCallback(() => {
     setControlsOpen(false);
@@ -156,14 +167,20 @@ export const ChatHeader = memo(function ChatHeader({
     const node = measureRef.current;
     if (!node) return;
     const sync = () => {
-      const h = node.offsetHeight;
+      const h = Math.ceil(node.getBoundingClientRect().height || node.offsetHeight);
       if (h > 0) setContentHeight(h);
     };
     sync();
-    if (typeof ResizeObserver === "undefined") return;
+    const raf = window.requestAnimationFrame(sync);
+    if (typeof ResizeObserver === "undefined") {
+      return () => window.cancelAnimationFrame(raf);
+    }
     const observer = new ResizeObserver(sync);
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      window.cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
   }, [controlsOpen, panelView]);
 
   useEffect(() => {
@@ -302,10 +319,13 @@ export const ChatHeader = memo(function ChatHeader({
           <div ref={controlsRef} className="relative">
             <button
               type="button"
+              onPointerEnter={preloadSubmenus}
+              onFocus={preloadSubmenus}
               onClick={() => {
                 if (controlsOpen) {
                   closeControls();
                 } else {
+                  preloadSubmenus();
                   setPanelView("main");
                   setDirection(1);
                   setControlsOpen(true);
@@ -347,31 +367,33 @@ export const ChatHeader = memo(function ChatHeader({
                   id={controlsMenuId}
                   role="region"
                   aria-label={viewAriaLabel}
-                  initial={{ opacity: 0, y: -6, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                  transition={{ duration: 0.22, ease: MORPH_EASE }}
+                  initial={{ opacity: 0, y: -8, scale: 0.96, filter: "blur(6px)" }}
+                  animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, y: -6, scale: 0.97, filter: "blur(4px)" }}
+                  transition={{ duration: 0.28, ease: MORPH_EASE }}
                   className={cn(
-                    "absolute top-full right-0 z-30 mt-2.5 overflow-hidden rounded-3xl glass-dropdown p-3 transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                    "absolute top-full right-0 z-30 mt-2.5 overflow-hidden rounded-3xl glass-dropdown p-3 will-change-[width,transform,opacity] transition-[width] duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
                     panelWidthClass,
                   )}
                 >
-                  <div
-                    className="overflow-hidden transition-[height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-                    style={contentHeight ? { height: contentHeight } : undefined}
+                  <m.div
+                    initial={false}
+                    animate={contentHeight ? { height: contentHeight } : undefined}
+                    transition={{ duration: 0.34, ease: MORPH_EASE }}
+                    className="relative overflow-hidden will-change-[height]"
                   >
-                    <div ref={measureRef}>
-                      <AnimatePresence mode="wait" initial={false} custom={direction}>
-                        {panelView === "main" && (
-                          <m.div
-                            key="main"
-                            custom={direction}
-                            initial={{ opacity: 0, x: direction * -16 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: direction * -16 }}
-                            transition={{ duration: 0.2, ease: MORPH_EASE }}
-                            className="space-y-2.5"
-                          >
+                    <AnimatePresence mode="popLayout" initial={false} custom={direction}>
+                      {panelView === "main" && (
+                        <m.div
+                          key="main"
+                          ref={measureRef}
+                          custom={direction}
+                          initial={{ opacity: 0, x: direction * -14, scale: 0.985, filter: "blur(4px)" }}
+                          animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
+                          exit={{ opacity: 0, x: direction * -14, scale: 0.985, filter: "blur(4px)" }}
+                          transition={{ duration: 0.26, ease: MORPH_EASE }}
+                          className="space-y-2.5"
+                        >
                             {/* Voice & Audio quick bar + Sound morph row */}
                             <div>
                               <p className="mb-1.5 px-1 text-[10px] font-extrabold tracking-[0.18em] text-subtle uppercase">
@@ -550,12 +572,13 @@ export const ChatHeader = memo(function ChatHeader({
                         {panelView === "sound" && voiceMenuProps && (
                           <m.div
                             key="sound"
+                            ref={measureRef}
                             role="dialog"
                             aria-label="Sound and voice"
-                            initial={{ opacity: 0, x: 18 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 18 }}
-                            transition={{ duration: 0.2, ease: MORPH_EASE }}
+                            initial={{ opacity: 0, x: 14, scale: 0.985, filter: "blur(4px)" }}
+                            animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
+                            exit={{ opacity: 0, x: 14, scale: 0.985, filter: "blur(4px)" }}
+                            transition={{ duration: 0.26, ease: MORPH_EASE }}
                           >
                             <div className="mb-2 flex items-center justify-between gap-2 border-b border-line pb-2">
                               <button
@@ -588,12 +611,13 @@ export const ChatHeader = memo(function ChatHeader({
                         {panelView === "themes" && (
                           <m.div
                             key="themes"
+                            ref={measureRef}
                             role="menu"
                             aria-label="Theme"
-                            initial={{ opacity: 0, x: 18 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 18 }}
-                            transition={{ duration: 0.2, ease: MORPH_EASE }}
+                            initial={{ opacity: 0, x: 14, scale: 0.985, filter: "blur(4px)" }}
+                            animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
+                            exit={{ opacity: 0, x: 14, scale: 0.985, filter: "blur(4px)" }}
+                            transition={{ duration: 0.26, ease: MORPH_EASE }}
                           >
                             <div className="mb-2 flex items-center justify-between gap-2 border-b border-line pb-2">
                               <button
@@ -623,12 +647,13 @@ export const ChatHeader = memo(function ChatHeader({
                         {panelView === "vibes" && (
                           <m.div
                             key="vibes"
+                            ref={measureRef}
                             role="dialog"
                             aria-label="Memes and aesthetic vibes"
-                            initial={{ opacity: 0, x: 18 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 18 }}
-                            transition={{ duration: 0.2, ease: MORPH_EASE }}
+                            initial={{ opacity: 0, x: 14, scale: 0.985, filter: "blur(4px)" }}
+                            animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
+                            exit={{ opacity: 0, x: 14, scale: 0.985, filter: "blur(4px)" }}
+                            transition={{ duration: 0.26, ease: MORPH_EASE }}
                           >
                             <div className="mb-2 flex items-center justify-between gap-2 border-b border-line pb-2">
                               <button
@@ -654,12 +679,13 @@ export const ChatHeader = memo(function ChatHeader({
                         {panelView === "export" && (
                           <m.div
                             key="export"
+                            ref={measureRef}
                             role="menu"
                             aria-label="Export"
-                            initial={{ opacity: 0, x: 18 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 18 }}
-                            transition={{ duration: 0.2, ease: MORPH_EASE }}
+                            initial={{ opacity: 0, x: 14, scale: 0.985, filter: "blur(4px)" }}
+                            animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
+                            exit={{ opacity: 0, x: 14, scale: 0.985, filter: "blur(4px)" }}
+                            transition={{ duration: 0.26, ease: MORPH_EASE }}
                           >
                             <div className="mb-2 flex items-center justify-between gap-2 border-b border-line pb-2">
                               <button
@@ -693,8 +719,7 @@ export const ChatHeader = memo(function ChatHeader({
                           </m.div>
                         )}
                       </AnimatePresence>
-                    </div>
-                  </div>
+                  </m.div>
                 </m.div>
               )}
             </AnimatePresence>
