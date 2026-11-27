@@ -5,6 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence, m } from "motion/react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ConversationState } from "@/lib/chat/client/chat-state";
+import type { GeneratedFile } from "@/lib/chat/client/code-bundle";
 import { MessageItem } from "./message-item";
 
 const BOTTOM_THRESHOLD = 96; // px from the bottom that still counts as "at the bottom"
@@ -31,6 +32,7 @@ export function MessageList({
   speakingId,
   onRead,
   onQuickAction,
+  onOpenSandbox,
 }: {
   conversation: ConversationState;
   onRetry: (id: string) => void;
@@ -45,6 +47,8 @@ export function MessageList({
   onRead?: (id: string, text: string) => void;
   /** Ask Proxima to explain or check-list its last answer. */
   onQuickAction?: (instruction: string) => void;
+  /** Open generated code files inside the live Proxima Sandbox. */
+  onOpenSandbox?: (files: GeneratedFile[]) => void;
 }) {
   const { messages } = conversation;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -171,6 +175,7 @@ export function MessageList({
                     speaking={speakingId === message.id}
                     onRead={onRead}
                     onQuickAction={onQuickAction}
+                    onOpenSandbox={onOpenSandbox}
                   />
                 </div>
               </div>
