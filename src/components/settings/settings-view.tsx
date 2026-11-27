@@ -65,7 +65,7 @@ function SettingsScreen({
   useMuffleThemeAudio(true, "settings-page");
 
   return (
-    <div className="min-h-dvh pt-safe pr-safe pb-safe pl-safe">
+    <div className="min-h-dvh font-extrabold tracking-tight pt-safe pr-safe pb-safe pl-safe">
       <header className="mx-auto flex max-w-2xl items-center justify-between gap-1 px-3 py-4 sm:gap-2 sm:px-6">
         <Logo />
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
