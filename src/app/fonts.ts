@@ -24,3 +24,13 @@ export const jetbrainsMono = localFont({
   preload: false,
   fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
 });
+
+/** Crisp Grok-style sans-serif used exclusively for chat messages & replies. */
+export const chatInter = localFont({
+  src: "./fonts/Inter-Variable.woff2",
+  variable: "--font-chat",
+  weight: "100 900",
+  display: "swap",
+  preload: false,
+  fallback: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
+});
