@@ -6,7 +6,7 @@ import { ThemeBackdrop } from "@/components/theme/theme-backdrop";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { site } from "@/lib/site";
 import { THEME_COLORS, THEME_STYLE_ID, themeInitScript, themeStyleSheet } from "@/lib/theme";
-import { jetbrainsMono, montserrat } from "./fonts";
+import { geistMono, plusJakartaSans, spaceGrotesk } from "./fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -65,7 +65,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       data-scroll-behavior="smooth"
       // The saved theme (see src/lib/theme.ts) replaces these defaults before paint.
       data-theme="proxima"
-      className={`dark ${montserrat.variable} ${jetbrainsMono.variable}`}
+      className={`dark ${plusJakartaSans.variable} ${spaceGrotesk.variable} ${geistMono.variable}`}
     >
       <head>
         {/* Every built-in theme's colours, generated from one source of truth. */}
