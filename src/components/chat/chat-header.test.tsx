@@ -68,6 +68,19 @@ describe("<ChatHeader />", () => {
     // Back to Controls
     fireEvent.click(within(header).getByRole("button", { name: "Back to controls" }));
     await waitFor(() =>
+      expect(within(header).getByRole("button", { name: "Open memes and aesthetic vibes menu" })).toBeVisible(),
+    );
+
+    // Morph into Vibes & Memes view right alongside Themes
+    fireEvent.click(within(header).getByRole("button", { name: "Open memes and aesthetic vibes menu" }));
+    await waitFor(() =>
+      expect(within(header).getByRole("dialog", { name: "Memes and aesthetic vibes" })).toBeVisible(),
+    );
+    expect(await within(header).findByRole("button", { name: "Gojo" })).toBeVisible();
+
+    // Back to Controls
+    fireEvent.click(within(header).getByRole("button", { name: "Back to controls" }));
+    await waitFor(() =>
       expect(within(header).getByRole("button", { name: "Voice input" })).toBeVisible(),
     );
   });

@@ -39,8 +39,9 @@ import { SPRING } from "@/lib/motion/tokens";
 import {
   ComposerMemeStage,
   ComposerPeeker,
-  VibeMenu,
+  PROXIMA_VIBE_ACTION_EVENT,
   type ActiveComposerMeme,
+  type ComposerVibeAction,
 } from "./composer-vibes";
 import { ModeMenu } from "./mode-menu";
 
@@ -142,10 +143,21 @@ export const Composer = memo(function Composer({
   }, []);
 
   useEffect(() => {
+    const onVibeAction = (event: Event) => {
+      const action = (event as CustomEvent<ComposerVibeAction>).detail;
+      if (!action) return;
+      if (action.type === "meme") {
+        triggerMeme(action.kind);
+      } else if (action.type === "poke") {
+        setPokeSignal((n) => n + 1);
+      }
+    };
+    window.addEventListener(PROXIMA_VIBE_ACTION_EVENT, onVibeAction);
     return () => {
+      window.removeEventListener(PROXIMA_VIBE_ACTION_EVENT, onVibeAction);
       if (memeTimerRef.current) window.clearTimeout(memeTimerRef.current);
     };
-  }, []);
+  }, [triggerMeme]);
 
   const handleTextChange = useCallback(
     (next: string) => {
@@ -680,11 +692,6 @@ export const Composer = memo(function Composer({
               fileDisabled={files.length >= LIMITS.attachmentsMax}
               pictureLimit={IMAGE_LIMITS.perMessage}
               fileLimit={LIMITS.attachmentsMax}
-            />
-
-            <VibeMenu
-              onTriggerMeme={(kind) => triggerMeme(kind)}
-              onPokePeeker={() => setPokeSignal((n) => n + 1)}
             />
           </div>
 
