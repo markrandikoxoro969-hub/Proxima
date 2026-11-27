@@ -90,8 +90,8 @@ function guessPathFromContext(
   for (let i = tailLines.length - 1; i >= 0; i--) {
     const line = tailLines[i]!;
     const headingMatch =
-      line.match(/^#{1,6}\s+`([^`\n]+)`\s*$/) ??
-      line.match(/^\*\*`?([\w./@-]+\.[a-z0-9]{1,8})`?\*\*:?\s*$/i) ??
+      line.match(/^#{1,6}\s+(?:\d+[.)]\s+)?`?([\w./@-]+\.[a-z0-9]{1,8})`?\s*:?\s*$/i) ??
+      line.match(/^\*\*(?:\d+[.)]\s+)?`?([\w./@-]+\.[a-z0-9]{1,8})`?\*\*:?\s*$/i) ??
       line.match(/^(?:file|filename|path)\s*:\s*`?([\w./@-]+\.[a-z0-9]{1,8})`?\s*$/i) ??
       line.match(/^`([\w./@-]+\.[a-z0-9]{1,8})`\s*:?\s*$/i);
     if (headingMatch?.[1]) {
@@ -365,22 +365,72 @@ function sandboxBridgeScript(runId: string): string {
     };
   });
   window.addEventListener("error", function(e){
-    send("error", [e.message + (e.lineno ? " (line " + e.lineno + ")" : "")]);
+    var msg = e.message + (e.lineno ? " (line " + e.lineno + ")" : "");
+    send("error", [msg]);
+    showErrorOverlay(msg);
   });
   window.addEventListener("unhandledrejection", function(e){
-    send("error", ["Unhandled promise rejection:", e.reason]);
+    var msg = "Unhandled promise rejection: " + fmt(e.reason);
+    send("error", [msg]);
+    showErrorOverlay(msg);
   });
+  function showErrorOverlay(msg){
+    try {
+      var host = document.body || document.documentElement;
+      if (!host) return;
+      var box = document.getElementById("__proxima_err_bar");
+      if (!box) {
+        box = document.createElement("div");
+        box.id = "__proxima_err_bar";
+        box.style.cssText = "position:fixed;left:12px;right:12px;bottom:12px;z-index:2147483647;padding:10px 14px;border-radius:12px;background:rgba(127,29,29,0.94);color:#fecaca;border:1px solid rgba(248,113,113,0.45);font:600 12px/1.45 ui-monospace,SFMono-Regular,monospace;box-shadow:0 12px 32px rgba(0,0,0,0.45);display:flex;align-items:flex-start;gap:10px;";
+        var txt = document.createElement("span");
+        txt.id = "__proxima_err_txt";
+        txt.style.cssText = "flex:1;white-space:pre-wrap;word-break:break-word;";
+        var btn = document.createElement("button");
+        btn.textContent = "×";
+        btn.style.cssText = "background:none;border:0;color:#fecaca;font-size:16px;line-height:1;cursor:pointer;padding:0 2px;";
+        btn.onclick = function(){ box.remove(); };
+        box.appendChild(txt);
+        box.appendChild(btn);
+        host.appendChild(box);
+      }
+      var el = document.getElementById("__proxima_err_txt");
+      if (el) el.textContent = "Preview Error: " + msg;
+    } catch {}
+  }
 })();
 </script>`;
 }
 
-function findVirtualFile(files: GeneratedFile[], ref: string): GeneratedFile | undefined {
+function isExternalRef(ref: string): boolean {
+  return /^(?:https?:|\/\/|data:|blob:)/i.test(ref.trim());
+}
+
+function findVirtualFile(
+  files: GeneratedFile[],
+  ref: string,
+  allowSingleFallback = false,
+): GeneratedFile | undefined {
+  if (isExternalRef(ref)) return undefined;
   const normalized = ref.replace(/^\.?\//, "").replace(/^\/+/, "").split(/[?#]/)[0] ?? "";
   if (!normalized) return undefined;
-  return (
+  const base = normalized.split("/").pop() ?? normalized;
+  const exact =
     files.find((f) => f.path === normalized) ??
-    files.find((f) => f.path.endsWith(`/${normalized}`))
-  );
+    files.find((f) => f.path.endsWith(`/${normalized}`)) ??
+    files.find((f) => (f.path.split("/").pop() ?? f.path) === base);
+  if (exact) return exact;
+  if (allowSingleFallback && files.length === 1) return files[0];
+  return undefined;
+}
+
+/** Strips relative local `import`/`export` statements when bundling sibling scripts into one inline page. */
+function stripRelativeModuleSyntax(code: string): string {
+  return code
+    .replace(/^\s*import\s+[\s\S]*?\s+from\s+["']\.[^"']+["'];?\s*$/gm, "")
+    .replace(/^\s*import\s+["']\.[^"']+["'];?\s*$/gm, "")
+    .replace(/^\s*export\s+default\s+/gm, "const __ProximaDefaultExport = ")
+    .replace(/^\s*export\s+(?=(?:const|let|var|function|class|async\s+function)\b)/gm, "");
 }
 
 /**
@@ -404,46 +454,68 @@ export function buildSandboxDocument(files: GeneratedFile[], runId: string): str
       f.language === "javascript" ||
       f.language === "mjs",
   );
+  const reactFiles = files.filter(
+    (f) => /\.(?:jsx|tsx)$/i.test(f.path) || f.language === "jsx" || f.language === "tsx",
+  );
   const svgFile = files.find((f) => /\.svg$/i.test(f.path) || f.language === "svg");
 
   // 1. HTML (with linked CSS/JS automatically resolved & inlined from virtual files)
   if (htmlFile) {
     const inlinedCss = new Set<string>();
     const inlinedJs = new Set<string>();
+    const deferredBodyScripts: string[] = [];
     let doc = htmlFile.content;
 
     // Inline <link rel="stylesheet" href="..."> referencing a generated CSS file
     doc = doc.replace(
       /<link\b[^>]*href=["']([^"']+)["'][^>]*>/gi,
       (full, href: string) => {
-        const match = findVirtualFile(cssFiles, href);
+        const isStylesheet = /\brel=["'][^"']*stylesheet/i.test(full) || /\.css(?:[?#]|$)/i.test(href);
+        const match = isStylesheet ? findVirtualFile(cssFiles, href, true) : undefined;
         if (!match) return full;
         inlinedCss.add(match.path);
         return `<style data-file="${match.path}">\n${escapeInlineTag(match.content, "style")}\n</style>`;
       },
     );
 
-    // Inline <script src="..."></script> referencing a generated JS file
+    // Inline <script src="..."></script> referencing a generated JS file.
+    // Note: browsers ignore `defer` on inline <script> tags, so any deferred script
+    // (or script placed inside <head>) is moved right before </body> so DOM queries never fail.
+    const headEndIndex = doc.search(/<\/head>/i);
     doc = doc.replace(
       /<script\b[^>]*src=["']([^"']+)["'][^>]*>\s*<\/script>/gi,
-      (full, src: string) => {
-        const match = findVirtualFile(jsFiles, src);
+      (full, src: string, offset: number) => {
+        const match = findVirtualFile(jsFiles, src, true);
         if (!match) return full;
         inlinedJs.add(match.path);
-        const isModule = /\btype=["']module["']/i.test(full) || match.path.endsWith(".mjs");
-        return `<script${isModule ? ' type="module"' : ""} data-file="${match.path}">\n${escapeInlineTag(match.content, "script")}\n</script>`;
+        const hasLocalImport = /\b(?:import|export)\b[\s\S]*?["']\.[^"']+["']/.test(match.content);
+        const isModule = !hasLocalImport && (/\btype=["']module["']/i.test(full) || match.path.endsWith(".mjs"));
+        const body = hasLocalImport ? stripRelativeModuleSyntax(match.content) : match.content;
+        const inlineTag = `<script${isModule ? ' type="module"' : ""} data-file="${match.path}">\n${escapeInlineTag(body, "script")}\n</script>`;
+        const isDeferred = /\bdefer\b/i.test(full) || (headEndIndex >= 0 && offset < headEndIndex);
+        if (isDeferred) {
+          deferredBodyScripts.push(inlineTag);
+          return "";
+        }
+        return inlineTag;
       },
     );
 
-    // Append any unlinked CSS files into <head> and unlinked JS files before </body>
+    // Append any unlinked CSS files into <head> and deferred/unlinked JS files before </body>
     const extraCss = cssFiles
       .filter((f) => !inlinedCss.has(f.path))
       .map((f) => `<style data-file="${f.path}">\n${escapeInlineTag(f.content, "style")}\n</style>`)
       .join("\n");
-    const extraJs = jsFiles
-      .filter((f) => !inlinedJs.has(f.path))
-      .map((f) => `<script data-file="${f.path}">\n${escapeInlineTag(f.content, "script")}\n</script>`)
-      .join("\n");
+    const extraJs = [
+      ...deferredBodyScripts,
+      ...jsFiles
+        .filter((f) => !inlinedJs.has(f.path))
+        .map((f) => {
+          const hasLocalImport = /\b(?:import|export)\b[\s\S]*?["']\.[^"']+["']/.test(f.content);
+          const body = hasLocalImport ? stripRelativeModuleSyntax(f.content) : f.content;
+          return `<script data-file="${f.path}">\n${escapeInlineTag(body, "script")}\n</script>`;
+        }),
+    ].join("\n");
 
     const viewportMeta = /<meta\b[^>]*name=["']viewport["']/i.test(doc)
       ? ""
@@ -479,7 +551,58 @@ ${doc}
     return doc;
   }
 
-  // 2. Standalone SVG preview
+  // 2. React JSX / TSX live preview (Babel standalone + React 18 UMD)
+  if (reactFiles.length) {
+    const styles = cssFiles
+      .map((f) => `<style data-file="${f.path}">\n${escapeInlineTag(f.content, "style")}\n</style>`)
+      .join("\n");
+    const combinedSource = reactFiles
+      .map((f) =>
+        f.content
+          .replace(/^\s*import\s+[\s\S]*?\s+from\s+["']react["'];?\s*$/gm, "")
+          .replace(/^\s*import\s+[\s\S]*?\s+from\s+["']react-dom(?:\/client)?["'];?\s*$/gm, "")
+          .replace(/^\s*import\s+[\s\S]*?\s+from\s+["']\.[^"']+["'];?\s*$/gm, "")
+          .replace(/^\s*import\s+["'][^"']+\.css["'];?\s*$/gm, "")
+          .replace(/^\s*export\s+default\s+function\s+(\w+)/gm, "function $1")
+          .replace(/^\s*export\s+default\s+/gm, "const App = ")
+          .replace(/^\s*export\s+(?=(?:const|let|var|function|class)\b)/gm, ""),
+      )
+      .join("\n\n");
+    const entryName =
+      combinedSource.match(/function\s+(App|Page|Home|Main|Root|[A-Z]\w*)\s*\(/)?.[1] ??
+      combinedSource.match(/const\s+(App|Page|Home|Main|Root|[A-Z]\w*)\s*=/)?.[1] ??
+      "App";
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+${bridge}
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+${styles}
+</head>
+<body style="margin:0;min-height:100vh;background:#0b0d12;color:#f8fafc;">
+<div id="root"></div>
+<script type="text/babel" data-presets="react,typescript">
+const { useState, useEffect, useRef, useMemo, useCallback, useReducer, useContext, createContext, Fragment } = React;
+${escapeInlineTag(combinedSource, "script")}
+(function(){
+  const rootEl = document.getElementById("root");
+  const Comp = typeof ${entryName} !== "undefined" ? ${entryName} : null;
+  if (rootEl && Comp && !rootEl.hasChildNodes()) {
+    ReactDOM.createRoot(rootEl).render(React.createElement(Comp));
+  }
+})();
+</script>
+</body>
+</html>`;
+  }
+
+  // 3. Standalone SVG preview
   if (svgFile) {
     return `<!DOCTYPE html>
 <html>
