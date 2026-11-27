@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
 import { cn } from "@/lib/cn";
 import { getBuiltInTheme, mediaThemesForDevice } from "@/lib/theme/palettes";
-import { useThemeAudio } from "@/lib/theme/use-theme-audio";
+import { useMuffleThemeAudio, useThemeAudio } from "@/lib/theme/use-theme-audio";
 
 const QUICK_CLASSIC = [
   { id: "proxima", label: "Default", hint: "Quiet dark" },
@@ -270,6 +270,7 @@ export function ThemeMenuContent({
 export function ThemeMenu({ syncAccount = true }: { syncAccount?: boolean }) {
   const { theme } = useTheme();
   const [open, setOpen] = useState(false);
+  useMuffleThemeAudio(open, "theme-menu");
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
