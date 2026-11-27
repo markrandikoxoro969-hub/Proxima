@@ -5,7 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence, m } from "motion/react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ConversationState } from "@/lib/chat/client/chat-state";
-import type { GeneratedFile } from "@/lib/chat/client/code-bundle";
+import { mergeGeneratedFilesFromHistory, type GeneratedFile } from "@/lib/chat/client/code-bundle";
 import { MessageItem } from "./message-item";
 
 const BOTTOM_THRESHOLD = 96; // px from the bottom that still counts as "at the bottom"
@@ -158,6 +158,10 @@ export function MessageList({
           {virtualizer.getVirtualItems().map((item) => {
             const message = messages[item.index];
             if (!message) return null;
+            const mergedFiles =
+              message.role === "assistant" && !message.status && message.content.includes("```")
+                ? mergeGeneratedFilesFromHistory(messages, item.index)
+                : undefined;
             return (
               <div
                 key={item.key}
@@ -169,6 +173,7 @@ export function MessageList({
                 <div className="mx-auto w-full max-w-3xl">
                   <MessageItem
                     message={message}
+                    projectFiles={mergedFiles}
                     onRetry={onRetry}
                     onApproveStep={onApproveStep}
                     canRetry={canRetry}

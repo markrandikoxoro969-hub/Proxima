@@ -9,6 +9,7 @@ import {
   formatCodingTree,
   generateCodingFile,
   isExplicitCodeBuildRequest,
+  isFollowUpSingleFileEdit,
   isMultiFileCodingRequest,
   planCodingTask,
   readCodingTaskProgress,
@@ -408,7 +409,8 @@ export const POST = withApi(async (request: Request) => {
       let codingProgress = resumeCodingProgress;
       let agentCheckpoint = resumeAgentCheckpoint;
       const directSlashCommand = !resumedAssistant ? parseSlashCommand(input.message) : null;
-      const codeBuildIntent = isExplicitCodeBuildRequest(input.message);
+      const codeBuildIntent =
+        isExplicitCodeBuildRequest(input.message) && !isFollowUpSingleFileEdit(input.message, history);
       const fileByFile = Boolean(
         !directSlashCommand &&
           !resumeAgentCheckpoint &&

@@ -76,6 +76,24 @@ export function isExplicitCodeBuildRequest(message: string): boolean {
   return hasAction && hasCodeArtifact;
 }
 
+/**
+ * Returns true when conversation history already has generated code and the user
+ * asks for a targeted edit/fix/tweak rather than scaffolding a brand-new multi-file
+ * project. Skipping the extra JSON planning round-trip lets edited code stream
+ * immediately in one smooth continuous pass while Sandbox merges it with prior files.
+ */
+export function isFollowUpSingleFileEdit(
+  message: string,
+  history: readonly { role?: string; content: string }[],
+): boolean {
+  if (isMultiFileCodingRequest(message)) return false;
+  const hasPriorCode = history.some((turn) => turn.content.includes("```"));
+  if (!hasPriorCode) return false;
+  return /\b(?:edit|update|modify|change|fix|tweak|adjust|refactor|improve|add\s+to|replace\s+in)\b/i.test(
+    message.trim(),
+  );
+}
+
 export function parseCodingPlan(text: string): CodingFilePlan[] {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
@@ -256,10 +274,11 @@ export async function generateCodingFile(
           message: [prompt, repairPrompt].filter(Boolean).join("\n\n"),
         },
         (text) => {
-          if (!onDraft || Date.now() - lastDraftAt < 75) return;
+          const now = Date.now();
+          if (!onDraft || (lastDraftAt !== 0 && now - lastDraftAt < 28)) return;
           const preview = draftSource(text);
           if (preview) {
-            lastDraftAt = Date.now();
+            lastDraftAt = now;
             if (preview !== lastDraft) {
               lastDraft = preview;
               onDraft(preview);

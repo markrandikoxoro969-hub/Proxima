@@ -188,6 +188,69 @@ export function extractGeneratedFiles(markdown: string): GeneratedFile[] {
   return files;
 }
 
+const DEFAULT_FALLBACK_BASENAMES = new Set(Object.values(DEFAULT_BASENAME_BY_EXT));
+
+function extOf(path: string): string {
+  const dot = path.lastIndexOf(".");
+  return dot >= 0 ? path.slice(dot + 1).toLowerCase() : "";
+}
+
+/**
+ * Merges generated code files across the conversation up through `targetIndex`.
+ *
+ * When a user builds a multi-file website (e.g. `index.html`, `styles.css`, `app.js`)
+ * in Turn 1 and asks "edit js file" in Turn 2, Turn 2 only emits the updated JS file.
+ * Merging preserves the full runnable project (`index.html` + `styles.css` + updated JS)
+ * so Sandbox and Download .zip execute the entire updated website cleanly.
+ *
+ * Returns `[]` if the target message itself did not emit any code files.
+ */
+export function mergeGeneratedFilesFromHistory(
+  messages: readonly { role: string; content: string }[],
+  targetIndex: number,
+): GeneratedFile[] {
+  const target = messages[targetIndex];
+  if (!target || target.role !== "assistant" || !target.content.includes("```")) return [];
+
+  const targetFiles = extractGeneratedFiles(target.content);
+  if (targetFiles.length === 0) return [];
+
+  const merged = new Map<string, GeneratedFile>();
+
+  const applyFiles = (incoming: readonly GeneratedFile[]) => {
+    for (const file of incoming) {
+      if (merged.has(file.path)) {
+        merged.set(file.path, file);
+        continue;
+      }
+      // If a follow-up edit emitted an unnamed block that fell back to a default
+      // filename (e.g. `script.js` or `styles.css`) and the existing project already
+      // has a single file with that same extension (e.g. `app.js`), update it in-place
+      // so `<script src="app.js">` in `index.html` runs the edited code immediately.
+      const base = file.path.split("/").pop() ?? file.path;
+      if (DEFAULT_FALLBACK_BASENAMES.has(base)) {
+        const ext = extOf(file.path);
+        const sameExt = Array.from(merged.values()).filter((existing) => extOf(existing.path) === ext);
+        if (sameExt.length === 1) {
+          const existing = sameExt[0]!;
+          merged.set(existing.path, { ...file, path: existing.path });
+          continue;
+        }
+      }
+      merged.set(file.path, file);
+    }
+  };
+
+  for (let i = 0; i <= targetIndex; i += 1) {
+    const msg = messages[i];
+    if (!msg || msg.role !== "assistant" || !msg.content.includes("```")) continue;
+    const files = i === targetIndex ? targetFiles : extractGeneratedFiles(msg.content);
+    if (files.length > 0) applyFiles(files);
+  }
+
+  return Array.from(merged.values());
+}
+
 export const STARTER_SANDBOX_FILES: GeneratedFile[] = [
   {
     path: "index.html",

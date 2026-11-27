@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildSandboxDocument, extractGeneratedFiles, sanitizeFilePath } from "./code-bundle";
+import {
+  buildSandboxDocument,
+  extractGeneratedFiles,
+  mergeGeneratedFilesFromHistory,
+  sanitizeFilePath,
+} from "./code-bundle";
 import { buildZipArchive, crc32 } from "./zip";
 
 describe("sanitizeFilePath", () => {
@@ -105,5 +110,44 @@ describe("buildZipArchive", () => {
     expect(ascii).toContain("src/index.ts");
     expect(ascii).toContain("public/index.html");
     expect(ascii).not.toContain("blocked.txt");
+  });
+});
+
+describe("mergeGeneratedFilesFromHistory", () => {
+  it("merges an edited JS file back into the earlier multi-file website so Sandbox runs the complete site", () => {
+    const messages = [
+      { role: "user", content: "make a website" },
+      {
+        role: "assistant",
+        content: [
+          "### `index.html`",
+          "```html",
+          '<!DOCTYPE html><html><head><link rel="stylesheet" href="styles.css"></head><body><button id="btn">Click</button><script src="app.js"></script></body></html>',
+          "```",
+          "### `styles.css`",
+          "```css",
+          "body { background: black; }",
+          "```",
+          "### `app.js`",
+          "```js",
+          'console.log("v1");',
+          "```",
+        ].join("\n"),
+      },
+      { role: "user", content: "edit js file to log v2" },
+      {
+        role: "assistant",
+        content: "Updated the JS:\n```js\nconsole.log('v2');\n```",
+      },
+      { role: "assistant", content: "Sure, let me know if you need more tweaks!" },
+    ];
+
+    const merged = mergeGeneratedFilesFromHistory(messages, 3);
+    expect(merged.map((f) => f.path)).toEqual(["index.html", "styles.css", "app.js"]);
+    expect(merged.find((f) => f.path === "app.js")?.content).toContain("v2");
+    expect(buildSandboxDocument(merged, "index.html")).toContain("console.log('v2')");
+
+    // Non-code replies still do not trigger Sandbox
+    expect(mergeGeneratedFilesFromHistory(messages, 4)).toEqual([]);
   });
 });

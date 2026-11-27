@@ -15,11 +15,12 @@ import {
   Play,
   SpeakerHigh,
   TerminalWindow,
+  TextAlignLeft,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import dynamic from "next/dynamic";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { MODE_CONFIG } from "@/lib/ai/modes";
 import type { UiMessage } from "@/lib/chat/client/chat-state";
 import { extractGeneratedFiles, type GeneratedFile } from "@/lib/chat/client/code-bundle";
@@ -37,6 +38,7 @@ const Markdown = dynamic(() => import("./markdown"), {
 
 export const MessageItem = memo(function MessageItem({
   message,
+  projectFiles,
   onRetry,
   onApproveStep,
   canRetry,
@@ -46,6 +48,8 @@ export const MessageItem = memo(function MessageItem({
   onOpenSandbox,
 }: {
   message: UiMessage;
+  /** Cumulative generated project files merged from earlier turns + this reply. */
+  projectFiles?: GeneratedFile[];
   onRetry: (id: string) => void;
   onApproveStep?: (id: string) => void;
   canRetry: boolean;
@@ -60,6 +64,7 @@ export const MessageItem = memo(function MessageItem({
   ) : (
     <AssistantMessage
       message={message}
+      projectFiles={projectFiles}
       onRetry={onRetry}
       onApproveStep={onApproveStep}
       canRetry={canRetry}
@@ -135,6 +140,7 @@ function UserMessage({ message }: { message: UiMessage }) {
 
 function AssistantMessage({
   message,
+  projectFiles,
   onRetry,
   onApproveStep,
   canRetry,
@@ -144,6 +150,7 @@ function AssistantMessage({
   onOpenSandbox,
 }: {
   message: UiMessage;
+  projectFiles?: GeneratedFile[];
   onRetry: (id: string) => void;
   onApproveStep?: (id: string) => void;
   canRetry: boolean;
@@ -160,10 +167,11 @@ function AssistantMessage({
   // A reply that ends inside a fence was cut off. Offer the one action that
   // actually helps, instead of leaving half a file on screen.
   const cutOffCode = done && hasUnclosedCodeFence(message.content);
-  const generatedFiles = useMemo(
-    () => (done ? extractGeneratedFiles(message.content) : []),
-    [done, message.content],
-  );
+  const generatedFiles = useMemo(() => {
+    if (!done) return [];
+    if (projectFiles && projectFiles.length > 0) return projectFiles;
+    return extractGeneratedFiles(message.content);
+  }, [done, message.content, projectFiles]);
 
   const downloadZip = async () => {
     if (!generatedFiles.length || zipping) return;
@@ -215,14 +223,7 @@ function AssistantMessage({
         )}
 
         {streaming && message.filePreview && (
-          <section aria-label={`Draft of ${message.filePreview.path}`} className="mt-4">
-            <p className="text-sm text-muted">
-              Writing <code>{message.filePreview.path}</code> — draft, not saved yet
-            </p>
-            <pre className="mt-2 max-h-96 overflow-auto rounded-2xl border border-line bg-surface-hover p-4 text-sm">
-              <code>{message.filePreview.text}</code>
-            </pre>
-          </section>
+          <LiveCodeDraftCard path={message.filePreview.path} text={message.filePreview.text} />
         )}
 
         {streaming && message.content && message.statusMessage && (
@@ -558,6 +559,70 @@ function Thinking({
         <p className="max-w-md text-xs text-subtle">{message}</p>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Sleek live-streaming code draft card matching CodeBlock aesthetics, with
+ * automatic mobile line wrapping, one-tap Wrap toggle, and smooth auto-scroll
+ * so multi-file coding flows continuously instead of jumping in bursts.
+ */
+function LiveCodeDraftCard({ path, text }: { path: string; text: string }) {
+  const preRef = useRef<HTMLPreElement>(null);
+  const [wrapped, setWrapped] = useState<boolean>(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 639px)").matches : false,
+  );
+
+  useEffect(() => {
+    const el = preRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [text]);
+
+  return (
+    <m.section
+      aria-label={`Draft of ${path}`}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: EASE }}
+      className="code-block my-4 overflow-hidden rounded-2xl border border-line bg-surface-hover/65 backdrop-blur-md"
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-line bg-surface-hover py-1.5 pr-1.5 pl-3.5 sm:pl-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="relative flex size-2 shrink-0" aria-hidden>
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400/75" />
+            <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+          </span>
+          <span className="truncate font-mono text-[11px] font-bold text-fg">
+            Writing {path}
+            <span className="ml-1.5 font-sans font-semibold text-subtle">· draft, not saved yet</span>
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setWrapped((prev) => !prev)}
+          aria-pressed={wrapped}
+          aria-label={wrapped ? "Disable code line wrap" : "Wrap code lines"}
+          className={cn(
+            "inline-flex h-8 shrink-0 items-center gap-1 rounded-lg px-2.5 text-xs font-bold transition-colors",
+            wrapped ? "bg-surface text-fg" : "text-muted hover:text-fg",
+          )}
+        >
+          <TextAlignLeft weight="bold" className="size-3.5" aria-hidden />
+          <span>{wrapped ? "Wrapped" : "Wrap"}</span>
+        </button>
+      </div>
+      <pre
+        ref={preRef}
+        className={cn(
+          "max-h-96 overflow-y-auto p-3.5 text-[12.5px] leading-relaxed sm:p-4 sm:text-[13px]",
+          wrapped ? "overflow-x-hidden whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre",
+        )}
+        data-lenis-prevent
+      >
+        <code>{text}</code>
+        <span className="stream-caret" aria-hidden />
+      </pre>
+    </m.section>
   );
 }
 
