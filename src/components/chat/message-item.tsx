@@ -193,13 +193,16 @@ function AssistantMessage({
         <Planet weight="fill" className="size-4.5" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="mb-1 flex min-w-0 items-center gap-2 text-[11px] font-extrabold tracking-[0.22em] text-subtle uppercase" style={{ fontFamily: "var(--font-chat), ui-sans-serif, system-ui, sans-serif" }}>
-          <span className="shrink-0 font-black">Proxima</span>
+        <p
+          className="mb-1 flex min-w-0 items-center gap-2 text-[11px] font-bold tracking-[0.22em] text-subtle uppercase"
+          style={{ fontFamily: "var(--font-google-sans), 'Google Sans', 'Google Sans Text', sans-serif" }}
+        >
+          <span className="shrink-0 font-bold">Proxima</span>
           <span className="sr-only">{message.status === "error" ? " error:" : " replied:"}</span>
           {message.mode && message.mode !== "thinking" && message.status !== "error" && (
             // Nowrap + shrink-0: on a narrow phone a squeezed badge used to
             // wrap "Analyze" one letter per line.
-            <span className="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[9.5px] font-extrabold tracking-[0.16em] whitespace-nowrap text-muted">
+            <span className="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.16em] whitespace-nowrap text-muted">
               {MODE_CONFIG[message.mode].label}
             </span>
           )}
