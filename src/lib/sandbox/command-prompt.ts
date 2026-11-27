@@ -1304,6 +1304,43 @@ export async function executeCommandLine(
     return { stdout: "", stderr: "", exitCode: 0, state, filesChanged: false };
   }
 
+  // Handle single-command heredocs cleanly: `cat > file << 'EOF'\n...\nEOF` (or `>>`).
+  const heredocMatch = trimmed.match(
+    /^cat\s+(?:(>>?)\s*(\S+)\s+<<-?\s*['"]?([A-Za-z0-9_]+)['"]?|<<-?\s*['"]?([A-Za-z0-9_]+)['"]?\s+(>>?)\s*(\S+))\s*\r?\n([\s\S]*?)(?:\r?\n\3|\r?\n\4)?\s*$/,
+  );
+  if (heredocMatch) {
+    const mode = (heredocMatch[1] ?? heredocMatch[5]) as ">" | ">>";
+    const rawTarget = heredocMatch[2] ?? heredocMatch[6] ?? "";
+    const body = heredocMatch[7] ?? "";
+    const resolved = resolveWorkspacePath(state.cwd, rawTarget);
+    if (!resolved) {
+      return {
+        stdout: "",
+        stderr: `proxima-sh: ${rawTarget}: invalid path`,
+        exitCode: 1,
+        state,
+        filesChanged: false,
+      };
+    }
+    const existing = state.files.find((f) => f.path === resolved);
+    const nextContent =
+      mode === ">>" && existing
+        ? `${existing.content}${existing.content.endsWith("\n") || !existing.content ? "" : "\n"}${body}`
+        : body;
+    if (existing) {
+      existing.content = nextContent;
+    } else {
+      state.files.push({ path: resolved, language: inferLang(resolved), content: nextContent });
+    }
+    return {
+      stdout: `Wrote ${nextContent.length} bytes to ${resolved}`,
+      stderr: "",
+      exitCode: 0,
+      state,
+      filesChanged: true,
+    };
+  }
+
   const chained = splitChainedCommands(trimmed);
   const stdouts: string[] = [];
   const stderrs: string[] = [];

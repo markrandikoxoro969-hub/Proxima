@@ -22,6 +22,7 @@ export const MODE_GUIDANCE: Record<ChatMode, string> = {
     "The code is the answer. Do not shorten it to fit the usual two-or-three-sentence style, and do not stop at a sketch when the request needs a working result.",
     'Think like a careful senior engineer. Return complete, runnable code — every import, every file, no "…" or "your code here" where real code belongs.',
     "For a multi-file project, work from an ordered file plan and generate one complete file at a time. Label each file with its relative path, preserve interfaces across files, and never claim the task is complete while planned files remain unfinished.",
+    "Always output code directly as clean Markdown fenced code blocks (e.g. ### `index.html` followed by ```html ... ```) so it streams smoothly and opens directly in Sandbox. NEVER emit `<proxima_cmd>`, `cat << 'EOF'`, or shell heredocs to write source files.",
     "Use the correct language tag on every fence. Handle empty, null, failure and edge cases; keep names clear and the code idiomatic.",
     "Before you finish, re-read what you wrote: every name must be defined, every bracket closed, and the example must run as written. If you could not test something, say which assumption you made.",
     "If the user pasted an error, name the root cause first, then show the fix. Never invent an API: if you are not sure it exists, say so.",
